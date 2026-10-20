@@ -64,3 +64,25 @@ describe('run exports', () => {
     ).toThrow();
   });
 });
+
+it('round-trips a live interview through JSON optional fields', () => {
+  let state = newGame(1);
+  const inputs: LoggedInput[] = [];
+  const interview = { type: 'interview', candidate: 'sevda' } as const;
+  inputs.push({ at: view(state).now, input: interview });
+  state = apply(state, interview);
+  const run = exportRun(state, inputs);
+  const imported = verifyImport(JSON.stringify(run));
+  expect(fingerprint(imported.state)).toBe(run.fingerprint);
+  const changed = JSON.parse(JSON.stringify(run));
+  changed.state.scene.lines[0].text = 'Changed testimony';
+  expect(() => verifyImport(JSON.stringify(changed))).toThrow();
+});
+
+it('imports named waiting as a replayable input', () => {
+  let state = newGame(1);
+  const inputs: LoggedInput[] = [{ at: view(state).now, input: { type: 'wait-for' } }];
+  state = apply(state, { type: 'wait-for' });
+  const run = compactRun(exportRun(state, inputs));
+  expect(verifyImport(JSON.stringify(run)).inputs).toEqual(inputs);
+});

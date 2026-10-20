@@ -3,8 +3,8 @@
  * Start (keeps running): node scripts/browser-drive.ts start 4310
  * Vite serves 4310; driver listens on 4311. Separate instances use separate port pairs.
  * Commands: node scripts/browser-drive.ts 4310 text
- *   ... 4310 shot opening | tap 'New month' | wait 5 | export scratch/run.json | quit
- * Omit the port for commands to use 4310. Screenshots: scratch/shots/<port>/<name>.png.
+ *   ... 4310 shot opening | tap 'New month' | speed Gallop | wait 5 | export scratch/run.json | quit
+ * Omit the port for commands to use 4310. Screenshots: scratch/shots-p1/<port>/<name>.png.
  */
 import { mkdirSync } from 'node:fs';
 import { createServer } from 'node:http';
@@ -89,7 +89,7 @@ async function run(page: Page, port: number, command: string, args: string[]): P
     const name = args.join(' ') || 'screen';
     if (!/^[\w-]+$/.test(name))
       throw new Error('Screenshot name may contain letters, numbers, underscores and hyphens.');
-    const path = resolve(`scratch/shots/${port}/${name}.png`);
+    const path = resolve(`scratch/shots-p1/${port}/${name}.png`);
     mkdirSync(dirname(path), { recursive: true });
     await page.screenshot({ path });
     return path;
@@ -102,6 +102,13 @@ async function run(page: Page, port: number, command: string, args: string[]): P
     const target = (await button.count()) ? button : link;
     if ((await target.count()) !== 1) throw new Error(`Expected one visible action named "${label}".`);
     await target.click({ timeout: 3000 });
+    return page.locator('body').innerText();
+  }
+  if (command === 'speed') {
+    const name = args.join(' ');
+    if (!['Slow', 'Walk', 'Trot', 'Gallop'].includes(name))
+      throw new Error('Speed must be Slow, Walk, Trot or Gallop.');
+    await page.getByRole('combobox', { name: 'Clock speed', exact: true }).selectOption({ label: name });
     return page.locator('body').innerText();
   }
   if (command === 'wait') {
@@ -125,5 +132,5 @@ async function run(page: Page, port: number, command: string, args: string[]): P
     if (await close.isVisible()) await close.click();
     return `Saved ${path}`;
   }
-  throw new Error(`Unknown command ${command}. Use text, shot, tap, wait, export, quit.`);
+  throw new Error(`Unknown command ${command}. Use text, shot, tap, speed, wait, export, quit.`);
 }

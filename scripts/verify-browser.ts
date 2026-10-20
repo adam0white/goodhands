@@ -5,25 +5,49 @@ import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { performance } from 'node:perf_hooks';
 import { chromium, type Locator } from 'playwright-core';
 import { preview } from 'vite';
-import { fingerprint } from '../src/sim/index.ts';
-import { compactRun, type RunExport, verifyImport } from '../src/ui/export.ts';
+import {
+  advance,
+  apply,
+  fingerprint,
+  type Input,
+  type LoggedInput,
+  newGame,
+  type State,
+  view,
+} from '../src/sim/index.ts';
+import { compactRun, exportRun, type RunExport, verifyImport } from '../src/ui/export.ts';
+
+function required<T>(value: T | null | undefined): T {
+  assert.ok(value !== null && value !== undefined, 'Required fixture value exists');
+  return value;
+}
 
 const started = performance.now();
 const port = Number(process.argv[2] ?? 4410);
-execFileSync(process.execPath, ['scripts/stamp-release.ts'], { stdio: 'inherit' });
 execFileSync(process.execPath, ['node_modules/vite/bin/vite.js', 'build'], { stdio: 'inherit' });
 const server = await preview({ preview: { host: '127.0.0.1', port, strictPort: true } });
 const browser = await chromium.launch({ channel: 'chromium-headless-shell' });
-const shots = 'scratch/shots';
-mkdirSync(shots, { recursive: true });
+const shots = 'scratch/shots-p1';
+mkdirSync(`${shots}/${port}`, { recursive: true });
 try {
   const page = await browser.newPage({
     viewport: { width: 360, height: 690 },
     isMobile: true,
     hasTouch: true,
   });
+  await page.addInitScript(() => {
+    document.addEventListener('DOMContentLoaded', () => {
+      new MutationObserver(() => {
+        if (document.querySelectorAll('dialog.sheet').length > 1)
+          throw new Error('More than one dialog sheet opened');
+      }).observe(document.body, { childList: true, subtree: true });
+    });
+  });
   const errors: string[] = [];
-  page.on('pageerror', (error) => errors.push(error.message));
+  page.on('pageerror', (error) => {
+    errors.push(error.message);
+    console.error(`Browser error: ${error.message}`);
+  });
   const bounds: Record<string, unknown> = {};
   const fits = async (label: string, locator: Locator, touch = false) => {
     assert.ok(await locator.count(), `${label} exists`);
@@ -52,6 +76,28 @@ try {
       );
     bounds[label] = boxes;
   };
+  const newestSpeechFitsTranscript = async (label: string) => {
+    const geometry = await page
+      .locator('.exchange p.speech')
+      .last()
+      .evaluate((element) => {
+        const speech = element.getBoundingClientRect();
+        const transcript = element.closest('.exchange')?.getBoundingClientRect();
+        return {
+          top: speech.top,
+          bottom: speech.bottom,
+          parentTop: transcript?.top,
+          parentBottom: transcript?.bottom,
+        };
+      });
+    assert.ok(
+      geometry.parentTop !== undefined &&
+        geometry.parentBottom !== undefined &&
+        geometry.top >= geometry.parentTop &&
+        geometry.bottom <= geometry.parentBottom,
+      `${label} newest speech is fully visible inside transcript: ${JSON.stringify(geometry)}`,
+    );
+  };
   const open = async () => {
     await page.goto(`http://127.0.0.1:${port}/`);
     await page.getByRole('button', { name: 'New month', exact: true }).click();
@@ -61,6 +107,73 @@ try {
       page.evaluate(() => document.fonts.ready.then(() => undefined)),
       new Promise<void>((resolve) => setTimeout(resolve, 4000)),
     ]);
+  };
+  // Later-screen fixtures are real input histories, replay-checked and imported through the UI.
+  // The live opening above and clock checks below never use browser clock mocking.
+  const importState = async (state: State, inputs: LoggedInput[]) => {
+    const run = exportRun(state, inputs);
+    verifyImport(JSON.stringify(compactRun(run)));
+    await page.getByRole('button', { name: 'Game menu', exact: true }).click();
+    const chooser = page.waitForEvent('filechooser');
+    await page.getByRole('button', { name: 'Import a run', exact: true }).click();
+    await (await chooser).setFiles({
+      name: 'acceptance-run.json',
+      mimeType: 'application/json',
+      buffer: Buffer.from(JSON.stringify(compactRun(run))),
+    });
+    await page.getByTestId('office').waitFor();
+    await page.waitForFunction(
+      () => !document.querySelector('dialog.sheet') || !!document.querySelector('.sheet-status')?.textContent,
+    );
+    const importError = await page
+      .locator('.sheet-status')
+      .evaluateAll((elements) => elements[0]?.textContent ?? null);
+    assert.ok(!importError, importError ?? 'Import succeeded');
+    assert.equal(await page.locator('dialog.sheet').count(), 0, 'Import closes its menu sheet');
+  };
+  const scenario = () => {
+    let state = newGame(1);
+    const inputs: LoggedInput[] = [];
+    return {
+      get state() {
+        return state;
+      },
+      inputs,
+      send(input: Input) {
+        inputs.push({ at: view(state).now, input });
+        state = apply(state, input);
+      },
+      until(at: number, preserveTwoSides = false) {
+        while (view(state).now < at) {
+          const current = view(state);
+          assert.ok(!current.ended, 'Fixture month remains open');
+          if (current.dayCard && Math.floor(at / 1440) > Math.floor(current.now / 1440)) {
+            this.send({ type: 'sleep' });
+            continue;
+          }
+          if (current.scene && !(preserveTwoSides && current.scene.kind === 'two-sides')) {
+            if (current.scene.canLeave) this.close();
+            else {
+              const choice = current.scene.choices.find((choice) => !choice.disabled);
+              assert.ok(choice, 'Interrupted scene offers a response');
+              this.send({ type: 'choose', scene: current.scene.id, choice: choice.id });
+            }
+            continue;
+          }
+          if (current.phoneRinging && !current.scene) {
+            this.send({ type: 'answer-phone' });
+            continue;
+          }
+          state = advance(state, Math.max(0, at - current.now));
+          assert.ok(view(state).now > current.now, 'Fixture clock advances');
+        }
+        assert.equal(view(state).now, at, 'Fixture reaches its named screenshot time');
+      },
+      close() {
+        const scene = view(state).scene;
+        if (scene) this.send({ type: 'close-scene', scene: scene.id });
+      },
+    };
   };
   await open();
   await fits('Task', page.getByTestId('task'));
@@ -80,13 +193,23 @@ try {
   await fits('scene Task', page.getByTestId('task'));
   await fits('scene bench', page.getByTestId('bench'));
   await page.screenshot({ path: `${shots}/02-interview.png` });
-  await page.getByTestId('scene-choice').first().click();
+  for (let answer = 0; answer < 3; answer++) {
+    await page.getByTestId('scene-choice').filter({ hasNotText: 'Coach her' }).first().click();
+  }
+  assert.equal(await page.getByText('Earlier words', { exact: true }).count(), 0);
+  const transcript = page.locator('.exchange');
+  assert.ok((await transcript.locator('p').count()) >= 4, 'Three answers keep the full transcript');
+  await fits('newest interview line', transcript.locator('p').last());
+  await fits('newest interview speech', transcript.locator('p.speech').last());
+  await newestSpeechFitsTranscript('Interview');
+  await page.getByRole('button', { name: 'Task', exact: true }).click({ trial: true });
   await fits('answer scene', page.getByTestId('scene'));
   await fits('all answer controls', page.getByTestId('scene').getByRole('button'), true);
   await fits('answer choices', page.getByTestId('scene-choice'), true);
   await fits('answer Task', page.getByTestId('task'));
   await fits('answer bench', page.getByTestId('bench'));
-  await page.screenshot({ path: `${shots}/03-answer.png` });
+  await page.screenshot({ path: `${shots}/03-three-answers.png` });
+  assert.equal(await page.evaluate(() => scrollY), 0, 'Interview needs no page scroll');
   assert.ok(
     await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth),
     'No horizontal overflow',
@@ -94,8 +217,13 @@ try {
   await page.getByRole('button', { name: 'Game menu', exact: true }).click();
   const downloadEvent = page.waitForEvent('download');
   await page.getByRole('button', { name: 'Download this run', exact: true }).click();
-  await (await downloadEvent).saveAs(`${shots}/downloaded-run.json`);
-  const run = JSON.parse(readFileSync(`${shots}/downloaded-run.json`, 'utf8')) as RunExport;
+  await (await downloadEvent).saveAs(`${shots}/${port}/downloaded-run.json`);
+  const run = JSON.parse(readFileSync(`${shots}/${port}/downloaded-run.json`, 'utf8')) as RunExport;
+  const interviewScene = required(view(verifyImport(JSON.stringify(run)).state).scene);
+  const interviewWords = await transcript.textContent();
+  assert.equal(interviewScene.kind, 'interview');
+  for (const line of interviewScene.lines)
+    assert.ok(interviewWords?.includes(line.text), `Interview preserves: ${line.text}`);
   for (const exported of [run, compactRun(run)]) {
     const imported = verifyImport(JSON.stringify(exported));
     assert.equal(fingerprint(imported.state), run.fingerprint, 'Downloaded and compact runs replay');
@@ -121,13 +249,296 @@ try {
   await page.evaluate(() => {
     document.documentElement.style.fontSize = '17px';
   });
+  await page.setViewportSize({ width: 360, height: 690 });
+  const liveClock = scenario();
+  liveClock.send({ type: 'speed', speed: 3 });
+  liveClock.send({ type: 'interview', candidate: 'sevda' });
+  await importState(liveClock.state, liveClock.inputs);
+  assert.equal(await page.getByRole('combobox', { name: 'Clock speed' }).inputValue(), '3');
+  const minuteOfDay = async () => {
+    const [hours, minutes] = (await page.locator('[data-time]').innerText()).split(':').map(Number);
+    return required(hours) * 60 + required(minutes);
+  };
+  const slowStart = await minuteOfDay();
+  await page.waitForTimeout(2400);
+  const slowElapsed = (await minuteOfDay()) - slowStart;
+  assert.ok(slowElapsed >= 1 && slowElapsed <= 3, `Scene holds real clock slow: ${slowElapsed} minutes`);
+  assert.match(await page.locator('[data-speed]').innerText(), /held slow.*Gallop/);
+  await page.screenshot({ path: `${shots}/clock-slow-scene.png` });
+  await page.getByRole('button', { name: 'Finish the interview', exact: true }).click();
+  const resumedStart = await minuteOfDay();
+  await page.waitForTimeout(1100);
+  const resumedElapsed = (await minuteOfDay()) - resumedStart;
+  assert.ok(
+    resumedElapsed >= 15 && resumedElapsed <= 30,
+    `Chosen Gallop resumes after scene: ${resumedElapsed} minutes`,
+  );
+  assert.match(await page.locator('[data-speed]').innerText(), /Gallop.*clock moving/);
+  await page.screenshot({ path: `${shots}/clock-resumed.png` });
+
+  const coaching = scenario();
+  coaching.send({ type: 'interview', candidate: 'sevda' });
+  coaching.send({ type: 'choose', scene: required(view(coaching.state).scene).id, choice: 'q-reliable' });
+  const coach = required(
+    required(view(coaching.state).scene).choices.find((choice) => choice.id === 'coach'),
+  );
+  await importState(coaching.state, coaching.inputs);
+  assert.equal(
+    await page.locator('[data-choice="coach"]').count(),
+    1,
+    'Contextual coaching stays visible beside interview questions',
+  );
+  assert.ok(
+    (await page.locator('[data-choice="coach"]').innerText()).includes(coach.label),
+    'Coaching keeps the authored promise',
+  );
+  await newestSpeechFitsTranscript('Contextual coaching');
+  await fits('contextual coaching choices', page.getByTestId('scene-choice'), true);
+  await fits('contextual coaching Task', page.getByTestId('task'));
+  await fits('contextual coaching bench', page.getByTestId('bench'));
+  assert.equal(await page.evaluate(() => scrollY), 0, 'Contextual coaching needs no page scroll');
+  await page.screenshot({ path: `${shots}/03-contextual-coaching.png` });
+
+  const reference = scenario();
+  reference.send({ type: 'interview', candidate: 'sevda' });
+  const firstQuestion = required(
+    required(view(reference.state).scene).choices.find((choice) => choice.id === 'hours'),
+  );
+  reference.send({
+    type: 'choose',
+    scene: required(view(reference.state).scene).id,
+    choice: firstQuestion.id,
+  });
+  reference.close();
+  const referee = required(
+    required([...view(reference.state).bench, ...view(reference.state).books].find((c) => c.id === 'sevda'))
+      .referees[0],
+  );
+  reference.until(540);
+  reference.send({ type: 'call-reference', candidate: 'sevda', referee: referee.id });
+  const referenceCall = required(view(reference.state).scene);
+  reference.send({ type: 'choose', scene: referenceCall.id, choice: 'ref-patient' });
+  const referenceScene = required(view(reference.state).scene);
+  assert.equal(referenceScene.kind, 'reference');
+  await importState(reference.state, reference.inputs);
+  const referenceTranscript = await page.locator('.exchange').innerText();
+  for (const line of referenceScene.lines)
+    assert.ok(referenceTranscript.includes(line.text), `Reference preserves: ${line.text}`);
+  assert.equal(await page.getByText('Earlier words', { exact: true }).count(), 0);
+  await fits('reference choices', page.getByTestId('scene-choice'), true);
+  await fits('reference Task', page.getByTestId('task'));
+  await fits('reference bench', page.getByTestId('bench'));
+  assert.equal(await page.evaluate(() => scrollY), 0, 'Reference needs no page scroll');
+  await fits('reference newest line', page.locator('[data-scene-line]').last());
+  await page.screenshot({ path: `${shots}/04-reference.png` });
+  reference.close();
+  await importState(reference.state, reference.inputs);
+  await page.getByRole('button', { name: 'Sevda', exact: true }).click();
+  const notes = page.locator('.notes-details');
+  if ((await notes.getAttribute('open')) === null) await notes.locator('summary').click();
+  assert.ok((await page.locator('.note-claim').count()) >= 1, 'Card quotes evidence claims');
+  assert.match(await page.locator('.card-notes').innerText(), /says|heard/);
+  assert.ok((await page.locator('.candidate-wants').count()) >= 1, 'Card shows worker needs');
+  await page.screenshot({ path: `${shots}/05-candidate-card.png`, fullPage: true });
+  await page.locator('[data-action="references"]').click();
+  assert.equal(await page.locator('dialog.sheet').count(), 1, 'One reference sheet');
+  await page.locator('dialog.sheet [data-referee]').first().click();
+  await page.getByTestId('scene').waitFor();
+  assert.equal(await page.locator('dialog.sheet').count(), 0, 'Reference sheet becomes the scene');
+  await page.locator('[data-choice="finish"]').click();
+  await page.locator('[data-action="place"]').click();
+  assert.equal(await page.locator('dialog.sheet').count(), 1, 'One matching sheet');
+  await page.getByRole('dialog').getByRole('button', { name: 'Back', exact: true }).click();
+  assert.equal(await page.locator('dialog.sheet').count(), 0, 'Matching sheet closes completely');
+
+  const contradiction = scenario();
+  contradiction.send({ type: 'interview', candidate: 'gul' });
+  contradiction.send({
+    type: 'choose',
+    scene: required(view(contradiction.state).scene).id,
+    choice: 'q-honest',
+  });
+  contradiction.close();
+  contradiction.until(840);
+  const gul = required(
+    [...view(contradiction.state).bench, ...view(contradiction.state).books].find((c) => c.id === 'gul'),
+  );
+  contradiction.send({ type: 'call-reference', candidate: 'gul', referee: required(gul.referees[0]).id });
+  contradiction.send({
+    type: 'choose',
+    scene: required(view(contradiction.state).scene).id,
+    choice: 'ref-honest',
+  });
+  contradiction.close();
+  const crossed = required(
+    required(
+      [...view(contradiction.state).bench, ...view(contradiction.state).books].find((c) => c.id === 'gul'),
+    ).notes.find((note) => note.crossedOut),
+  );
+  await importState(contradiction.state, contradiction.inputs);
+  await page.locator('[data-candidate="gul"]').first().click();
+  assert.ok(
+    (await page.locator('.note.crossed-out .note-claim').innerText()).includes(required(crossed.claim)),
+    'Contradicted claim stays readable on the card',
+  );
+  assert.match(await page.locator('.card-notes').innerText(), /Gül says.*says[\s\S]*Mrs Ak.*heard/);
+  await page.screenshot({ path: `${shots}/05-contradicted-claim.png`, fullPage: true });
+
+  // These later scenes retain the same real simulation, including its scheduled consequences.
+  const relationship = scenario();
+  relationship.send({ type: 'place', candidate: 'sevda', family: 'arslans', vouch: ['patient'] });
+  relationship.until(1440 + 1080, true);
+  while (view(relationship.state).phoneRinging && !view(relationship.state).scene) {
+    relationship.send({ type: 'answer-phone' });
+    const scene = required(view(relationship.state).scene);
+    if (scene.kind === 'two-sides') break;
+    relationship.close();
+  }
+  assert.equal(
+    view(relationship.state).scene?.kind,
+    'two-sides',
+    'Tuesday work disagreement has two accounts',
+  );
+  const twoSides = required(view(relationship.state).scene);
+  await importState(relationship.state, relationship.inputs);
+  const twoSidesText = await page.locator('.exchange').innerText();
+  for (const line of twoSides.lines)
+    assert.ok(twoSidesText.includes(line.text), `Two sides preserves: ${line.text}`);
+  for (const side of ['worker', 'family']) {
+    assert.ok((await page.locator(`.side-${side}`).count()) >= 1, `${side} account labelled`);
+  }
+  await newestSpeechFitsTranscript('Two sides');
+  await fits('two sides choices', page.getByTestId('scene-choice'), true);
+  await fits('two sides Task', page.getByTestId('task'));
+  await fits('two sides bench', page.getByTestId('bench'));
+  assert.equal(await page.evaluate(() => scrollY), 0, 'Two sides needs no page scroll');
+  await page.screenshot({ path: `${shots}/06-two-sides.png` });
+  await page.locator('.exchange').evaluate((element) => {
+    element.scrollTop = 0;
+  });
+  await page.screenshot({ path: `${shots}/06-two-sides-worker.png` });
+  await page.locator('.exchange').evaluate((element) => {
+    element.scrollTop = element.scrollHeight;
+  });
+
+  const settle = required(twoSides.choices.find((choice) => !choice.disabled && choice.id !== 'leave'));
+  relationship.send({ type: 'choose', scene: twoSides.id, choice: settle.id });
+  const settlement = view(relationship.state).scene;
+  if (settlement?.choices.some((choice) => choice.id === 'accept-condition')) {
+    relationship.send({ type: 'choose', scene: settlement.id, choice: 'accept-condition' });
+  }
+  relationship.close();
+  const placement = required(view(relationship.state).placements[0]);
+  assert.ok(
+    placement.arrangement && placement.pending,
+    'Agreement exposes arrangement and scheduled follow-up',
+  );
+  await importState(relationship.state, relationship.inputs);
+  await page.getByRole('button', { name: 'Placed', exact: true }).click();
+  assert.ok(
+    (await page.locator('.placement-arrangement').innerText()).includes(required(placement.arrangement)),
+  );
+  const pendingText = await page.locator('.placement-pending').innerText();
+  assert.ok(
+    pendingText.includes(required(placement.pending).dateLabel),
+    'Pending follow-up uses full English date',
+  );
+  assert.match(pendingText, /Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday/);
+  await page.screenshot({ path: `${shots}/07-placed.png` });
+
+  const waiting = scenario();
+  waiting.send({ type: 'place', candidate: 'sevda', family: 'arslans', vouch: ['patient'] });
+  waiting.until(1080);
+  waiting.send({ type: 'speed', speed: 0 });
+  const next = view(waiting.state).next;
+  assert.ok(next, 'Idle office names the next scheduled event');
+  const waitResult = view(apply(structuredClone(waiting.state), { type: 'wait-for' }));
+  assert.ok(waitResult.now <= next.at, 'Waiting stops at or before named event');
+  if (waitResult.now < next.at)
+    assert.ok(
+      waitResult.dayCard || waitResult.phoneRinging || waitResult.scene,
+      'Earlier wait stop offers a response',
+    );
+  await importState(waiting.state, waiting.inputs);
+  const waitButton = page.locator('[data-action="wait-for"]');
+  assert.ok(
+    (await waitButton.innerText()).includes(next.dateLabel),
+    'Wait control names the scheduled English date',
+  );
+  await fits('Wait for', waitButton, true);
+  const waitClockStart = await minuteOfDay();
+  await page.waitForTimeout(2200);
+  assert.ok((await minuteOfDay()) > waitClockStart, 'Idle slow clock advances in real time');
+  await waitButton.click();
+  assert.match(await page.locator('[data-speed]').innerText(), /Waiting for.*clock running fast/);
+  assert.ok(
+    await page.getByRole('combobox', { name: 'Clock speed' }).isDisabled(),
+    'Wait sweep disables clock selection',
+  );
+  await page.screenshot({ path: `${shots}/clock-wait-sweep.png` });
+  await page.waitForTimeout(1400);
+  const targetTime = `${String(Math.floor((waitResult.now % 1440) / 60)).padStart(2, '0')}:${String(Math.floor(waitResult.now % 60)).padStart(2, '0')}`;
+  await page.locator('[data-time]').filter({ hasText: targetTime }).waitFor();
+  assert.equal(
+    await page.getByRole('combobox', { name: 'Clock speed' }).inputValue(),
+    '0',
+    'Wait preserves chosen speed',
+  );
+  await page.screenshot({ path: `${shots}/clock-wait-for.png` });
+  const cityScenario = scenario();
+  cityScenario.send({ type: 'place', candidate: 'sevda', family: 'arslans', vouch: ['patient'] });
+  for (const [label, minute] of [
+    ['weekday-evening', 1100],
+    ['friday-afternoon', 4 * 1440 + 965],
+  ] as const) {
+    cityScenario.until(minute);
+    await importState(cityScenario.state, cityScenario.inputs);
+    await page.getByRole('button', { name: 'City', exact: true }).click();
+    const figures = page.getByTestId('city-figure');
+    assert.ok((await figures.count()) > 0, `${label} has interactive people`);
+    await figures.first().click();
+    const group = page.getByRole('dialog', { name: 'People here', exact: true });
+    if (await group.isVisible()) {
+      assert.equal(await page.locator('dialog.sheet').count(), 1, 'One city group sheet');
+      await group.getByRole('button', { name: 'Back', exact: true }).click();
+      assert.ok(
+        await page.evaluate(() => !!document.activeElement?.hasAttribute('data-city-group')),
+        'City Back restores group focus',
+      );
+      await page.locator('[data-city-group]:focus').click();
+      await group.locator('[data-city-figure]').first().click();
+      assert.equal(await page.locator('dialog.sheet').count(), 0, 'Choosing a city person closes the group');
+      assert.ok(
+        await page.evaluate(() => !!document.activeElement?.hasAttribute('data-city-group')),
+        'City selection restores group focus',
+      );
+    }
+    assert.ok((await page.locator('[data-city-person]').innerText()).trim(), 'City person has a description');
+    await fits(`${label} map`, page.locator('#city'));
+    await fits(`${label} selected person`, page.locator('[data-city-person]'));
+    assert.equal(await page.evaluate(() => scrollY), 0, `${label} city needs no page scroll`);
+    await page.screenshot({ path: `${shots}/city-${label}.png` });
+    await page.screenshot({ path: `${shots}/city-${label}-full.png`, fullPage: true });
+  }
   await page.emulateMedia({ colorScheme: 'dark' });
   await page.screenshot({ path: `${shots}/14-dark.png` });
   assert.deepEqual(errors, []);
   const seconds = Math.round((performance.now() - started) / 10) / 100;
   writeFileSync(
     `${shots}/acceptance.json`,
-    JSON.stringify({ viewport: [360, 690], realClock: true, seconds, bounds, errors }, null, 2),
+    JSON.stringify(
+      {
+        viewport: [360, 690],
+        realClock: true,
+        reviewerMode: 'Builder acceptance; source read',
+        laterScenes: 'Replay-checked simulation histories imported through the UI',
+        seconds,
+        bounds,
+        errors,
+      },
+      null,
+      2,
+    ),
   );
   console.log(`Phone acceptance passed in ${seconds}s. Evidence: ${shots}/`);
 } finally {

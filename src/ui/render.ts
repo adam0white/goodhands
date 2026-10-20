@@ -16,7 +16,7 @@ export function money(amount: number): string {
 }
 
 export function noteText(note: Note): string {
-  return `${note.quality} — ${note.phrase} · ${note.source}: ${note.from}`;
+  return `${note.quality} — ${note.phrase} · ${note.source}: ${note.from}${note.claim ? ` — ${note.claim}` : ''}`;
 }
 
 export function evidence(candidate: CandidateView, quality: Quality): string {
@@ -56,4 +56,23 @@ export function speedLabel(v: View): string {
   return v.slowed
     ? `Slow · held slow (chosen: ${SPEED_NAMES[v.speed]})`
     : `${SPEED_NAMES[v.speed]} · clock moving`;
+}
+
+/** Calendar labels for a public game minute, independent of the machine timezone. */
+export function clockLabels(minute: number): { dateLabel: string; timeLabel: string } {
+  const date = new Date(Date.UTC(2026, 10, 2) + Math.floor(minute) * 60_000);
+  return {
+    dateLabel: new Intl.DateTimeFormat('en-GB', {
+      weekday: 'long',
+      day: 'numeric',
+      month: 'long',
+      timeZone: 'UTC',
+    }).format(date),
+    timeLabel: new Intl.DateTimeFormat('en-GB', {
+      hour: '2-digit',
+      minute: '2-digit',
+      hourCycle: 'h23',
+      timeZone: 'UTC',
+    }).format(date),
+  };
 }

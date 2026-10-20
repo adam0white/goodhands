@@ -739,3 +739,174 @@ legend {
   max-width: 100%;
   font-size: max(15px, 0.88rem);
 }
+
+/* A live exchange is one bounded page. Only its transcript scrolls. */
+.has-scene {
+  height: 100dvh;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  padding-bottom: max(4px, env(safe-area-inset-bottom));
+}
+.has-scene > .topbar,
+.has-scene > .room,
+.has-scene > .task,
+.has-scene > .bench-strip {
+  flex-shrink: 0;
+}
+.has-scene .room {
+  height: 50px;
+}
+.has-scene [data-content] {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  padding-bottom: 3px;
+}
+.has-scene .scene-sheet {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  min-height: 0;
+}
+.has-scene .sheet-heading,
+.has-scene .scene-choices,
+.has-scene .added,
+.has-scene .question-cost {
+  flex-shrink: 0;
+}
+.has-scene .exchange {
+  flex: 1 1 auto;
+  min-height: 64px;
+  max-height: none;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+  border-block: 1px solid var(--ink-soft);
+  padding: 7px 3px;
+  overflow-anchor: none;
+}
+.exchange p {
+  overflow-wrap: anywhere;
+  margin-bottom: 9px;
+}
+.exchange p:last-child {
+  margin-bottom: 0;
+}
+.exchange .side-worker {
+  margin-right: 16px;
+  padding-left: 8px;
+  border-left: 2px solid var(--ink-soft);
+}
+.exchange .side-family {
+  margin-left: 16px;
+  padding-right: 8px;
+  border-right: 2px solid var(--ink-soft);
+}
+.has-scene > .status {
+  display: none;
+}
+.wait-for {
+  grid-column: 1 / -1;
+  text-align: left;
+  font-size: 0.88rem;
+  margin-top: 4px;
+  background: var(--paper);
+}
+.wait-for[hidden] {
+  display: none;
+}
+.candidate-wants {
+  margin-block: 10px;
+  padding: 6px 8px;
+  border-left: 1.5px solid var(--ink-soft);
+}
+.quality-note {
+  padding-block: 6px;
+  border-bottom: 1px solid var(--ink-soft);
+}
+.quality-note h3 {
+  font-weight: 600;
+}
+.quality-note .nermin-read {
+  margin: 3px 0 8px;
+}
+.note-claim {
+  display: block;
+  font-size: 0.9rem;
+  line-height: 1.4;
+  margin-top: 3px;
+}
+.note small {
+  display: block;
+}
+.city-map {
+  position: relative;
+  height: 235px;
+  margin-top: 6px;
+}
+#city {
+  margin: 0;
+}
+.city-targets {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.city-figure {
+  position: absolute;
+  pointer-events: auto;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: 1px dashed var(--ink-soft);
+  border-radius: 50%;
+  background: transparent;
+}
+.city-figure:hover:not(:disabled) {
+  background: transparent;
+  border-style: solid;
+}
+.city-people button {
+  width: 100%;
+  text-align: left;
+  margin-block: 3px;
+}
+[data-city-person],
+.city-consequence {
+  margin-block: 6px;
+  font-size: 0.9rem;
+}
+@media (min-width: 700px) and (min-height: 850px) {
+  .has-scene .room {
+    height: 150px;
+  }
+}
+/* Larger text can scroll the page; the default phone fixture remains bounded. */
+@media (max-width: 340px) {
+  .has-scene {
+    height: auto;
+    min-height: 100dvh;
+  }
+  .has-scene .exchange {
+    max-height: 230px;
+    flex-basis: 170px;
+  }
+}
+.has-city .room {
+  display: none;
+}
+.has-city .city-map,
+.has-city #city {
+  height: 200px;
+}
+.has-city footer {
+  display: none;
+}
+.response-details {
+  margin: 0 0 8px;
+  font-family: Literata, Georgia, serif;
+  font-size: 0.88rem;
+}
+.response-details p {
+  margin-block: 8px;
+}

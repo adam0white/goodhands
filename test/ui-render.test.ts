@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { CandidateView, Note, View } from '../src/sim/types.ts';
 import {
   candidateAvailability,
+  clockLabels,
   escapeHtml,
   evidence,
   INTRO,
@@ -60,4 +61,14 @@ describe('player-facing render helpers', () => {
       } as View),
     ).toBe('Monday 2 November, 09:15 · Interview: Sevda');
   });
+});
+
+it('keeps a source’s own claim beside Nermin’s read', () => {
+  expect(noteText({ ...note, claim: 'I sat with the twins until they slept.' })).toBe(
+    'patient — waited with the twins · seen: Nermin — I sat with the twins until they slept.',
+  );
+});
+
+it('shows fictional clock dates in English across a day boundary', () => {
+  expect(clockLabels(1440 + 720)).toEqual({ dateLabel: 'Tuesday 3 November', timeLabel: '12:00' });
 });
