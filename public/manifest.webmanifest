@@ -1,0 +1,16 @@
+{
+  "name": "Good Hands",
+  "short_name": "Good Hands",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#F3ECDD",
+  "theme_color": "#F3ECDD",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}

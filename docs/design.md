@@ -1,0 +1,108 @@
+# Good Hands: design
+
+**What done means.** For this first increment: a public, playable build at https://goodhands.adamwhite.work with a playtest export that replays, HF-character playtester runs and source-unread LLM playtester runs recorded verbatim in `docs/playtests/`, polish rounds from them (up to four, or until a fresh persona says they would return tomorrow), and an entry on https://human.adamwhite.work/games/ and the lab dashboard. Adam (owner) accepts it by playing it. Later work goes in the Deferred list below, each item with a date.
+
+## The idea
+
+Izmir, November. You are **Nermin**, who runs **Good Hands**, a one-room placement agency above a pharmacy in Alsancak. Families phone you when they need a nanny, a cook, a carer for an old father or a driver. Women and men climb your stairs and sit on the bench outside your door, hoping you will place them.
+
+Nobody is quite who they say at interview. The polished talker may not last a week; the quiet one who barely answered may be the best carer in the city. Former employers have their own reasons for what they say. You find out who someone is the way anyone does: by what they say, what others say of them, and what you see them do. Then you vouch for them to a family, and your word goes with them through the door.
+
+Every candidate and every household member is a full HF `Person` (exact pin `@adam0white/human-framework` 2.9.0). Their true character is HF traits (HEXACO: honesty, emotionality, extraversion, agreeableness, conscientiousness, openness), skills and needs. What Nermin knows is her own HF impressions of them (`estimate`, `impressionConfidence`), built only from three kinds of evidence:
+
+- **Says**: their interview answers, generated from `selfReport` and their honesty. A low-honesty candidate tells you what you want to hear; a reserved one undersells herself.
+- **Heard**: what references and other people tell you (`hear`, weighted by Nermin's trust in that speaker). A stingy former employer runs down a good worker who asked for her wages.
+- **Seen**: what Nermin or a family sees them do (`observeAct`) at a trial morning, on a visit, or in a placement.
+
+The gap between those three and the truth is the game. It is football-management scouting, with people.
+
+## Show, don't count
+
+No bars, no percentages, no stars. Each candidate has a card in Nermin's handwriting: for each quality the game cares about (**patient, honest, reliable, warm, hardworking, discreet**), a short note and where it came from: "patient — *she says so*", "patient — *Mrs Ak says yes, and I believe her*", "patient — *I saw her with the twins*". The source word (says / heard / seen) is the confidence. Contradicting evidence shows as a crossing-out. Skills read as experience in words ("has cooked for a big family", "has never driven in the city"). Money is counted, because Nermin counts it: lira, the rent, the fee.
+
+Truth is revealed only at the end of the month, in the review: each person's true character beside Nermin's notes, and each placement's true story.
+
+## The month
+
+Monday 2 November to Sunday 29 November 2026. The office is open 08:30 to 19:00, Monday to Saturday. Evenings and Sundays pass quickly, but the city keeps living: placed workers are at work, families talk. The clock is continuous with four speeds (slow, walk, trot, gallop). Nothing pauses. The clock drops to slow when something waits for a response (a phone call, a candidate about to give up on the bench, a scene), and the chosen speed returns when it resolves (DL-15).
+
+## The office (the main screen)
+
+A drawn front room: Nermin's desk, the telephone, the window onto the street, and the bench outside the door where candidates wait. Below it, the **Now** line: the one thing that needs a response, with the accent (L20). Below that, three tabs: **Bench** (candidates waiting and those on your books), **Families** (requests and their deadlines), **Placed** (people you have placed and how it seems to be going). A second view, **The city**, is a Canvas map of Izmir's neighbourhoods (Alsancak, Karşıyaka, Bornova, Göztepe, Buca) with each family's house and your placed people as small figures; threads of talk appear on Fridays and Saturdays (see Word of mouth).
+
+## Player verbs (each gets a visible answer, L4)
+
+Every verb costs Nermin's time on the game clock (an interview takes about 30 minutes, a reference call about 15, a visit an hour plus the ferry or the road). Time is the limit, not a daily quota (DL-4).
+
+1. **Interview** a candidate on the bench. A scene: Nermin picks questions one at a time from about six (last family; why you left; a child who will not stop crying at 3 a.m.; an old man who throws his plate; what wage you need; can you start tomorrow). Each answer is in the candidate's words, plus one thing Nermin notices (outward signs: rough hands, a glance at the phone, tired eyes). Three or four questions fit before the candidate expects an answer. The card updates as she listens.
+2. **Call a reference**. A scene on the telephone: the former employer speaks in their own voice and bias. Some cannot be reached until later in the day. Some want to talk about something else.
+3. **Send for a trial morning** with a family. The family's words come back at noon or by evening, from what they saw (`observeAct`). Costs the candidate a morning and the family's patience.
+4. **Place** a candidate with a family. Before confirming, a short sheet shows what Nermin will vouch for and on what evidence (DL-14): she chooses which qualities to vouch for in her own words ("She is patient with children. I have seen it."). Vouching for something only *said* is allowed; the family remembers what she vouched for. Half the fee is paid on placement; the rest at the end of the trial week if the family keeps her.
+5. **Check in** with a placement: phone the family, or visit, or have the worker drop by after work. Each is a scene in their words.
+6. **Answer the phone**. Families call with requests, complaints and good news; workers call when something is wrong. Each call is a scene with two to four responses.
+7. **Withdraw** a placed worker (bring her back to the bench) or **replace** her.
+
+## Consequences the host owns (each with a verb, L19)
+
+- **The trial week.** At the end of seven days the family keeps or returns the worker, in their words, with the reason as they see it. The second half of the fee follows.
+- **Inside the house.** Each day of a placement the host runs a few seeded household moments that test the worker's true traits against the household's pressures (a demanding grandmother tests patience, cash left on a table tests honesty, a late night tests reliability, a child tests warmth, gossip at the door tests discretion). HF records them as the family's `observeAct` impressions of the worker and as the worker's affect (fatigue, frustration, ties). Moments come back to Nermin only through someone's words (a call, a check-in, a confidence), on the game clock, often a day later.
+- **Quitting and dismissal.** A worker who is treated badly or underpaid may leave (HF needs and affect decide), and tells Nermin why if she trusts her. A family may dismiss a worker; Nermin can withdraw, replace or speak for her.
+- **Your word.** Each family's trust in Nermin as a source (`memory.sourceTrust` for Nermin's id) rises when what she vouched for proves true and falls when it proves false. Workers trust Nermin too: whether she found them a decent house, whether she spoke for them.
+- **Money.** The rent (₺5,000) is due every Friday at 17:00. Short rent is a scene with the landlord (Mr Hüsnü downstairs at the pharmacy): pay part, promise, or sell something; two missed rents and the month ends early. Week one bites (L15): opening cash covers one week only if Nermin places someone by Thursday.
+
+## Word of mouth (the ant farm)
+
+The city talks. On Friday afternoon placed workers and candidates meet in Kültürpark; on Saturday families meet at tea, a wedding or a school gate. The host runs HF `converse` between pairs: workers tell each other which houses are hard and whether Nermin can be trusted; families tell each other which agency found them a treasure and which sent them a thief. On the city map the talk shows as threads between figures, as it happens, and its effects arrive later:
+
+- New families phone because a friend recommended you ("Mrs Kaya said you found her a treasure"), or a request goes elsewhere.
+- Good candidates come to your bench because a worker you placed well sent them, or avoid a house they have heard about ("Not the Erdems. Everyone knows about the Erdems.").
+
+The player sees the threads and hears what reaches Nermin. The full route of each piece of talk is in the end review and the replay, not on screen (as in Hearsay).
+
+## Naughty edges (L11), implied, not offered as a mode
+
+Nothing tells the player to do any of this. The verbs allow it, and each enters the calculations; none wins outright.
+
+- **Coach** a candidate during the interview ("Tell them you love children."): she says it to the family. They remember, and remember when it proves untrue.
+- **Vouch for what you have not seen.** Fast, and usually fine; until it is not.
+- **The confidences.** Placed workers trust Nermin and tell her what goes on inside the houses: who comes home at three, whose son is in trouble, who cannot pay. Families sometimes ask, "What do you hear about the Demirs?" Telling earns that family's favour and a fee; if it is traced back, the worker loses her place and the workers stop confiding. Nermin slowly becomes the person who knows everyone's business. The game never names it.
+- **Poaching.** A rich family asks Nermin to bring them someone else's nanny, for a finder's fee.
+- **The envelope.** A candidate offers money to be sent to the best house.
+- **The house you dislike.** Nothing stops Nermin placing a light-fingered worker with the family that refused her fee.
+
+## Faith stays quiet
+
+A candidate asks to step out at midday ("I'll be back shortly"); a carer's family asks whether she can sit with their father at Friday prayer time; a cook will not cook pork, and no household here asks her to. That is all.
+
+## The first ten minutes (L7, L15, L20)
+
+- **First screen** (≤ 40 words, lab kit `introCard`): "You run Good Hands, a small placement agency. The Arslans need a nanny by Tuesday 08:00. Three women are waiting on your bench. Rent is due Friday." One button: Open the office.
+- **08:30 Monday 2 November.** The Now line, with the accent: "The Arslans need a nanny by Tuesday 08:00. Three are waiting on your bench." The three are tappable on the bench drawing and in the Bench tab:
+  - **Gül**: warm, chatty, experienced, says all the right things. Truth varies by seed, but in the default seed she is not honest; her reference is cagey.
+  - **Sevda**: quiet, undersells herself, answers in a few words. In the default seed she is patient and excellent with children.
+  - **Pınar**: polished and quick, has worked for "important families". In the default seed she is unreliable.
+- **Within 30 s**: the first choice (tap a candidate → interview). **Within 3 minutes**: the first answer that the card records, and the phone rings (a reference calls back, or the Arslans ask how it is going).
+- **Within 10 minutes**: one candidate's words contradicted by a reference; one candidate who gives up on the bench because Nermin kept her waiting (shown by posture first: checking the time, standing, picking up her bag); the first placement and its half fee; the day card naming tomorrow's open decision ("Tomorrow 08:00: Sevda's first morning at the Arslans.").
+- **Day 2 noon**: the Arslans' first word. **Day 3**: a second family (Mrs Kaya's father needs a carer; he throws his plate). **Day 4**: a placed worker confides something about the house. **Friday**: the rent, and the first Kültürpark talk on the map.
+
+Each seed shuffles who is secretly what among the authored candidates, within each candidate's presentation (a chatty candidate stays chatty), so each month is a different crowd.
+
+## The end of the month
+
+Sunday 29 November: the month review. For each person Nermin met: her notes beside the truth. For each placement: what happened inside the house, day by day, as the host recorded it. The city map with every thread of talk and where it went. Cash, the families who trust her, the workers who trust her. One open question for a next month (L14). A new month is a new seed.
+
+## Determinism, saves and export
+
+One seed; all randomness from a seeded RNG held in state or from hashes of (seed, event). Inputs are logged at the minute they apply. Save in IndexedDB; Continue on the title screen only when a valid save exists, with one line saying where it left off (DL-27). The **Game menu** holds Download this run (seed, input log, state JSON, fingerprint), Import a run, Send this run to the notebook (lab client 0.1.2 with `compact`: seed, inputs, minute, fingerprint) and the All games link (DL-26). `replay(seed, inputs, minute)` reproduces the fingerprint (tested), and a test replays the compacted run (DL-28).
+
+## Phones
+
+The 360×690 CSS px fixture. The Now line, the current scene's choices and the bench stay visible without scrolling (DL-22). Targets at least 44×44 px. One sheet at a time (DL-24). English for every action-critical label and date (DL-20, DL-21); Turkish names, places and the odd word (Hanım, Bey, abla) are flavour, glossed with lab kit `term` where play needs them.
+
+## Lab events
+
+Screens: `title`, `office`, `city`, `scene`, `review`, `menu`. Milestones: `run started`, `first interview`, `first placement`, `first trial verdict`, `first confidence`, `week 1 done`, `week 2 done`, `week 3 done`, `month ended`. These exact strings are also in the HF site's `apps/site/src/lab/games.ts`.
+
+## Deferred
+
+(none yet)
