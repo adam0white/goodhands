@@ -947,6 +947,7 @@ export function view(state: State): View {
               }
             : { text: 'Check in with a placed worker, or meet someone on your bench.' };
   const snapshot: View = structuredClone({
+    next: null,
     seed: s.seed,
     now: s.now,
     dateLabel: dateLabel(s.now),
@@ -1484,7 +1485,14 @@ function cityTalk(s: Sim, workers: boolean) {
       for (const ev of exchange.socialEvents.listener) socialEvent(s.people[to]!, ev);
       // A thread marks an actual spoken claim, not a scheduled meeting with nothing said.
       if (exchange.told.length)
-        s.threads.push({ at: s.now, from: from.replace(/-0$/, ''), to: to.replace(/-0$/, ''), place });
+        s.threads.push({
+          id: s.threads.length + 1,
+          end: s.now + 20,
+          at: s.now,
+          from: from.replace(/-0$/, ''),
+          to: to.replace(/-0$/, ''),
+          place,
+        });
     }
   }
   log(
@@ -1623,7 +1631,15 @@ function offerChoice(s: Sim, sc: SceneView, choice: string) {
       family.memory.sourceTrust.nermin = clamp(trustOf(family, 'nermin') + 0.06);
       log(s, 'money', `You repeated ${name(offer.candidate)}’s confidence. ${name(sc.with)} paid ₺1800.`);
       // The path is recorded; only some tellings find their way back to the house.
-      s.threads.push({ at: s.now, from: 'nermin', to: sc.with, place: 'telephone', about: offer.family });
+      s.threads.push({
+        id: s.threads.length + 1,
+        end: s.now + 20,
+        at: s.now,
+        from: 'nermin',
+        to: sc.with,
+        place: 'telephone',
+        about: offer.family,
+      });
       s.routes.push({
         id: s.routes.length + 1,
         at: s.now,

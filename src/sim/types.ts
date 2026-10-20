@@ -25,7 +25,7 @@ export type Source = 'says' | 'heard' | 'seen';
 
 export type Speed = 0 | 1 | 2 | 3; // slow, walk, trot, gallop
 /** Game minutes per real second at each speed. While a scene is open or the phone rings, the clock runs at SPEEDS[0]. */
-export const SPEEDS: readonly number[] = [2, 6, 20, 60];
+export const SPEEDS: readonly number[] = [0.5, 2, 6, 20];
 
 export type Input =
   | { type: 'speed'; speed: Speed }
@@ -38,6 +38,7 @@ export type Input =
   | { type: 'choose'; scene: string; choice: string } // answer in any open scene
   | { type: 'close-scene'; scene: string } // leave a scene that allows leaving
   | { type: 'answer-phone' } // pick up a ringing phone (opens its scene)
+  | { type: 'wait-for' }
   | { type: 'sleep' }; // end the evening from the day card: advance to 08:30 next open day
 
 export interface LoggedInput {
@@ -54,6 +55,7 @@ export interface Note {
   source: Source;
   from: string; // who: 'she says', 'Mrs Ak', 'I saw it', 'the Arslans'
   at: Minute;
+  claim?: string; // The source’s own words, quoted and attributed.
   crossedOut?: boolean; // contradicted by later, stronger evidence
 }
 
@@ -68,6 +70,7 @@ export interface CandidateView {
   posture?: 'settled' | 'restless' | 'leaving';
   /** Why she is not available now, if she is not (DL-4): 'At the Arslans until 18:00'. */
   busy?: string;
+  wants?: string;
   wage: number | null; // lira per month she asked for, once known
   experience: string[]; // in words, once known
   notes: Note[];
@@ -107,6 +110,8 @@ export interface PlacementView {
   seems: 'good' | 'unsure' | 'trouble' | 'unknown';
   lastWord?: string; // the latest words that reached Nermin about it
   status: 'trial' | 'kept' | 'returned' | 'quit' | 'withdrawn' | 'dismissed';
+  arrangement?: string;
+  pending?: { text: string; at: Minute; dateLabel: string };
   vouched: Quality[];
 }
 
@@ -121,11 +126,14 @@ export interface SceneLine {
   speaker: string; // display name, or '' for narration
   text: string;
   kind: 'speech' | 'notice' | 'narration';
+  side?: 'worker' | 'family';
 }
 
 export interface SceneView {
   id: string;
   kind:
+    | 'two-sides'
+    | 'visit'
     | 'interview'
     | 'reference'
     | 'phone'
@@ -154,6 +162,9 @@ export interface LogEntry {
 
 /** One thread of talk on the city map (only talk that happened; drawn as it happens). */
 export interface TalkThread {
+  id: number;
+  end: Minute;
+  consequence?: string;
   at: Minute;
   from: string;
   to: string;
@@ -167,6 +178,10 @@ export interface CityFigure {
   x: number; // 0..1 map coordinates
   y: number;
   kind: 'worker' | 'candidate' | 'family';
+  place?: string;
+  toX?: number;
+  toY?: number;
+  arrive?: Minute;
   mood?: 'easy' | 'tired' | 'upset'; // drawn as posture, never a bar
 }
 
@@ -178,6 +193,7 @@ export interface DayCard {
 }
 
 export interface View {
+  next: { label: string; at: Minute; dateLabel: string } | null;
   seed: number;
   now: Minute;
   dateLabel: string; // 'Monday 2 November'
