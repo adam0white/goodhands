@@ -233,7 +233,7 @@ function arrive(s: Sim) {
   for (const c of CANDIDATES)
     if (!s.cards[c.id]!.met && c.arrives <= s.now) {
       const reputation = credence(s.people[c.id]!, 'nermin:reliable');
-      if (reputation < 0.28) {
+      if (reputation < 0.42) {
         Object.assign(s.cards[c.id]!, { met: true, status: 'gone', arrived: s.now });
         log(
           s,
@@ -244,7 +244,7 @@ function arrive(s: Sim) {
         continue;
       }
       Object.assign(s.cards[c.id]!, { met: true, status: 'bench', arrived: s.now });
-      if (reputation > 0.72)
+      if (reputation > 0.58)
         log(s, 'word', `${c.name}: “Someone you placed told me to come here. They said you listen.”`, {
           candidate: c.id,
         });
@@ -263,11 +263,11 @@ function arrive(s: Sim) {
         status: 'open',
       };
       const reputation = credence(s.people[`${f.id}-0`]!, 'nermin:reliable');
-      if (reputation < 0.28) request.status = 'lost';
+      if (reputation < 0.42) request.status = 'lost';
       const words =
-        reputation < 0.28
+        reputation < 0.42
           ? 'We heard how the last placement ended. We are going to another agency.'
-          : reputation > 0.72
+          : reputation > 0.58
             ? `A family at tea recommended you. ${f.wants}`
             : f.wants;
       s.requests.push(request);
@@ -282,10 +282,16 @@ function arrive(s: Sim) {
             'phone',
             f.id,
             `Request: ${f.name}`,
-            `${words} We can pay ₺${f.wage}. I need someone by ${label(f.deadline)}.`,
+            request.status === 'lost'
+              ? words
+              : `${words} We can pay ₺${f.wage}. I need someone by ${label(f.deadline)}.`,
             [
-              { id: 'look', label: 'Promise to look' },
-              { id: 'decline', label: 'Decline the request' },
+              ...(request.status === 'lost'
+                ? [{ id: 'acknowledge', label: 'Acknowledge their decision' }]
+                : [
+                    { id: 'look', label: 'Promise to look' },
+                    { id: 'decline', label: 'Decline the request' },
+                  ]),
             ],
           ),
         );
@@ -1075,6 +1081,9 @@ function moment(s: Sim, p: Placement, q: Quality, ordinal: number) {
     hear(observer, worker.id, `skill:${ROLE_SKILL[p.role]}`, good ? 0.85 : 0.25, s.now, 1);
     hear(observer, worker.id, cue(q), good ? 0.85 : 0.2, s.now, 1);
     confirm(observer, `${worker.id}:${q}`, good, s.now);
+    const sourceTrust = trustOf(observer, 'nermin');
+    if (sourceTrust > 0.52 || sourceTrust < 0.48)
+      confirm(observer, 'nermin:reliable', sourceTrust > 0.5, s.now);
     // Families remember the coached words as Nermin's recommendation, too.
     socialEvent(worker, {
       at: s.now,
