@@ -454,12 +454,13 @@ const familyRows: FamilyRow[] = [
       ['Mert', 'father, a pharmacist'],
       ['Ada', 'daughter, three'],
       ['Saadet', 'grandmother, lives with them'],
+      ['Deniz', 'son, three'],
     ],
     'patient',
     'Grandmother Saadet corrects every little thing.',
     'nanny',
     9000,
-    'Someone patient with Ada. Mother will be there too.',
+    'Someone patient with the twins, Ada and Deniz, both three. Grandmother Saadet will be there too.',
     510,
     at(1, 8),
     0.22,
@@ -479,8 +480,8 @@ const familyRows: FamilyRow[] = [
     'carer',
     9000,
     'Father is proud. Do not argue when he raises his voice.',
-    at(2, 10),
-    at(4, 8),
+    at(0, 11),
+    at(2, 8),
     0.78,
     0.3,
     'Aylin has not been paid for two months and borrows the wages.',
@@ -495,12 +496,12 @@ const familyRows: FamilyRow[] = [
       ['Deniz', 'son, seven'],
     ],
     'discreet',
-    'Visitors ask questions about Onur’s late nights.',
-    'housekeeper',
+    'Passengers ask questions about Onur’s late nights.',
+    'driver',
     8500,
-    'Someone who keeps the house, and keeps things to herself.',
-    at(3, 11),
-    at(5, 9),
+    'Drive Deniz to school and Onur to his night shift. Keep our journeys private.',
+    at(0, 14),
+    at(3, 8),
     0.49,
     0.45,
     'Onur is sitting with his ill sister at night, not drinking.',
@@ -953,7 +954,8 @@ export function makePeople(seed: number): Record<string, Person> {
         traits: {
           honesty: 0.3 + 0.6 * draw(seed, `${member.id}:honesty`),
           agreeableness:
-            family.pressure === 'patient' && (family.id === 'arslans' ? i === 3 : i === 1)
+            family.pressure === 'patient' &&
+            (family.id === 'arslans' ? /grandmother/.test(member.who) : i === 1)
               ? 0.2
               : 0.3 + 0.6 * draw(seed, `${member.id}:agreeable`),
           conscientiousness: 0.35 + 0.6 * draw(seed, `${member.id}:reliable`),

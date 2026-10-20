@@ -82,7 +82,7 @@ test('a booked trial holds the family deadline through its noon answer', () => {
   apply(s, { type: 'place', candidate: 'sevda', family: 'arslans', vouch: ['patient'] });
   expect(view(s).placements).toHaveLength(1);
 });
-test('withdrawing a worker allows replacement without charging the first half twice', () => {
+test('withdrawing a worker allows replacement without charging the deposit twice', () => {
   const s = newGame(1);
   apply(s, { type: 'place', candidate: 'gul', family: 'arslans', vouch: [] });
   const cash = view(s).cash;
@@ -97,20 +97,24 @@ test('a view is a detached snapshot and first-answer evidence emits its mileston
   apply(s, { type: 'interview', candidate: 'gul' });
   const before = view(s);
   apply(s, { type: 'choose', scene: before.scene!.id, choice: 'q-honest' });
-  expect(before.bench.find((c) => c.id === 'gul')!.notes).toHaveLength(0);
+  expect(before.books.find((c) => c.id === 'gul')!.notes).toHaveLength(0);
   expect(milestones(before, view(s))).toContain('first interview');
-  expect(view(s).bench.find((c) => c.id === 'gul')!.notes[0]?.read).toBe('yes');
+  expect(view(s).books.find((c) => c.id === 'gul')!.notes[0]?.read).toBe('yes');
 });
 
 test('a delayed callback only delivers the household moments known when it rang', () => {
   const s = newGame(1);
   apply(s, { type: 'place', candidate: 'sevda', family: 'arslans', vouch: [] });
-  until(s, 1440 + 720);
+  until(s, 1100);
   const firstCount = (s.placements as { moments: unknown[] }[])[0]!.moments.length;
   expect(view(s).books.find((c) => c.id === 'sevda')!.notes).toHaveLength(0);
   until(s, 2 * 1440 + 720);
   expect((s.placements as { moments: unknown[] }[])[0]!.moments.length).toBeGreaterThan(firstCount);
-  apply(s, { type: 'answer-phone' });
+  for (let i = 0; i < 20 && view(s).phoneRinging; i++) {
+    apply(s, { type: 'answer-phone' });
+    if (view(s).scene?.with === 'sevda') break;
+    close(s);
+  }
   expect(view(s).books.find((c) => c.id === 'sevda')!.notes).toHaveLength(firstCount);
 });
 

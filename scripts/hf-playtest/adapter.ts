@@ -84,6 +84,7 @@ export class GoodHandsAdapter {
       ? []
       : [
           v.task.text,
+          ...(v.heldScene ? [`Resume after this call: ${v.heldScene.title}.`] : []),
           `Rent: ₺${v.rent.amount}, ${v.rent.label}.`,
           ...(v.dayCard ? [v.dayCard.tomorrow] : []),
           ...(v.next ? [`${v.next.label}: ${v.next.dateLabel}`] : []),
@@ -126,6 +127,8 @@ export class GoodHandsAdapter {
     };
     if (v.ended) return out;
     if (v.scene) {
+      if (v.phoneRinging && !v.heldScene && ['interview', 'reference'].includes(v.scene.kind))
+        add('answer-phone', `Answer the phone: ${v.phoneRinging.who}`, { type: 'answer-phone' }, 0.9);
       for (const c of v.scene.choices)
         add(
           `choose:${v.scene.id}:${c.id}`,
@@ -152,6 +155,13 @@ export class GoodHandsAdapter {
       for (const c of [...v.bench, ...v.books].filter(
         (c) => ['bench', 'books'].includes(c.status) && !c.busy,
       )) {
+        if (c.status === 'bench')
+          add(
+            `take-number:${c.id}`,
+            `Take ${c.name}’s number for the books`,
+            { type: 'take-number', candidate: c.id },
+            c.posture === 'leaving' ? 0.85 : 0.5,
+          );
         if (!this.interviewed.has(c.id))
           add(
             `interview:${c.id}`,
@@ -260,12 +270,15 @@ export class GoodHandsAdapter {
     if (input.type === 'interview') this.interviewed.add(input.candidate);
     this.state = apply(this.state, input);
     const after = view(this.state);
-    const lines =
-      after.scene?.lines.slice(before.scene?.id === after.scene.id ? before.scene.lines.length : 0) ?? [];
+    const resumed = !!after.scene && after.scene.id === before.heldScene?.id;
+    const lines = resumed
+      ? []
+      : (after.scene?.lines.slice(before.scene?.id === after.scene.id ? before.scene.lines.length : 0) ?? []);
     const logs = after.log.filter((line) => !before.log.some((old) => old.id === line.id));
     const visible = [...lines.map((line) => line.text), ...logs.map((line) => line.text)];
     if (input.type === 'speed' && after.speed !== before.speed)
       visible.push(`Clock: ${['slow', 'walk', 'trot', 'gallop'][after.speed]}.`);
+    if (resumed && after.scene) visible.push(`Conversation resumed: ${after.scene.title}.`);
     if (before.scene && !after.scene) visible.push(`Conversation finished. ${after.task.text}`);
     if (['sleep', 'wait-for'].includes(input.type) && after.now > before.now)
       visible.push(`${after.dateLabel}, ${after.timeLabel}. ${after.task.text}`);

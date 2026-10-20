@@ -15,7 +15,13 @@ import {
   trustOf,
 } from '@adam0white/human-framework';
 import { arrangementSpec } from './arrangements.ts';
-import { referenceChoices, referenceOpening, referenceReply } from './references.ts';
+import {
+  familyDisagreementWords,
+  familyMoment,
+  referenceChoices,
+  referenceOpening,
+  referenceReply,
+} from './references.ts';
 import type {
   CandidateView,
   DayCard,
@@ -112,6 +118,7 @@ interface Sim extends State {
   rentDue: number;
   missedRent: number;
   scene: SceneView | null;
+  heldScene?: SceneView | null;
   phones: Phone[];
   log: LogEntry[];
   threads: TalkThread[];
@@ -124,7 +131,16 @@ interface Sim extends State {
   confidences: { candidate: string; family: string; text: string; told: boolean }[];
 }
 const snapshots = new WeakMap<State, View>();
-const sim = (s: State) => s as Sim;
+const sim = (state: State): Sim => {
+  const s = state as Sim;
+  // Append the twin to older saves; the grandmother keeps her original person id.
+  if (!s.people['arslans-4']) {
+    s.people['arslans-4'] = makePeople(s.seed)['arslans-4']!;
+    const request = s.requests.find((r) => r.family === 'arslans');
+    if (request) request.wants = FAMILIES.find((f) => f.id === 'arslans')!.wants;
+  }
+  return s;
+};
 const DAY = 1440;
 const END = 27 * DAY + 1140;
 const weekdays = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
@@ -366,6 +382,7 @@ export function newGame(seed: number): State {
     rentDue: 4 * DAY + 1020,
     missedRent: 0,
     scene: null,
+    heldScene: null,
     phones: [],
     log: [],
     threads: [],
@@ -403,6 +420,7 @@ export function newGame(seed: number): State {
 }
 function finish(s: Sim, why: string) {
   s.ended = true;
+  s.heldScene = null;
   s.scene = null;
   s.phones = [];
   s.dayCard = null;
@@ -457,14 +475,25 @@ function closeDay(s: Sim) {
   const firstMorning = s.placements.find(
     (p) => active(p) && !p.disagreement && firstWorkDay(p) * DAY + 720 > s.now,
   );
+  const replacement = s.placements.findLast(
+    (p) => !active(p) && s.requests.some((r) => r.family === p.family && r.status === 'open' && r.by > s.now),
+  );
+  const replacementRequest = replacement
+    ? s.requests.find((r) => r.family === replacement.family)
+    : undefined;
   const next = pending
     ? { label: pending.text, dateLabel: pending.dateLabel }
-    : firstMorning
+    : replacement && replacementRequest
       ? {
-          label: `${cap(name(firstMorning.family))}' first-morning call about ${name(firstMorning.candidate)}`,
-          dateLabel: label(firstWorkDay(firstMorning) * DAY + 720),
+          label: `Find a replacement for ${name(replacement.candidate)} at ${name(replacement.family)}`,
+          dateLabel: replacementRequest.byLabel,
         }
-      : nextEvent(s);
+      : firstMorning
+        ? {
+            label: `${cap(name(firstMorning.family))}' first-morning call about ${name(firstMorning.candidate)}`,
+            dateLabel: label(firstWorkDay(firstMorning) * DAY + 720),
+          }
+        : nextEvent(s);
   const request = s.requests.find((r) => r.status === 'open' && r.by > s.now);
   s.dayCard = {
     day: day(s),
@@ -492,7 +521,7 @@ function step(s: Sim) {
       log(
         s,
         'arrival',
-        `${c.name} picked up ${s.people[c.id]!.life.sex === 'male' ? 'his' : 'her'} bag and left${card.status === 'books' ? '. The number is on your books' : ' without an interview'}.`,
+        `${c.name} picked up ${s.people[c.id]!.life.sex === 'male' ? 'his' : 'her'} bag and left${card.status === 'books' ? '. The number is on your books' : ' without an interview or leaving a number. The candidate is gone'}.`,
         { candidate: c.id },
       );
     }
@@ -505,6 +534,14 @@ function step(s: Sim) {
       });
     }
   if (s.now % DAY === 600) placementDay(s);
+  if (s.now === 1100) {
+    const first = s.placements.find((p) => p.since < 1100 && active(p));
+    if (first && active(first) && !first.disagreement) {
+      const family = FAMILIES.find((f) => f.id === first.family)!;
+      moment(s, first, family.pressure, 0);
+      if (active(first)) openDisagreement(s, first, false, true);
+    }
+  }
   if (s.now % DAY === 720) {
     trialResults(s);
     for (const p of s.placements)
@@ -570,12 +607,27 @@ export function advance(state: State, minutes: number): State {
   snapshots.delete(state);
   const s = sim(state);
   if (Number.isFinite(minutes) && minutes > 0) runTo(s, s.now + minutes, true);
+  resumeHeld(s);
   return s;
 }
 function refuse(s: Sim, text: string) {
   log(s, 'word', text);
 }
 export function apply(state: State, input: Input): State {
+  const s = sim(applyInput(state, input));
+  resumeHeld(s);
+  if (s.dayCard && !s.ended) closeDay(s);
+  return s;
+}
+function resumeHeld(s: Sim) {
+  if (!s.ended && !s.scene && s.heldScene) {
+    s.scene = s.heldScene;
+    s.heldScene = null;
+    s.scene.lines.push({ speaker: 'Nermin', text: 'Sorry. Where were we?', kind: 'speech' });
+    log(s, 'word', `Nermin returned to ${s.scene.title}. “Sorry. Where were we?”`);
+  }
+}
+function applyInput(state: State, input: Input): State {
   snapshots.delete(state);
   const s = sim(state);
   if (s.ended) return s;
@@ -591,6 +643,10 @@ export function apply(state: State, input: Input): State {
     return s;
   }
   if (input.type === 'sleep') {
+    if (s.heldScene) {
+      refuse(s, 'Finish the call and the waiting conversation before closing for the evening.');
+      return s;
+    }
     if (!s.dayCard) {
       refuse(s, 'The day card opens at 19:00.');
       return s;
@@ -759,7 +815,7 @@ export function apply(state: State, input: Input): State {
               'phone',
               'arslans',
               'The Arslans are checking',
-              'Have you found someone? The twins need someone tomorrow morning.',
+              'Have you found someone? The twins, Ada and Deniz, are three. They need someone tomorrow morning; Grandmother Saadet will be there too.',
               [
                 { id: 'look', label: 'Say you are still interviewing' },
                 { id: 'soon', label: 'Promise an answer today' },
@@ -802,6 +858,22 @@ export function apply(state: State, input: Input): State {
     runTo(s, s.now + 3);
     return s;
   }
+  if (
+    input.type === 'answer-phone' &&
+    s.phones.length &&
+    s.scene &&
+    ['interview', 'reference'].includes(s.scene.kind) &&
+    !s.heldScene
+  ) {
+    s.heldScene = s.scene;
+    s.heldScene.lines.push({
+      speaker: 'Nermin',
+      text: 'Excuse me. I need to answer the phone.',
+      kind: 'speech',
+    });
+    log(s, 'word', `Nermin asked to interrupt ${s.scene.title} to answer the phone.`);
+    s.scene = null;
+  }
   if (s.scene) {
     refuse(s, 'Finish this conversation first.');
     return s;
@@ -822,7 +894,7 @@ export function apply(state: State, input: Input): State {
             placement.reportedStatus = p.status;
           if (p.scene.kind === 'verdict' && placement.pendingFee) {
             s.cash += placement.pendingFee;
-            log(s, 'money', `${name(placement.family)} sent the second half: ₺${placement.pendingFee}.`);
+            log(s, 'money', `${name(placement.family)} sent the rest of the fee: ₺${placement.pendingFee}.`);
             placement.pendingFee = 0;
           }
           if (['returned', 'dismissed', 'quit'].includes(placement.reportedStatus)) reopen(s, placement);
@@ -845,10 +917,26 @@ export function apply(state: State, input: Input): State {
     return s;
   }
   if (
-    ['interview', 'call-reference', 'trial', 'place'].includes(input.type) &&
+    ['interview', 'take-number', 'call-reference', 'trial', 'place'].includes(input.type) &&
     (day(s) % 7 === 6 || s.now % DAY < 510 || s.now % DAY >= 1140)
   ) {
     refuse(s, 'The office opens at 08:30, Monday to Saturday.');
+    return s;
+  }
+  if (input.type === 'take-number') {
+    const card = s.cards[input.candidate];
+    if (!card || card.status !== 'bench') {
+      refuse(s, 'Only someone waiting on the bench needs their number taken.');
+      return s;
+    }
+    card.status = 'books';
+    log(
+      s,
+      'arrival',
+      `You took ${name(input.candidate)}’s number. ${name(input.candidate)} went home and stays on your books.`,
+      { candidate: input.candidate },
+    );
+    runTo(s, s.now + 2);
     return s;
   }
   if (input.type === 'interview') {
@@ -866,6 +954,7 @@ export function apply(state: State, input: Input): State {
       card.interviewCount = 0;
     }
     s.people[c.id]!.now = s.now;
+    card.status = 'books';
     glimpse(s.people.nermin!, c.id, outwardSigns(s.people[c.id]!), s.now);
     s.scene = scene(
       s,
@@ -981,7 +1070,7 @@ export function apply(state: State, input: Input): State {
     r.status = 'filled';
     s.fees[f.id] ??= { first: false, second: false };
     const fee = s.fees[f.id]!;
-    const firstPaid = fee.first ? 0 : p.wage / 2;
+    const firstPaid = fee.first ? 0 : p.wage / 4;
     fee.first = true;
     s.cash += firstPaid;
     for (const q of [...new Set([...vouched, ...card.coached])])
@@ -989,7 +1078,7 @@ export function apply(state: State, input: Input): State {
     log(
       s,
       'placement',
-      `${c.name} placed with ${f.name}. ${firstPaid ? `Half the fee, ₺${firstPaid}, is in the cash box.` : `The earlier first half covers this replacement.`}`,
+      `${c.name} placed with ${f.name}. ${firstPaid ? `The deposit of one week's wage, ₺${firstPaid}, is in the cash box. The rest is due if the family keeps the worker after the trial week.` : `The earlier deposit covers this replacement.`}`,
       { candidate: c.id, family: f.id, placement: p.id },
     );
     runTo(s, s.now + 15);
@@ -1154,7 +1243,7 @@ export function view(state: State): View {
           }
         : urgent
           ? {
-              text: `${urgent.name} has picked up ${s.people[urgent.id]!.life.sex === 'male' ? 'his' : 'her'} bag. Speak before ${s.people[urgent.id]!.life.sex === 'male' ? 'he' : 'she'} leaves.`,
+              text: `${urgent.name} will give up by about ${timeLabel(s.cards[urgent.id]!.arrived + 210 + (hash(urgent.id) % 90))}. Interview ${s.people[urgent.id]!.life.sex === 'male' ? 'him' : 'her'} or take ${s.people[urgent.id]!.life.sex === 'male' ? 'his' : 'her'} number.`,
               target: { kind: 'candidate', id: urgent.id },
             }
           : r
@@ -1181,6 +1270,7 @@ export function view(state: State): View {
     task,
     phoneRinging: phone ? { who: phone.who, since: phone.since } : null,
     scene: s.scene,
+    heldScene: s.heldScene ? { id: s.heldScene.id, title: s.heldScene.title } : null,
     bench,
     books: cards.filter((c) => c.status !== 'bench'),
     requests: s.requests,
@@ -1302,9 +1392,7 @@ function moment(s: Sim, p: Placement, q: Quality, ordinal: number) {
       (s.cards[p.candidate]!.coached.length && day(s) - Math.floor(p.since / DAY) === 1 ? 0.16 : 0) -
       fatigue * 0.08 >
     0.23 + 0.48 * roll(s, `moment:${p.id}:${day(s)}:${ordinal}`);
-  const text = momentWords(q, good, f.pressureWords)
-    .replace(/\bShe\b/g, worker.life.sex === 'male' ? 'He' : 'She')
-    .replace(/\bher\b/g, worker.life.sex === 'male' ? 'his' : 'her');
+  const text = familyMoment(f.id, q, good, name(p.candidate));
   p.moments.push({ day: day(s), quality: q, good, text });
   p.story.push(`${dateLabel(s.now)}: ${text}`);
   for (const member of f.household) {
@@ -1362,35 +1450,6 @@ function moment(s: Sim, p: Placement, q: Quality, ordinal: number) {
     endPlacement(s, p, 'dismissed', 'The shopping money has gone. I cannot leave the worker in charge here.');
   }
 }
-function momentWords(q: Quality, good: boolean, pressure: string) {
-  const words: Record<Quality, [string, string]> = {
-    patient: [
-      'She waited through the repeated questions and answered gently.',
-      'She snapped when the same question came again.',
-    ],
-    honest: [
-      'She left the loose money on the table and accounted for every lira.',
-      'The shopping change did not match the receipt.',
-    ],
-    reliable: [
-      'She arrived before the household needed to leave.',
-      'She was late. Someone had to stay home and wait.',
-    ],
-    warm: [
-      'She noticed who had gone quiet and sat beside them.',
-      'She kept apart when someone needed company.',
-    ],
-    hardworking: [
-      'She finished the washing before sitting down.',
-      'The last of the work was left for the family.',
-    ],
-    discreet: [
-      'She turned the neighbour’s questions back to the weather.',
-      'At the door, she repeated something private about the household.',
-    ],
-  };
-  return `${pressure} ${words[q][good ? 0 : 1]}`;
-}
 function endPlacement(s: Sim, p: Placement, status: Placement['status'], words: string) {
   if (!['trial', 'kept'].includes(p.status)) return;
   p.status = status;
@@ -1433,7 +1492,7 @@ function deliverReport(s: Sim, p: Placement, visit = false, through = p.moments.
       visit ? 'seen' : 'heard',
       visit ? `I saw ${name(p.candidate)} at work` : f.name,
       visit ? 'nermin' : speaker.id,
-      visit ? m.text : referenceWordsForMoment(m.quality, remembered),
+      visit ? m.text : referenceWordsForMoment(p, m.quality, remembered),
     );
     if (visit)
       observeAct(
@@ -1449,6 +1508,7 @@ function deliverReport(s: Sim, p: Placement, visit = false, through = p.moments.
   p.lastWord = visit
     ? latest.text
     : referenceWordsForMoment(
+        p,
         latest.quality,
         clamp((latest.good ? 0.85 : 0.2) + (speaker.traits.honesty < 0.5 ? -0.28 : 0)),
       );
@@ -1536,6 +1596,7 @@ function placementDay(s: Sim) {
             p.family,
             `Word from ${f.name}`,
             referenceWordsForMoment(
+              p,
               latest.quality,
               clamp((latest.good ? 0.85 : 0.2) + (s.people[`${f.id}-0`]!.traits.honesty < 0.5 ? -0.28 : 0)),
             ),
@@ -1560,7 +1621,7 @@ function verdicts(s: Sim) {
       p.status = kept ? 'kept' : 'returned';
       s.fees[p.family] ??= { first: true, second: false };
       const fee = s.fees[p.family]!;
-      const secondPaid = kept && !fee.second ? p.wage / 2 : 0;
+      const secondPaid = kept && !fee.second ? (p.wage * 3) / 4 : 0;
       if (kept) {
         p.pendingFee = secondPaid;
         fee.second = true;
@@ -2097,6 +2158,9 @@ function relationshipQuestion(s: Sim): string {
 function nextEvent(s: Sim): View['next'] {
   if (s.ended) return null;
   const events: { label: string; at: number }[] = [];
+  const first = s.placements.find((p) => p.since < 1100 && active(p));
+  if (first && active(first) && !first.disagreement && s.now < 1100)
+    events.push({ label: `${name(first.candidate)}'s call after the first day`, at: 1100 });
   for (const p of s.placements.filter(active)) {
     if (p.pending) events.push({ label: p.pending.text, at: p.pending.at });
     if (p.warning)
@@ -2144,9 +2208,7 @@ function nextEvent(s: Sim): View['next'] {
   return next ? { ...next, label: cap(next.label), dateLabel: label(next.at) } : null;
 }
 function familyDisagreement(p: Placement): string {
-  if (p.candidate === 'sevda' && p.family === 'arslans')
-    return 'At lunch, Saadet asked for the kitchen to be finished before anyone left tonight. We cannot leave the last jobs for the family.';
-  return `At lunch we asked for something beyond our original arrangement. ${name(p.candidate)} objected; we still need the household to run.`;
+  return familyDisagreementWords(p.family, name(p.candidate));
 }
 
 function interventionChoices(p: Placement): SceneView['choices'] {
@@ -2173,14 +2235,21 @@ function interventionChoices(p: Placement): SceneView['choices'] {
     },
   ];
 }
-function openDisagreement(s: Sim, p: Placement, warning = false) {
+function openDisagreement(s: Sim, p: Placement, warning = false, commute = false) {
   if (!warning) p.disagreement = true;
+  const home = CANDIDATES.find((c) => c.id === p.candidate)!.home;
+  const family = FAMILIES.find((f) => f.id === p.family)!;
+  const ride = family.district === 'Karşıyaka' || home === 'Karşıyaka' ? 'ferry' : 'bus';
   const sc = scene(
     s,
     'two-sides',
     p.candidate,
-    warning ? `${name(p.candidate)}: a warning before leaving` : `${name(p.candidate)} and ${name(p.family)}`,
-    workerDisagreement(p.candidate, name(p.family)),
+    warning
+      ? `${name(p.candidate)}: a warning before leaving`
+      : commute
+        ? `${name(p.candidate)} calls from the ${ride}`
+        : `${name(p.candidate)} and ${name(p.family)}`,
+    `${commute ? `I'm on the ${ride} after my first day. ` : ''}${workerDisagreement(p.candidate, name(p.family))}`,
     interventionChoices(p),
   );
   sc.lines[0]!.side = 'worker';
@@ -2417,26 +2486,8 @@ function warnPlacement(s: Sim, p: Placement, status: PlacementView['status'], wo
   openDisagreement(s, p, true);
 }
 
-function referenceWordsForMoment(q: Quality, value: number): string {
-  const positive = value >= 0.55;
-  const words: Record<Quality, [string, string]> = {
-    patient: [
-      'The repeated questions did not rattle anyone; the morning settled.',
-      'There was an argument over the same question again.',
-    ],
-    honest: [
-      'The shopping receipt and change were both on the table.',
-      'I could not make the shopping money add up.',
-    ],
-    reliable: ['The morning began at the time we agreed.', 'We were left waiting at the door.'],
-    warm: ['There was company for the person who needed it.', 'Someone was left sitting alone.'],
-    hardworking: ['The work was finished before the end of the day.', 'I found work left unfinished.'],
-    discreet: [
-      'The neighbour learned nothing about our private business.',
-      'The neighbour seemed to know too much about our house.',
-    ],
-  };
-  return words[q][positive ? 0 : 1];
+function referenceWordsForMoment(p: Placement, q: Quality, value: number): string {
+  return familyMoment(p.family, q, value >= 0.55, name(p.candidate));
 }
 function talkPair(s: Sim, from: string, to: string, place: string): TalkThread | undefined {
   const speaker = s.people[from]!;

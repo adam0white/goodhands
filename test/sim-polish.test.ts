@@ -27,12 +27,12 @@ test('questions leave the conversation, and wage and home are separate answers',
   apply(s, { type: 'interview', candidate: 'sevda' });
   choose(s, 'hours');
   expect(view(s).scene?.choices.some((c) => c.id === 'hours')).toBe(false);
-  const card = view(s).bench.find((c) => c.id === 'sevda');
+  const card = view(s).books.find((c) => c.id === 'sevda');
   expect(card?.wants).toContain('18:10');
   expect(card?.wage).toBeNull();
   expect(card?.experience).toEqual([]);
   choose(s, 'wage');
-  expect(view(s).bench.find((c) => c.id === 'sevda')?.wage).toBe(8000);
+  expect(view(s).books.find((c) => c.id === 'sevda')?.wage).toBe(8000);
 });
 
 test('every placement opens a two-sided disagreement and tests a negotiated finish on its named day', () => {
@@ -142,7 +142,11 @@ test('support after a replacement changes only the current placement', () => {
   apply(s, { type: 'withdraw', placement: 'placement-1' });
   apply(s, { type: 'place', candidate: 'pinar', family: 'arslans', vouch: [] });
   until(s, 1440 + 720);
-  apply(s, { type: 'answer-phone' });
+  for (let i = 0; i < 20 && view(s).phoneRinging; i++) {
+    apply(s, { type: 'answer-phone' });
+    if (view(s).scene?.with === 'pinar') break;
+    close(s);
+  }
   expect(view(s).scene?.with).toBe('pinar');
   choose(s, 'promise');
   close(s);

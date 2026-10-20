@@ -89,7 +89,9 @@ export function runPolicy(seed: number, policy: Policy, until = MONTH_END): Stat
     const v = view(state);
     if (v.ended || v.now >= until) return state;
     const beforeMinute = v.now;
-    if (v.scene) {
+    if (v.phoneRinging && !v.heldScene && (!v.scene || ['interview', 'reference'].includes(v.scene.kind))) {
+      act({ type: 'answer-phone' });
+    } else if (v.scene) {
       const sc = v.scene;
       const choices = sc.choices.filter((choice) => !choice.disabled);
       let choice = choices[0];
@@ -148,7 +150,8 @@ export function runPolicy(seed: number, policy: Policy, until = MONTH_END): Stat
           choices.find((c) => c.id === (policy === 'reckless' ? 'refuse-condition' : 'accept-condition')) ??
           choice;
       } else if (sc.kind === 'two-sides') {
-        const preferred = policy === 'careful' ? 'negotiate' : policy === 'cunning' ? 'promise' : 'bend';
+        // Keeping an arrangement earns the remaining fee; cunning still sells confidence and overclaims.
+        const preferred = policy === 'reckless' ? 'bend' : 'negotiate';
         choice = choices.find((c) => c.id === preferred || c.id.startsWith(`${preferred}-`)) ?? choice;
       } else if (sc.kind === 'rent') {
         choice =
@@ -190,7 +193,10 @@ export function runPolicy(seed: number, policy: Policy, until = MONTH_END): Stat
       let acted = false;
       const free = available(v);
       const requests = v.requests.filter((r) => r.status === 'open').sort((a, b) => a.by - b.by);
-      for (const request of requests) {
+      // A contact preserves availability, without treating it as interview evidence.
+      const contact = v.bench.find((c) => c.status === 'bench' && !c.busy);
+      if (contact) acted = act({ type: 'take-number', candidate: contact.id });
+      for (const request of acted ? [] : requests) {
         const candidates = free.filter((c) => matches(c, request));
         if (!candidates.length) continue;
         if (policy === 'reckless') {
@@ -242,9 +248,9 @@ export function runPolicy(seed: number, policy: Policy, until = MONTH_END): Stat
         }
         if (acted) break;
       }
-      // Meet people even between requests so they remain on the books after leaving the bench.
-      if (!acted && policy !== 'reckless') {
-        const candidate = v.bench.find((c) => !interviewed.has(c.id) && !c.busy);
+      // Interview saved contacts between requests, without mistaking a number for evidence.
+      if (!acted && policy === 'careful') {
+        const candidate = free.find((c) => !interviewed.has(c.id));
         if (candidate) {
           interviewed.add(candidate.id);
           acted = act({ type: 'interview', candidate: candidate.id });

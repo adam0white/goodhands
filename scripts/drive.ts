@@ -14,6 +14,7 @@ function status() {
   if (v.phoneRinging) console.log(`Telephone: ${v.phoneRinging.who} is waiting.`);
   if (v.scene) {
     console.log(`\n${v.scene.title} [${v.scene.id}]`);
+    if (v.heldScene) console.log(`${v.heldScene.title} is waiting.`);
     for (const line of v.scene.lines) console.log(`${line.speaker ? `${line.speaker}: ` : ''}${line.text}`);
     for (const choice of v.scene.choices)
       console.log(
@@ -27,6 +28,10 @@ function status() {
       `${c.id} · ${c.name} · ${c.status}${c.posture ? `, ${c.posture}` : ''}${c.busy ? `, ${c.busy}` : ''}${c.wage !== null ? ` · asks ₺${c.wage}` : ''}`,
     );
     console.log(`  ${c.look} Roles: ${c.roles.join(', ')}.${c.wants ? ` Wants: ${c.wants}` : ''}`);
+    if (c.status === 'bench')
+      console.log(
+        `  Take ${c.name}'s number (2 minutes): ${JSON.stringify({ type: 'take-number', candidate: c.id })}`,
+      );
     for (const n of c.notes)
       console.log(
         `  ${n.crossedOut ? 'Crossed out: ' : ''}${n.quality}: ${n.phrase} [${n.source}: ${n.from}]${n.claim ? ` · ${n.claim}` : ''}`,

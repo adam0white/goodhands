@@ -21,9 +21,9 @@ describe('the first morning', () => {
     expect(scene.lines.some((l) => l.kind === 'speech')).toBe(true);
     expect(scene.choices.some((c) => c.label === 'Coach her')).toBe(false);
     expect(scene.choices.some((c) => c.id === 'q-patient')).toBe(false);
-    expect(view(s).bench.find((c) => c.id === 'sevda')!.notes.length).toBeGreaterThan(0);
+    expect(view(s).books.find((c) => c.id === 'sevda')!.notes.length).toBeGreaterThan(0);
     apply(s, { type: 'close-scene', scene: scene.id });
-    const ref = view(s).bench.find((c) => c.id === 'sevda')!.referees[0]!;
+    const ref = view(s).books.find((c) => c.id === 'sevda')!.referees[0]!;
     advance(s, 120);
     apply(s, { type: 'call-reference', candidate: 'sevda', referee: ref.id });
     expect(view(s).scene?.kind).toBe('reference');
@@ -32,8 +32,19 @@ describe('the first morning', () => {
     expect(view(s).placements).toHaveLength(1);
     expect(view(s).cash).toBeGreaterThan(5000);
     expect(milestones(first, view(s))).toContain('first placement');
-    for (let i = 0; i < 20 && !view(s).dayCard; i++) advance(s, 120);
-    expect(view(s).dayCard?.tomorrow).toContain('Arslans');
+    for (let i = 0; i < 40 && !view(s).dayCard; i++) {
+      const current = view(s);
+      if (current.scene) {
+        apply(s, {
+          type: 'choose',
+          scene: current.scene.id,
+          choice: current.scene.kind === 'two-sides' ? 'promise' : current.scene.choices[0]!.id,
+        });
+        if (view(s).scene) apply(s, { type: 'close-scene', scene: view(s).scene!.id });
+      } else if (current.phoneRinging) apply(s, { type: 'answer-phone' });
+      else advance(s, 120);
+    }
+    expect(view(s).dayCard?.tomorrow).toContain('Sevda');
     apply(s, { type: 'sleep' });
     expect(view(s).dateLabel).toBe('Tuesday 3 November');
     expect(view(s).timeLabel).toBe('08:30');
@@ -43,9 +54,9 @@ describe('the first morning', () => {
     const s = newGame(1);
     advance(s, 120);
     expect(view(s).bench.some((c) => c.posture !== 'settled')).toBe(true);
-    advance(s, 300);
+    while (s.now < 690) advance(s, 690 - s.now);
     expect(view(s).bench.some((c) => c.posture === 'leaving')).toBe(true);
-    advance(s, 300);
+    while (s.now < 1000) advance(s, 1000 - s.now);
     expect(view(s).books.some((c) => c.status === 'gone')).toBe(true);
     expect(view(s).log.some((l) => l.text.includes('left'))).toBe(true);
   });

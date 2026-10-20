@@ -30,6 +30,7 @@ export const SPEEDS: readonly number[] = [0.5, 2, 6, 20];
 export type Input =
   | { type: 'speed'; speed: Speed }
   | { type: 'interview'; candidate: string } // opens an interview scene
+  | { type: 'take-number'; candidate: string } // two minutes; keep a bench candidate on the books
   | { type: 'call-reference'; candidate: string; referee: string } // opens a phone scene
   | { type: 'trial'; candidate: string; family: string } // send for a trial morning (next morning)
   | { type: 'place'; candidate: string; family: string; vouch: Quality[] } // vouch: what Nermin tells the family
