@@ -28,6 +28,7 @@ import type {
   Review,
   SceneView,
   State,
+  TalkRoute,
   TalkThread,
   View,
 } from './types.ts';
@@ -67,10 +68,14 @@ interface Phone {
   placement?: string;
 }
 interface Sim extends State {
+  routes: TalkRoute[];
+  routeFacts: Record<number, { prop: string; value: boolean }>;
+  envelopePromise?: { candidate: string; at: number };
+  envelopeDebt?: { candidate: string; scene: string; at: number };
   fees: Record<string, { first: boolean; second: boolean }>;
   offerDetails?: Record<
     string,
-    { kind: 'confidence' | 'envelope' | 'poach'; candidate: string; family: string }
+    { kind: 'confidence' | 'envelope' | 'poach' | 'refund'; candidate: string; family: string }
   >;
   trialReports?: Record<
     string,
@@ -101,10 +106,12 @@ const END = 27 * DAY + 1140;
 const weekdays = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 const day = (s: State) => Math.floor(s.now / DAY);
 const name = (id: string) =>
-  CANDIDATES.find((c) => c.id === id)?.name ??
-  FAMILIES.find((f) => f.id === id)?.name ??
-  REFEREES.find((r) => r.id === id)?.name ??
-  id;
+  id === 'nermin'
+    ? 'Nermin'
+    : (CANDIDATES.find((c) => c.id === id)?.name ??
+      FAMILIES.find((f) => f.id === id)?.name ??
+      REFEREES.find((r) => r.id === id)?.name ??
+      id);
 const cue = (q: Quality) =>
   ['warm', 'hardworking', 'discreet'].includes(q) ? `trait:goodhands:${q}` : `trait:${QUALITY_MAP[q]}`;
 const clamp = (n: number) => Math.max(0, Math.min(1, n));
@@ -164,6 +171,11 @@ function addNote(
   sourceId: string,
 ): Note {
   const observer = s.people.nermin!;
+  // Belief sources remember whose words proved right when Nermin later sees an act.
+  // Impressions keep the richer estimate; neither call reads hidden traits here.
+  if (source === 'seen') confirm(observer, `${candidate}:${q}`, value >= 0.62, s.now);
+  else if (value > 0.62 || value < 0.4)
+    believe(observer, `${candidate}:${q}`, value > 0.62, 0.85, sourceId, s.now);
   hear(
     observer,
     candidate,
@@ -299,6 +311,8 @@ export function newGame(seed: number): State {
     phones: [],
     log: [],
     threads: [],
+    routes: [],
+    routeFacts: {},
     dayCard: null,
     ended: false,
     review: null,
@@ -342,7 +356,21 @@ function finish(s: Sim, why: string) {
       notes: s.cards[c.id]!.notes,
     })),
     placements: s.placements.map((p) => ({ id: p.id, story: p.story })),
-    threads: s.threads,
+    threads: s.threads.map((t) => ({
+      ...t,
+      about: t.about ?? s.routes.find((r) => r.at === t.at && r.from === t.from && r.to === t.to)?.about,
+    })),
+    routes: s.routes,
+    workersTrust: CANDIDATES.filter((c) => s.cards[c.id]!.met).map((c) => ({
+      id: c.id,
+      name: c.name,
+      trust:
+        trustOf(s.people[c.id]!, 'nermin') > 0.65
+          ? 'warm'
+          : trustOf(s.people[c.id]!, 'nermin') < 0.45
+            ? 'cool'
+            : 'polite',
+    })),
     cash: s.cash,
     trustedBy: FAMILIES.filter((f) => trustOf(s.people[`${f.id}-0`]!, 'nermin') > 0.65).map((f) => f.name),
     question: 'Whose trust will you carry into another month?',
@@ -425,6 +453,7 @@ function step(s: Sim) {
   overdueRent(s);
   if (s.now % DAY === 930) offers(s);
   traceSecrets(s);
+  envelopeDue(s);
   if (s.ended) return;
   if (day(s) % 7 === 4 && s.now % DAY === 960) cityTalk(s, true);
   if (day(s) % 7 === 5 && s.now % DAY === 900) cityTalk(s, false);
@@ -475,6 +504,8 @@ export function apply(state: State, input: Input): State {
       refuse(s, 'The day card opens at 19:00.');
       return s;
     }
+    if (s.scene?.kind === 'offer' && s.offerDetails?.[s.scene.id]?.kind === 'refund')
+      offerChoice(s, s.scene, 'keep-envelope');
     s.scene = null;
     s.dayCard = null;
     let tomorrow = day(s) + 1;
@@ -1411,6 +1442,34 @@ function cityTalk(s: Sim, workers: boolean) {
         topics: ['nermin'],
         maxClaims: 2,
       });
+      for (const told of exchange.told)
+        for (const claim of told.claims ?? []) {
+          const about = claim.prop.split(':')[0]!;
+          const sources = s.people[from]!.memory.beliefs.find((b) => b.prop === claim.prop)?.sources ?? [];
+          const own = sources.some((source) => source.id === from || source.id === 'self');
+          const parent = own
+            ? undefined
+            : s.routes.findLast(
+                (r) =>
+                  r.to === from.replace(/-0$/, '') &&
+                  s.routeFacts[r.id]?.prop === claim.prop &&
+                  s.routeFacts[r.id]?.value === claim.value &&
+                  sources.some(
+                    (source) => source.id.replace(/-0$/, '') === r.from && source.value === claim.value,
+                  ),
+              );
+          const id = s.routes.length + 1;
+          s.routes.push({
+            id,
+            at: s.now,
+            from: from.replace(/-0$/, ''),
+            to: to.replace(/-0$/, ''),
+            about,
+            words: spokenClaim(claim.prop, claim.value),
+            ...(parent ? { parent: parent.id } : {}),
+          });
+          s.routeFacts[id] = { prop: claim.prop, value: claim.value };
+        }
       perceive(s.people[to]!, exchange.told);
       for (const ev of exchange.socialEvents.speaker) socialEvent(s.people[from]!, ev);
       for (const ev of exchange.socialEvents.listener) socialEvent(s.people[to]!, ev);
@@ -1556,13 +1615,38 @@ function offerChoice(s: Sim, sc: SceneView, choice: string) {
       log(s, 'money', `You repeated ${name(offer.candidate)}’s confidence. ${name(sc.with)} paid ₺1800.`);
       // The path is recorded; only some tellings find their way back to the house.
       s.threads.push({ at: s.now, from: 'nermin', to: sc.with, place: 'telephone', about: offer.family });
+      s.routes.push({
+        id: s.routes.length + 1,
+        at: s.now,
+        from: 'nermin',
+        to: sc.with,
+        about: offer.family,
+        words: secret.text,
+      });
       if (roll(s, `trace:${sc.id}`) < 0.7)
         s.eventKeys.push(`trace-secret:${offer.candidate}:${offer.family}:${s.now + DAY}`);
     }
   } else if (choice === 'take-envelope' && offer.kind === 'envelope') {
     s.cash += 1200;
     s.eventKeys.push(`envelope:${offer.candidate}`);
+    s.envelopePromise = { candidate: offer.candidate, at: s.now + 2 * DAY };
     log(s, 'money', `${name(offer.candidate)} left ₺1200 on the desk. She expects the next suitable house.`);
+  } else if (offer.kind === 'refund') {
+    delete s.envelopeDebt;
+    if (choice === 'refund-envelope' && s.cash >= 1200) {
+      s.cash -= 1200;
+      log(s, 'money', `You returned ₺1200 to ${name(offer.candidate)}.`);
+    } else {
+      worker.memory.sourceTrust.nermin = clamp(trustOf(worker, 'nermin') - 0.25);
+      confirm(worker, 'nermin:honest', false, s.now);
+      confirm(worker, 'nermin:reliable', false, s.now);
+      log(
+        s,
+        'word',
+        `${name(offer.candidate)}: “You took my money. Do not say I never asked you to put it right.”`,
+        { candidate: offer.candidate },
+      );
+    }
   } else if (choice === 'accept-poach' && offer.kind === 'poach') {
     const p = s.placements.find((p) => p.candidate === offer.candidate && p.status === 'kept');
     if (p) {
@@ -1653,4 +1737,64 @@ function actTable(q: Quality, good: boolean, tag: string) {
   return ['warm', 'hardworking', 'discreet'].includes(q)
     ? {}
     : { [tag]: { [QUALITY_MAP[q]]: good ? 0.85 : 0.2 } };
+}
+function envelopeDue(s: Sim) {
+  const debt = s.envelopeDebt;
+  if (debt && s.now >= debt.at) {
+    const pending =
+      s.scene?.id === debt.scene ? s.scene : s.phones.find((p) => p.scene.id === debt.scene)?.scene;
+    if (pending) offerChoice(s, pending, 'keep-envelope');
+    if (s.scene?.id === debt.scene) s.scene = null;
+    s.phones = s.phones.filter((p) => p.scene.id !== debt.scene);
+    delete s.envelopeDebt;
+  }
+  const promise = s.envelopePromise;
+  if (!promise || s.now < promise.at) return;
+  delete s.envelopePromise;
+  const p = s.placements.find(
+    (p) => p.candidate === promise.candidate && ['trial', 'kept'].includes(p.status),
+  );
+  if (p) {
+    log(s, 'word', `${name(promise.candidate)}: “You did find me a house. I remember that.”`);
+    return;
+  }
+  const call = scene(
+    s,
+    'offer',
+    promise.candidate,
+    'The envelope comes back',
+    'You took my money. I am still without work. Give it back, or find me a place.',
+    [
+      { id: 'keep-envelope', label: 'Keep the money', hint: 'She will tell people what happened.' },
+      {
+        id: 'refund-envelope',
+        label: 'Return the ₺1200',
+        ...(s.cash < 1200
+          ? { disabled: 'There is not ₺1200 in the cash box. Find a placement to collect a fee.' }
+          : {}),
+      },
+    ],
+  );
+  call.canLeave = false;
+  s.envelopeDebt = { candidate: promise.candidate, scene: call.id, at: s.now + DAY };
+  s.offerDetails ??= {};
+  s.offerDetails[call.id] = { kind: 'refund', candidate: promise.candidate, family: '' };
+  queue(s, promise.candidate, call);
+}
+function spokenClaim(prop: string, value: boolean) {
+  const [target, trait] = prop.split(':');
+  const subject = name(target ?? '');
+  const claims: Record<string, [string, string]> = {
+    reliable: [`You can rely on ${subject}.`, `You cannot rely on ${subject}.`],
+    honest: [`${subject} has been straight with people.`, `${subject} has not been straight with people.`],
+    kind: [`${subject} has treated people well.`, `${subject} has treated people badly.`],
+    patient: [`${subject} gives people time.`, `${subject} gets cross when people need time.`],
+    warm: [`${subject} makes people feel welcome.`, `${subject} keeps apart from people.`],
+    hardworking: [`${subject} finishes the work.`, `${subject} leaves work for other people.`],
+    discreet: [`${subject} keeps private words private.`, `${subject} repeats private words.`],
+  };
+  return (
+    claims[trait ?? '']?.[value ? 0 : 1] ??
+    `${subject}: ${value ? 'that is what I heard' : 'I heard otherwise'}.`
+  );
 }

@@ -113,3 +113,29 @@ test('a delayed callback only delivers the household moments known when it rang'
   apply(s, { type: 'answer-phone' });
   expect(view(s).books.find((c) => c.id === 'sevda')!.notes).toHaveLength(firstCount);
 });
+
+test('taking the envelope creates a later demand if no placement follows', () => {
+  const s = newGame(1);
+  // Keep Gül on the books without placing her.
+  apply(s, { type: 'interview', candidate: 'gul' });
+  apply(s, { type: 'choose', scene: view(s).scene!.id, choice: 'q-patient' });
+  close(s);
+  until(s, 1440 + 930);
+  for (let i = 0; i < 20 && view(s).scene?.title !== 'An envelope on the desk'; i++) {
+    if (view(s).scene) close(s);
+    else if (view(s).phoneRinging) apply(s, { type: 'answer-phone' });
+    else break;
+  }
+  expect(view(s).scene?.title).toBe('An envelope on the desk');
+  apply(s, { type: 'choose', scene: view(s).scene!.id, choice: 'take-envelope' });
+  until(s, s.now + 2 * 1440 + 1);
+  for (let i = 0; i < 50 && view(s).scene?.title !== 'The envelope comes back'; i++) {
+    if (view(s).scene) close(s);
+    else if (view(s).phoneRinging) apply(s, { type: 'answer-phone' });
+    else break;
+  }
+  expect(view(s).scene?.title).toBe('The envelope comes back');
+  expect(view(s).scene?.canLeave).toBe(false);
+  until(s, s.now + 1441);
+  expect(s.people.gul!.memory.sourceTrust.nermin).toBeLessThan(0.5);
+});

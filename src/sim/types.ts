@@ -206,7 +206,21 @@ export interface View {
   review: Review | null; // set when ended
 }
 
+/** A spoken claim's complete path. Revealed only in the month review. */
+export interface TalkRoute {
+  id: number;
+  at: Minute;
+  from: string;
+  to: string;
+  about: string;
+  words: string;
+  /** Earlier telling heard by this speaker, when this is a retelling. */
+  parent?: number;
+}
+
 export interface Review {
+  routes?: TalkRoute[];
+  workersTrust?: { id: string; name: string; trust: 'warm' | 'polite' | 'cool' }[];
   people: { id: string; name: string; truth: Record<Quality, 'yes' | 'maybe' | 'no'>; notes: Note[] }[];
   placements: { id: string; story: string[] }[];
   threads: TalkThread[];
