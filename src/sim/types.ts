@@ -36,7 +36,7 @@ export type Input =
   | { type: 'place'; candidate: string; family: string; vouch: Quality[] } // vouch: what Nermin tells the family
   | { type: 'check-in'; placement: string; how: 'phone' | 'visit' | 'drop-by' }
   | { type: 'withdraw'; placement: string }
-  | { type: 'choose'; scene: string; choice: string } // answer in any open scene
+  | { type: 'choose'; scene: string; choice: string } // answer in any open scene; interviews end with 'wait-bench' or 'send-home'
   | { type: 'close-scene'; scene: string } // leave a scene that allows leaving
   | { type: 'answer-phone' } // pick up a ringing phone (opens its scene)
   | { type: 'wait-for' }
