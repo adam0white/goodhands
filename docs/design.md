@@ -107,7 +107,7 @@ Screens: `title`, `office`, `city`, `scene`, `review`, `menu`. Milestones: `run 
 
 ## Deferred
 
-(none yet)
+- **2026-10-21:** Assess repeated withdrawal/replacement in a fresh source-unread playtest. HF round 2 produced 83–141 placement records for completionists and two 60-minute caps; it does not establish human return intent.
 
 ## Build measurement
 
