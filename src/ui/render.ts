@@ -26,6 +26,18 @@ export function evidence(candidate: CandidateView, quality: Quality): string {
     : 'No note yet. You have not checked this.';
 }
 
+export function vouchLabel(candidate: CandidateView, quality: Quality): string {
+  const notes = candidate.notes.filter((n) => n.quality === quality && !n.crossedOut);
+  const source = ['seen', 'heard', 'says'].find((source) => notes.some((n) => n.source === source));
+  return `${quality} · ${source ?? 'not checked'}`;
+}
+
+export function phoneAvailability(v: View): string | undefined {
+  if (v.heldScene || (v.scene && !['interview', 'reference'].includes(v.scene.kind)))
+    return 'Finish this conversation before answering another call.';
+  return undefined;
+}
+
 export function candidateAvailability(candidate: CandidateView): string | undefined {
   if (candidate.busy) return candidate.busy;
   if (candidate.status === 'gone') return 'She has left. She is no longer on your books.';

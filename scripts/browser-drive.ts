@@ -4,7 +4,7 @@
  * Vite serves 4310; driver listens on 4311. Separate instances use separate port pairs.
  * Commands: node scripts/browser-drive.ts 4310 text
  *   ... 4310 shot opening | tap 'New month' | speed Gallop | wait 5 | export scratch/run.json | quit
- * Omit the port for commands to use 4310. Screenshots: scratch/shots-p1/<port>/<name>.png.
+ * Omit the port for commands to use 4310. Screenshots: scratch/shots-p2/<port>/<name>.png.
  */
 import { mkdirSync } from 'node:fs';
 import { createServer } from 'node:http';
@@ -12,32 +12,53 @@ import { dirname, resolve } from 'node:path';
 import { chromium, type Page } from 'playwright-core';
 import { createServer as createViteServer } from 'vite';
 
-const argv = process.argv.slice(2);
-const starting = argv[0] === 'start';
-const explicitPort = /^\d+$/.test(argv[0] ?? '');
-const port = Number(starting ? (argv[1] ?? 4310) : explicitPort ? argv.shift() : 4310);
-if (!Number.isInteger(port) || port < 1024 || port > 65534) throw new Error('Use a port from 1024 to 65534.');
+if (import.meta.main) {
+  const argv = process.argv.slice(2);
+  const starting = argv[0] === 'start';
+  const explicitPort = /^\d+$/.test(argv[0] ?? '');
+  const port = Number(starting ? (argv[1] ?? 4310) : explicitPort ? argv.shift() : 4310);
+  if (!Number.isInteger(port) || port < 1024 || port > 65534)
+    throw new Error('Use a port from 1024 to 65534.');
 
-if (starting) {
-  const vite = await createViteServer({ server: { host: '127.0.0.1', port, strictPort: true } });
-  await vite.listen();
-  const browser = await chromium.launch({ channel: 'chromium-headless-shell' });
-  const page = await browser.newPage({
-    viewport: { width: 360, height: 690 },
-    isMobile: true,
-    hasTouch: true,
-    acceptDownloads: true,
-  });
-  await page.goto(`http://127.0.0.1:${port}/`);
+  if (starting) {
+    const vite = await createViteServer({ server: { host: '127.0.0.1', port, strictPort: true } });
+    await vite.listen();
+    const browser = await chromium.launch({ channel: 'chromium-headless-shell' });
+    const page = await browser.newPage({
+      viewport: { width: 360, height: 690 },
+      isMobile: true,
+      hasTouch: true,
+      acceptDownloads: true,
+    });
+    await page.goto(`http://127.0.0.1:${port}/`);
+    let closed = false;
+    const close = async () => {
+      if (closed) return;
+      closed = true;
+      await browser.close();
+      await vite.close();
+      server.close();
+    };
+    const server = await startCommandServer(page, port, close);
+    process.once('SIGINT', () => void close());
+    process.once('SIGTERM', () => void close());
+    console.log(
+      `Game http://127.0.0.1:${port}/; driver ${port + 1}; PID ${process.pid}. The real clock keeps moving.`,
+    );
+  } else {
+    const [command = 'text', ...args] = argv;
+    const response = await fetch(`http://127.0.0.1:${port + 1}/`, {
+      method: 'POST',
+      body: JSON.stringify({ command, args }),
+    });
+    console.log(await response.text());
+    if (!response.ok) process.exitCode = 1;
+  }
+}
+
+/** Exposes only the same player-facing commands used by the standalone driver. */
+export async function startCommandServer(page: Page, port: number, close: () => Promise<void>) {
   let queue = Promise.resolve();
-  let closed = false;
-  const close = async () => {
-    if (closed) return;
-    closed = true;
-    await browser.close();
-    await vite.close();
-    server.close();
-  };
   const server = createServer((request, response) => {
     if (request.method !== 'POST' || request.headers.origin) {
       response.writeHead(403).end('Local command client only.');
@@ -68,19 +89,7 @@ if (starting) {
     server.once('error', reject);
     server.listen(port + 1, '127.0.0.1', ready);
   });
-  process.once('SIGINT', () => void close());
-  process.once('SIGTERM', () => void close());
-  console.log(
-    `Game http://127.0.0.1:${port}/; driver ${port + 1}; PID ${process.pid}. The real clock keeps moving.`,
-  );
-} else {
-  const [command = 'text', ...args] = argv;
-  const response = await fetch(`http://127.0.0.1:${port + 1}/`, {
-    method: 'POST',
-    body: JSON.stringify({ command, args }),
-  });
-  console.log(await response.text());
-  if (!response.ok) process.exitCode = 1;
+  return server;
 }
 
 async function run(page: Page, port: number, command: string, args: string[]): Promise<string> {
@@ -89,18 +98,25 @@ async function run(page: Page, port: number, command: string, args: string[]): P
     const name = args.join(' ') || 'screen';
     if (!/^[\w-]+$/.test(name))
       throw new Error('Screenshot name may contain letters, numbers, underscores and hyphens.');
-    const path = resolve(`scratch/shots-p1/${port}/${name}.png`);
+    const path = resolve(`scratch/shots-p2/${port}/${name}.png`);
     mkdirSync(dirname(path), { recursive: true });
     await page.screenshot({ path });
     return path;
   }
   if (command === 'tap') {
     const label = args.join(' ');
-    if (!label) throw new Error('Supply a visible button label.');
-    const button = page.getByRole('button', { name: label, exact: true });
-    const link = page.getByRole('link', { name: label, exact: true });
-    const target = (await button.count()) ? button : link;
-    if ((await target.count()) !== 1) throw new Error(`Expected one visible action named "${label}".`);
+    if (!label) throw new Error('Supply a visible action label.');
+    const target = page
+      .getByRole('button', { name: label, exact: true })
+      .or(page.getByRole('link', { name: label, exact: true }))
+      .or(page.locator('summary').and(page.getByText(label, { exact: true })))
+      .filter({ visible: true });
+    const count = await target.count();
+    if (count !== 1)
+      throw new Error(
+        `Expected one visible action named "${label}"; found ${count}. Use its full visible label.`,
+      );
+    if (await target.isDisabled()) throw new Error(`"${label}" is disabled. Read the explanation beside it.`);
     await target.click({ timeout: 3000 });
     return page.locator('body').innerText();
   }

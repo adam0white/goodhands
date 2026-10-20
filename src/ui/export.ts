@@ -40,6 +40,7 @@ function validInput(value: unknown): value is Input {
   const fields: Record<string, string[]> = {
     speed: ['speed'],
     interview: ['candidate'],
+    'take-number': ['candidate'],
     'call-reference': ['candidate', 'referee'],
     trial: ['candidate', 'family'],
     place: ['candidate', 'family', 'vouch'],

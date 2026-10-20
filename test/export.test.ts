@@ -86,3 +86,17 @@ it('imports named waiting as a replayable input', () => {
   const run = compactRun(exportRun(state, inputs));
   expect(verifyImport(JSON.stringify(run)).inputs).toEqual(inputs);
 });
+
+it('keeps a saved candidate’s number through full and compact imports', () => {
+  let state = newGame(1);
+  const input = { type: 'take-number', candidate: 'pinar' } as const;
+  const inputs: LoggedInput[] = [{ at: view(state).now, input }];
+  state = apply(state, input);
+  const run = exportRun(state, inputs);
+  for (const data of [run, compactRun(run)]) {
+    const imported = verifyImport(JSON.stringify(data));
+    expect(imported.inputs).toEqual(inputs);
+    expect(view(imported.state).bench.some((c) => c.id === 'pinar')).toBe(false);
+    expect(view(imported.state).books.find((c) => c.id === 'pinar')?.status).toBe('books');
+  }
+});

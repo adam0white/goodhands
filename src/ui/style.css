@@ -567,23 +567,31 @@ fieldset {
 legend {
   font-size: 0.9rem;
 }
+.vouch-controls {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+  margin-top: 6px;
+}
 .sheet-content .vouch {
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  min-height: 55px;
-  border-bottom: 1px solid var(--ink-soft);
-  padding: 4px 0;
-  gap: 8px;
+  min-height: 44px;
+  min-width: 44px;
+  width: 100%;
+  text-align: left;
+  font-size: 0.88rem;
+  overflow-wrap: anywhere;
+  background: var(--paper);
+  border-width: 2px;
+  font-weight: 400;
 }
-.vouch input {
-  flex: 0 0 44px;
-  width: 44px;
-  height: 44px;
-  accent-color: var(--ink);
+.sheet-content .vouch[aria-pressed="true"] {
+  border: 2px solid var(--ink);
+  background: var(--paper-2);
 }
-.vouch small {
-  margin-top: 3px;
+.vouch-evidence p {
+  margin-block: 8px;
+  font-size: 0.88rem;
+  overflow-wrap: anywhere;
 }
 .lk-term {
   color: var(--ink);
@@ -909,4 +917,36 @@ legend {
 }
 .response-details p {
   margin-block: 8px;
+}
+.held-scene,
+.question-limit {
+  flex-shrink: 0;
+  margin-top: 5px;
+  font-size: 0.88rem;
+  line-height: 1.25;
+}
+.phone-reason:empty {
+  display: none;
+}
+.phone-reason {
+  position: absolute;
+  right: 4px;
+  bottom: 3px;
+  width: 57%;
+  background: var(--paper);
+  padding: 3px;
+  margin: 0;
+  font-size: 0.88rem;
+  line-height: 1.2;
+}
+.has-scene.has-phone-limit .room {
+  height: 82px;
+}
+.choice {
+  display: flex;
+  flex-direction: column;
+}
+.choice button {
+  height: auto;
+  flex: 1;
 }

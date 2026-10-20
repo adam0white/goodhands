@@ -23,10 +23,12 @@ import {
   INTRO,
   money,
   noteText,
+  phoneAvailability,
   placementLabel,
   resumeLine,
   SPEED_NAMES,
   speedLabel,
+  vouchLabel,
 } from './render.ts';
 import { get, put, putNow } from './store.ts';
 
@@ -52,6 +54,7 @@ let notice = '';
 let waitAnimation: { before: View; start: number; end: number; label: string } | null = null;
 let questionPage = 0;
 let questionScene = '';
+let heldQuestions: { id: string; page: number } | null = null;
 let transcriptKey = '';
 let saveReady = false;
 const ALL_GAMES = 'https://human.adamwhite.work/games/';
@@ -182,11 +185,14 @@ function begin(next: State | null, history: LoggedInput[]): void {
   playing = true;
   last = performance.now();
   lastHour = Math.floor(current().now / 60);
+  questionScene = '';
+  heldQuestions = null;
+  notice = '';
   render(true);
   save();
 }
 function shell(v: View): void {
-  root.innerHTML = `<main class="game" data-testid="office"><header class="topbar"><a class="hub" href="${ALL_GAMES}" aria-label="human framework games">◇ human framework</a><button type="button" data-action="menu">Game menu</button><div class="clock"><span data-date></span> <strong data-time></strong></div><label class="speed-control">Clock <select aria-label="Clock speed">${SPEED_NAMES.map((name, i) => `<option value="${i}">${name}</option>`).join('')}</select></label><p class="speed-status" data-speed></p><button type="button" data-action="wait-for" class="wait-for" hidden></button></header><div class="room"><canvas id="office" role="img" aria-label="Nermin’s desk, telephone, window and the waiting bench"></canvas><div class="seat-targets"></div><button class="phone-control" type="button" data-action="phone"></button></div><button class="task now" type="button" aria-label="Task" data-testid="task" data-action="task"><strong>Task</strong><span></span></button><nav class="bench-strip" aria-label="Waiting bench" data-testid="bench"></nav><div data-content></div><p class="status" role="status" data-status></p><footer><span data-money></span><a href="${ALL_GAMES}">All games</a></footer></main>`;
+  root.innerHTML = `<main class="game" data-testid="office"><header class="topbar"><a class="hub" href="${ALL_GAMES}" aria-label="human framework games">◇ human framework</a><button type="button" data-action="menu">Game menu</button><div class="clock"><span data-date></span> <strong data-time></strong></div><label class="speed-control">Clock <select aria-label="Clock speed">${SPEED_NAMES.map((name, i) => `<option value="${i}">${name}</option>`).join('')}</select></label><p class="speed-status" data-speed></p><button type="button" data-action="wait-for" class="wait-for" hidden></button></header><div class="room"><canvas id="office" role="img" aria-label="Nermin’s desk, telephone, window and the waiting bench"></canvas><div class="seat-targets"></div><button class="phone-control" type="button" data-action="phone"></button></div><button class="task now" type="button" aria-label="Task" data-testid="task" data-action="task"><strong>Task</strong><span></span></button><p class="status" role="status" data-status></p><nav class="bench-strip" aria-label="Waiting bench" data-testid="bench"></nav><div data-content></div><footer><span data-money></span><a href="${ALL_GAMES}">All games</a></footer></main>`;
   const speeds = root.querySelector('select');
   speeds?.addEventListener('change', () => send({ type: 'speed', speed: Number(speeds.value) as Speed }));
   updateClock(v);
@@ -244,6 +250,7 @@ function render(force = false): void {
     v.families,
     v.placements,
     v.scene,
+    v.heldScene,
     v.dayCard,
     // Canvas positions update each frame without replacing the transcript or controls.
     city ? v.city.figures.map((f) => [f.id, f.name, f.place]) : null,
@@ -266,6 +273,9 @@ function render(force = false): void {
       : null;
   const activeLabel = active?.getAttribute('aria-label') ?? active?.textContent;
   root.querySelector('.game')?.classList.toggle('has-scene', !!v.scene);
+  root
+    .querySelector('.game')
+    ?.classList.toggle('has-phone-limit', !!v.phoneRinging && !!phoneAvailability(v));
   root.querySelector('.game')?.classList.toggle('has-city', city && !v.scene && !v.dayCard);
   root.querySelector('.game')?.classList.toggle('has-day-card', !!v.dayCard);
   const task = root.querySelector<HTMLElement>('.task span');
@@ -274,6 +284,17 @@ function render(force = false): void {
   if (phone) {
     phone.textContent = v.phoneRinging ? `Answer phone · ${v.phoneRinging.who}` : 'Telephone';
     phone.hidden = !v.phoneRinging;
+    const reason = phoneAvailability(v);
+    phone.disabled = !!reason;
+    let line = root.querySelector<HTMLElement>('.phone-reason');
+    if (!line) {
+      line = document.createElement('p');
+      line.id = 'phone-reason';
+      line.className = 'phone-reason reason';
+      phone.after(line);
+      phone.setAttribute('aria-describedby', line.id);
+    }
+    line.textContent = v.phoneRinging ? (reason ?? '') : '';
   }
   drawOffice(root.querySelector<HTMLCanvasElement>('#office') as HTMLCanvasElement, v, selected);
   const targets = root.querySelector('.seat-targets');
@@ -352,7 +373,7 @@ function benchHtml(v: View): string {
   const unavailable =
     candidateAvailability(c) ?? (!v.open ? 'The office is closed. Sleep to open tomorrow.' : undefined);
   const reason = unavailable ? `<p class="reason">${h(unavailable)}</p>` : '';
-  return `<article class="candidate-card"><div class="card-heading"><h2>${h(c.name)}</h2><span>${h(c.roles.join(' / '))}</span></div><p class="look">${h(c.look)}</p><div class="candidate-actions">${action('Interview', 'interview', unavailable, 'About 30 minutes')}${action('Call a reference', 'references', unavailable, 'About 15 minutes')}${action('Send for a trial', 'trial', unavailable, 'Her next morning away')}${action('Place', 'place', unavailable, 'Choose what to vouch for')}</div>${reason}${c.wants ? `<p class="candidate-wants handwritten">Needs: ${h(c.wants)}</p>` : ''}<details class="notes-details" open><summary>Nermin’s notes · ${c.wage === null ? 'Wage not yet asked' : `${money(c.wage)} a month`}</summary><div class="card-notes">${QUALITIES.map(
+  return `<article class="candidate-card"><div class="card-heading"><h2>${h(c.name)}</h2><span>${h(c.roles.join(' / '))}</span></div><p class="look">${h(c.look)}</p><div class="candidate-actions">${action('Interview', 'interview', unavailable, 'About 30 minutes')}${action('Call a reference', 'references', unavailable, 'About 15 minutes')}${action('Send for a trial', 'trial', unavailable, 'Her next morning away')}${action('Place', 'place', unavailable, 'Choose what to vouch for')}${c.status === 'bench' ? action('Take her number', 'take-number', unavailable, '2 minutes · she goes home; stays on the books') : ''}</div>${reason}${c.wants ? `<p class="candidate-wants handwritten">Needs: ${h(c.wants)}</p>` : ''}<details class="notes-details" open><summary>Nermin’s notes · ${c.wage === null ? 'Wage not yet asked' : `${money(c.wage)} a month`}</summary><div class="card-notes">${QUALITIES.map(
     (q) => {
       const notes = c.notes.filter((n) => n.quality === q);
       const read = notes.findLast((n) => !n.crossedOut) ?? notes.at(-1);
@@ -388,12 +409,17 @@ function placedHtml(v: View): string {
 function sceneHtml(v: View): string {
   const s = v.scene;
   if (!s) return '';
+  const held = v.heldScene?.title
+    .replace(/^Interview:\s*/, 'Interview with ')
+    .replace(/^Reference:\s*/, 'Reference call for ');
   const finish = s.canLeave
     ? s.choices.find((c) => (c.id === 'finish' || /^Finish/.test(c.label)) && !c.disabled)
     : undefined;
   if (questionScene !== s.id) {
+    if (v.heldScene?.id === questionScene) heldQuestions = { id: questionScene, page: questionPage };
     questionScene = s.id;
-    questionPage = 0;
+    questionPage = heldQuestions?.id === s.id ? heldQuestions.page : 0;
+    if (heldQuestions?.id === s.id) heldQuestions = null;
   }
   const available = s.choices.filter((c) => c !== finish);
   const questions = s.kind === 'interview' ? available.filter((c) => c.id !== 'coach') : [];
@@ -410,7 +436,7 @@ function sceneHtml(v: View): string {
           ...available.filter((c) => c.id === 'coach'),
         ]
       : available;
-  return `<section class="scene-sheet" data-testid="scene" aria-label="${h(s.title)}"><div class="sheet-heading"><h2>${h(s.title)}</h2>${finish ? `<button type="button" data-choice="${h(finish.id)}">${h(finish.label)}</button>` : s.canLeave ? '<button type="button" data-action="leave-scene">Finish</button>' : ''}</div><div class="exchange" role="region" aria-label="Conversation transcript" tabindex="0">${
+  return `<section class="scene-sheet" data-testid="scene" aria-label="${h(s.title)}"><div class="sheet-heading"><h2>${h(s.title)}</h2>${finish ? `<button type="button" data-choice="${h(finish.id)}">${h(finish.label)}</button>` : s.canLeave ? '<button type="button" data-action="leave-scene">Finish</button>' : ''}</div>${held ? `<p class="held-scene" role="status">${h(held)} is waiting.</p>` : ''}${finish?.hint ? `<p class="question-limit">${h(finish.hint)}</p>` : ''}<div class="exchange" role="region" aria-label="Conversation transcript" tabindex="0">${
     details.length
       ? `<details class="response-details"><summary>Response details</summary>${details
           .map((c) => `<p><strong>${h(c.label)}:</strong> ${h(c.hint ?? '')}</p>`)
@@ -662,7 +688,7 @@ function matchSheet(kind: 'trial' | 'place'): void {
   const requests = v.requests.filter((r) => r.status === 'open');
   const d = openSheet(
     kind === 'trial' ? 'Send for a trial morning' : `Vouch for ${c.name}`,
-    `<p>${kind === 'trial' ? 'She will spend the next morning with the family. Their word comes back later.' : 'Half the fee is paid on placement; the rest if the family keeps her through the trial week. The family will remember what you vouch for.'}</p><label>Family <select aria-label="Family" data-match-family>${requests.map((r) => `<option value="${h(r.family)}">${h(person(v, r.family))} · ${h(r.role)}</option>`).join('')}</select></label>${!requests.length ? '<p>No open request. Answer a family’s call first.</p>' : ''}${kind === 'place' ? `<fieldset><legend>What will you put your word behind?</legend>${QUALITIES.map((q) => `<label class="vouch"><input type="checkbox" value="${q}" name="vouch"><span><strong>${q}</strong><small>${h(evidence(c, q))}</small></span></label>`).join('')}</fieldset>` : ''}<p data-match-reason class="reason"></p><button type="button" data-confirm-match ${!requests.length ? 'disabled' : ''}>${kind === 'trial' ? 'Send for a trial' : 'Place with this family'}</button>`,
+    `<p ${kind === 'place' ? 'data-fee-terms' : ''}>${kind === 'trial' ? 'She will spend the next morning with the family. Their word comes back later.' : 'The family pays one week’s wage as a deposit now; the rest of the fee after the trial week if they keep her. They will remember what you vouch for.'}</p><label>Family <select aria-label="Family" data-match-family>${requests.map((r) => `<option value="${h(r.family)}">${h(person(v, r.family))} · ${h(r.role)}</option>`).join('')}</select></label>${!requests.length ? '<p>No open request. Answer a family’s call first.</p>' : ''}${kind === 'place' ? `<fieldset><legend>What will you put your word behind?</legend><div class="vouch-controls">${QUALITIES.map((q) => `<button type="button" class="vouch" data-vouch="${q}" aria-pressed="false">${h(vouchLabel(c, q))}</button>`).join('')}</div><details class="vouch-evidence"><summary>Read the evidence</summary>${QUALITIES.map((q) => `<p><strong>${q}</strong> — ${h(evidence(c, q))}</p>`).join('')}</details></fieldset>` : ''}<p data-match-reason class="reason"></p><button type="button" data-confirm-match ${!requests.length ? 'disabled' : ''}>${kind === 'trial' ? 'Send for a trial' : 'Place with this family'}</button>`,
   );
   const select = d.querySelector<HTMLSelectElement>('[data-match-family]'),
     confirm = d.querySelector<HTMLButtonElement>('[data-confirm-match]');
@@ -681,16 +707,24 @@ function matchSheet(kind: 'trial' | 'place'): void {
         : undefined);
     const line = d.querySelector('[data-match-reason]');
     if (line) line.textContent = reason ?? '';
+    const terms = d.querySelector('[data-fee-terms]');
+    if (terms)
+      terms.textContent = `${live.placements.some((p) => p.family === select?.value) ? 'The earlier deposit covers this replacement.' : 'The family pays one week’s wage as a deposit now.'} The rest of the fee follows the trial week if they keep her. They will remember what you vouch for.`;
     if (confirm) confirm.disabled = !request || !!reason;
   };
+  for (const toggle of d.querySelectorAll<HTMLButtonElement>('[data-vouch]')) {
+    toggle.addEventListener('click', () => {
+      toggle.setAttribute('aria-pressed', String(toggle.getAttribute('aria-pressed') !== 'true'));
+    });
+  }
   select?.addEventListener('change', update);
   updateInspection = update;
   update();
   confirm?.addEventListener('click', () => {
     const family = select?.value;
     if (!family) return;
-    const vouch = [...d.querySelectorAll<HTMLInputElement>('input[name="vouch"]:checked')].map(
-      (i) => i.value as Quality,
+    const vouch = [...d.querySelectorAll<HTMLButtonElement>('[data-vouch][aria-pressed="true"]')].map(
+      (toggle) => toggle.dataset.vouch as Quality,
     );
     closeSheet(false);
     send(
@@ -846,6 +880,9 @@ function handleClick(event: Event): void {
       break;
     case 'interview':
       if (selected) send({ type: 'interview', candidate: selected });
+      break;
+    case 'take-number':
+      if (selected) send({ type: 'take-number', candidate: selected });
       break;
     case 'references':
       referenceSheet();

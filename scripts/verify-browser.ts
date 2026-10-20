@@ -1,8 +1,9 @@
 /** Built-preview phone acceptance. Run: node scripts/verify-browser.ts [port=4410]. Real clock only. */
 import assert from 'node:assert/strict';
-import { execFileSync } from 'node:child_process';
+import { execFile, execFileSync } from 'node:child_process';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { performance } from 'node:perf_hooks';
+import { promisify } from 'node:util';
 import { chromium, type Locator } from 'playwright-core';
 import { preview } from 'vite';
 import {
@@ -16,6 +17,7 @@ import {
   view,
 } from '../src/sim/index.ts';
 import { compactRun, exportRun, type RunExport, verifyImport } from '../src/ui/export.ts';
+import { startCommandServer } from './browser-drive.ts';
 
 function required<T>(value: T | null | undefined): T {
   assert.ok(value !== null && value !== undefined, 'Required fixture value exists');
@@ -27,7 +29,9 @@ const port = Number(process.argv[2] ?? 4410);
 execFileSync(process.execPath, ['node_modules/vite/bin/vite.js', 'build'], { stdio: 'inherit' });
 const server = await preview({ preview: { host: '127.0.0.1', port, strictPort: true } });
 const browser = await chromium.launch({ channel: 'chromium-headless-shell' });
-const shots = 'scratch/shots-p1';
+const shots = 'scratch/shots-p2';
+let driver: Awaited<ReturnType<typeof startCommandServer>> | undefined;
+const cliCommands: string[][] = [];
 mkdirSync(`${shots}/${port}`, { recursive: true });
 try {
   const page = await browser.newPage({
@@ -35,6 +39,21 @@ try {
     isMobile: true,
     hasTouch: true,
   });
+  driver = await startCommandServer(page, port, async () => {});
+  const cli = async (command: string, ...args: string[]) => {
+    cliCommands.push([command, ...args]);
+    const { stdout } = await promisify(execFile)(
+      process.execPath,
+      ['scripts/browser-drive.ts', String(port), command, ...args],
+      { timeout: 10000 },
+    );
+    return stdout;
+  };
+  const tap = async (target: string | Locator) => {
+    const label =
+      typeof target === 'string' ? target : (await target.innerText()).replace(/\s+/g, ' ').trim();
+    return cli('tap', label);
+  };
   await page.addInitScript(() => {
     document.addEventListener('DOMContentLoaded', () => {
       new MutationObserver(() => {
@@ -100,8 +119,8 @@ try {
   };
   const open = async () => {
     await page.goto(`http://127.0.0.1:${port}/`);
-    await page.getByRole('button', { name: 'New month', exact: true }).click();
-    await page.getByRole('button', { name: 'Open the office', exact: true }).click();
+    await tap('New month');
+    await tap('Open the office');
     await page.getByTestId('office').waitFor();
     await Promise.race([
       page.evaluate(() => document.fonts.ready.then(() => undefined)),
@@ -185,8 +204,8 @@ try {
     await candidate.click({ trial: true });
   }
   await page.screenshot({ path: `${shots}/01-office.png` });
-  await page.getByRole('button', { name: 'Sevda', exact: true }).click();
-  await page.getByRole('button', { name: /^Interview/ }).click();
+  await tap('Sevda');
+  await tap(page.getByRole('button', { name: /^Interview/ }));
   await page.getByTestId('scene').waitFor();
   await fits('scene', page.getByTestId('scene'));
   await fits('scene choices', page.getByTestId('scene-choice'), true);
@@ -194,7 +213,7 @@ try {
   await fits('scene bench', page.getByTestId('bench'));
   await page.screenshot({ path: `${shots}/02-interview.png` });
   for (let answer = 0; answer < 3; answer++) {
-    await page.getByTestId('scene-choice').filter({ hasNotText: 'Coach her' }).first().click();
+    await tap(page.getByTestId('scene-choice').filter({ hasNotText: 'Coach her' }).first());
   }
   assert.equal(await page.getByText('Earlier words', { exact: true }).count(), 0);
   const transcript = page.locator('.exchange');
@@ -214,6 +233,29 @@ try {
     await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth),
     'No horizontal overflow',
   );
+  await tap('Other questions');
+  const questionsBeforeInterrupt = await page.getByTestId('scene-choice').allTextContents();
+  const beforeInterrupt = await transcript.innerText();
+  const phone = page.getByRole('button', { name: /^Answer phone/ });
+  await phone.waitFor({ timeout: 15000 });
+  await tap(phone);
+  assert.match(await page.locator('.held-scene').innerText(), /Interview with Sevda is waiting/);
+  await fits('held conversation status', page.locator('.held-scene'));
+  await fits('interrupted phone choices', page.getByTestId('scene-choice'), true);
+  await cli('shot', 'phone-interrupt');
+  await tap(page.getByTestId('scene-choice').first());
+  assert.match(await page.getByTestId('scene').innerText(), /Interview: Sevda/);
+  assert.ok(
+    (await transcript.innerText()).includes(beforeInterrupt),
+    'Phone returns to the same interview words',
+  );
+  assert.deepEqual(
+    await page.getByTestId('scene-choice').allTextContents(),
+    questionsBeforeInterrupt,
+    'Resume preserves the visible question page',
+  );
+  assert.equal(await page.locator('.held-scene').count(), 0, 'Waiting notice clears on resume');
+  await cli('shot', 'phone-resumed');
   await page.getByRole('button', { name: 'Game menu', exact: true }).click();
   const downloadEvent = page.waitForEvent('download');
   await page.getByRole('button', { name: 'Download this run', exact: true }).click();
@@ -265,7 +307,7 @@ try {
   assert.ok(slowElapsed >= 1 && slowElapsed <= 3, `Scene holds real clock slow: ${slowElapsed} minutes`);
   assert.match(await page.locator('[data-speed]').innerText(), /held slow.*Gallop/);
   await page.screenshot({ path: `${shots}/clock-slow-scene.png` });
-  await page.getByRole('button', { name: 'Finish the interview', exact: true }).click();
+  await tap('Finish the interview');
   const resumedStart = await minuteOfDay();
   await page.waitForTimeout(1100);
   const resumedElapsed = (await minuteOfDay()) - resumedStart;
@@ -333,7 +375,10 @@ try {
   await page.screenshot({ path: `${shots}/04-reference.png` });
   reference.close();
   await importState(reference.state, reference.inputs);
-  await page.getByRole('button', { name: 'Sevda', exact: true }).click();
+  if (!(await page.getByRole('button', { name: 'Sevda', exact: true }).count())) {
+    if (!(await page.getByRole('button', { name: /^Sevda ·/ }).count())) await tap('Other cards');
+    await tap(page.getByRole('button', { name: /^Sevda ·/ }));
+  } else await tap('Sevda');
   const notes = page.locator('.notes-details');
   if ((await notes.getAttribute('open')) === null) await notes.locator('summary').click();
   assert.ok((await page.locator('.note-claim').count()) >= 1, 'Card quotes evidence claims');
@@ -345,9 +390,13 @@ try {
   await page.locator('dialog.sheet [data-referee]').first().click();
   await page.getByTestId('scene').waitFor();
   assert.equal(await page.locator('dialog.sheet').count(), 0, 'Reference sheet becomes the scene');
-  await page.locator('[data-choice="finish"]').click();
+  await tap(page.locator('[data-choice="ref-reliable"]'));
+  await tap(page.locator('[data-choice="finish"]'));
   await page.locator('[data-action="place"]').click();
   assert.equal(await page.locator('dialog.sheet').count(), 1, 'One matching sheet');
+  await tap('reliable · heard');
+  assert.equal(await page.locator('[data-vouch="reliable"]').getAttribute('aria-pressed'), 'true');
+  await cli('shot', 'reliable-heard-selected');
   await page.getByRole('dialog').getByRole('button', { name: 'Back', exact: true }).click();
   assert.equal(await page.locator('dialog.sheet').count(), 0, 'Matching sheet closes completely');
 
@@ -386,19 +435,17 @@ try {
 
   // These later scenes retain the same real simulation, including its scheduled consequences.
   const relationship = scenario();
+  relationship.send({ type: 'interview', candidate: 'sevda' });
+  relationship.close();
   relationship.send({ type: 'place', candidate: 'sevda', family: 'arslans', vouch: ['patient'] });
-  relationship.until(1440 + 1080, true);
+  relationship.until(1100, true);
   while (view(relationship.state).phoneRinging && !view(relationship.state).scene) {
     relationship.send({ type: 'answer-phone' });
     const scene = required(view(relationship.state).scene);
     if (scene.kind === 'two-sides') break;
     relationship.close();
   }
-  assert.equal(
-    view(relationship.state).scene?.kind,
-    'two-sides',
-    'Tuesday work disagreement has two accounts',
-  );
+  assert.equal(view(relationship.state).scene?.kind, 'two-sides', 'First work disagreement has two accounts');
   const twoSides = required(view(relationship.state).scene);
   await importState(relationship.state, relationship.inputs);
   const twoSidesText = await page.locator('.exchange').innerText();
@@ -447,6 +494,8 @@ try {
   await page.screenshot({ path: `${shots}/07-placed.png` });
 
   const waiting = scenario();
+  waiting.send({ type: 'interview', candidate: 'sevda' });
+  waiting.close();
   waiting.send({ type: 'place', candidate: 'sevda', family: 'arslans', vouch: ['patient'] });
   waiting.until(1080);
   waiting.send({ type: 'speed', speed: 0 });
@@ -486,6 +535,8 @@ try {
   );
   await page.screenshot({ path: `${shots}/clock-wait-for.png` });
   const cityScenario = scenario();
+  cityScenario.send({ type: 'interview', candidate: 'sevda' });
+  cityScenario.close();
   cityScenario.send({ type: 'place', candidate: 'sevda', family: 'arslans', vouch: ['patient'] });
   for (const [label, minute] of [
     ['weekday-evening', 1100],
@@ -520,6 +571,75 @@ try {
     await page.screenshot({ path: `${shots}/city-${label}.png` });
     await page.screenshot({ path: `${shots}/city-${label}-full.png`, fullPage: true });
   }
+  // A fresh month is played through the public CLI. No imported fixture enacts this placement.
+  await open();
+  await cli('speed', 'Slow');
+  await tap('Pınar');
+  await tap(page.locator('[data-action="take-number"]'));
+  assert.equal(
+    await page.getByTestId('bench').getByRole('button', { name: 'Pınar', exact: true }).count(),
+    0,
+    'Taking her number removes Pınar from the waiting bench',
+  );
+  await tap('Gül');
+  await tap(page.getByRole('button', { name: /^Interview/ }));
+  await tap(page.getByTestId('scene-choice').filter({ hasText: 'last job' }));
+  const patienceQuestion = page.getByTestId('scene-choice').filter({ hasText: 'child keeps crying' });
+  for (let turn = 0; turn < 5 && !(await patienceQuestion.count()); turn++) await tap('Other questions');
+  assert.equal(await patienceQuestion.count(), 1, 'Patience question appears through question paging');
+  await tap(patienceQuestion);
+  await tap(page.getByTestId('scene').getByRole('button', { name: /^Finish/ }));
+  await tap(page.locator('[data-action="place"]'));
+  const toggles = page.locator('[data-vouch]');
+  assert.equal(await toggles.count(), 6, 'Every quality has a vouch toggle');
+  for (let index = 0; index < 6; index++) {
+    const toggle = toggles.nth(index);
+    const label = (await toggle.innerText()).trim();
+    assert.match(label, /^[a-z]+ · (seen|heard|says|not checked)$/);
+    assert.equal(await toggle.getAttribute('aria-pressed'), 'false');
+    await toggle.scrollIntoViewIfNeeded();
+    await fits(`vouch ${label}`, toggle, true);
+    await tap(label);
+    assert.equal(await toggle.getAttribute('aria-pressed'), 'true', `${label} selects through CLI`);
+    await tap(label);
+    assert.equal(await toggle.getAttribute('aria-pressed'), 'false', `${label} clears through CLI`);
+  }
+  await tap('Read the evidence');
+  assert.equal(
+    await page.getByText('Read the evidence', { exact: true }).locator('..').getAttribute('open'),
+    '',
+  );
+  await tap('Read the evidence');
+  await tap('patient · says');
+  await cli('shot', 'harness-vouch-selected');
+  await tap('Place with this family');
+  assert.match(await cli('text'), /Gül placed with the Arslans|Works at the Arslans/);
+  const publicRunPath = `${shots}/${port}/harness-placement.json`;
+  await cli('export', publicRunPath);
+  const publicRun = verifyImport(readFileSync(publicRunPath, 'utf8'));
+  assert.ok(
+    publicRun.inputs.some(({ input }) => input.type === 'take-number' && input.candidate === 'pinar'),
+    'Export records the player taking Pınar’s number',
+  );
+  assert.ok(
+    view(publicRun.state).books.some((candidate) => candidate.id === 'pinar'),
+    'Pınar remains on the books after going home',
+  );
+  const placedInput = publicRun.inputs.find(({ input }) => input.type === 'place');
+  assert.ok(placedInput && placedInput.input.type === 'place');
+  assert.deepEqual(
+    placedInput.input.vouch,
+    ['patient'],
+    'CLI placement preserves exactly the chosen promise',
+  );
+  await tap('City');
+  await tap('People in the city');
+  assert.equal(
+    await page.locator('.city-people').getAttribute('open'),
+    '',
+    'City disclosure opens through visible label',
+  );
+  await cli('shot', 'harness-city-disclosure');
   await page.emulateMedia({ colorScheme: 'dark' });
   await page.screenshot({ path: `${shots}/14-dark.png` });
   assert.deepEqual(errors, []);
@@ -533,6 +653,7 @@ try {
         reviewerMode: 'Builder acceptance; source read',
         laterScenes: 'Replay-checked simulation histories imported through the UI',
         seconds,
+        cliCommands,
         bounds,
         errors,
       },
@@ -542,6 +663,10 @@ try {
   );
   console.log(`Phone acceptance passed in ${seconds}s. Evidence: ${shots}/`);
 } finally {
+  if (driver)
+    await new Promise<void>((resolve, reject) =>
+      driver?.close((error) => (error ? reject(error) : resolve())),
+    );
   await browser.close();
   await new Promise<void>((resolve, reject) =>
     server.httpServer.close((error) => (error ? reject(error) : resolve())),

@@ -7,8 +7,10 @@ import {
   evidence,
   INTRO,
   noteText,
+  phoneAvailability,
   resumeLine,
   speedLabel,
+  vouchLabel,
 } from '../src/ui/render.ts';
 
 const candidate: CandidateView = {
@@ -48,6 +50,30 @@ describe('player-facing render helpers', () => {
       'At the Arslans until 18:00',
     );
     expect(candidateAvailability(candidate)).toBeUndefined();
+  });
+  it('labels a vouch with the strongest uncrossed evidence rather than the latest claim', () => {
+    const seen = { ...note, source: 'seen' as const };
+    const says = { ...note, source: 'says' as const, at: 600 };
+    expect(vouchLabel({ ...candidate, notes: [seen, says] }, 'patient')).toBe('patient · seen');
+    expect(vouchLabel({ ...candidate, notes: [{ ...seen, crossedOut: true }, says] }, 'patient')).toBe(
+      'patient · says',
+    );
+    expect(vouchLabel({ ...candidate, notes: [{ ...note, source: 'heard' }] }, 'patient')).toBe(
+      'patient · heard',
+    );
+    expect(vouchLabel(candidate, 'reliable')).toBe('reliable · not checked');
+  });
+  it('explains when another call cannot interrupt the current scene', () => {
+    expect(phoneAvailability({ scene: { kind: 'interview' } } as View)).toBeUndefined();
+    expect(phoneAvailability({ scene: { kind: 'reference' } } as View)).toBeUndefined();
+    expect(phoneAvailability({ scene: null } as View)).toBeUndefined();
+    expect(phoneAvailability({ scene: { kind: 'phone' } } as View)).toContain('Finish');
+    expect(
+      phoneAvailability({
+        scene: { kind: 'phone' },
+        heldScene: { id: 'interview', title: 'Interview: Sevda' },
+      } as View),
+    ).toContain('Finish');
   });
   it('distinguishes chosen speed from a held slow clock', () => {
     expect(speedLabel({ speed: 3, slowed: true } as View)).toBe('Slow · held slow (chosen: Gallop)');
