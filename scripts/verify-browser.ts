@@ -29,7 +29,7 @@ const port = Number(process.argv[2] ?? 4410);
 execFileSync(process.execPath, ['node_modules/vite/bin/vite.js', 'build'], { stdio: 'inherit' });
 const server = await preview({ preview: { host: '127.0.0.1', port, strictPort: true } });
 const browser = await chromium.launch({ channel: 'chromium-headless-shell' });
-const shots = 'scratch/shots-p2';
+const shots = 'scratch/shots-p3';
 let driver: Awaited<ReturnType<typeof startCommandServer>> | undefined;
 const cliCommands: string[][] = [];
 mkdirSync(`${shots}/${port}`, { recursive: true });
@@ -94,6 +94,32 @@ try {
         `${label} has 44px targets: ${JSON.stringify(boxes)}`,
       );
     bounds[label] = boxes;
+  };
+  const choicesFit = async (label: string) => {
+    await fits(`${label} box`, page.locator('.scene-choices'));
+    const choices = page.getByTestId('scene-choice');
+    for (let index = 0; index < (await choices.count()); index++) {
+      const choice = choices.nth(index);
+      await choice.scrollIntoViewIfNeeded();
+      await fits(`${label} ${index}`, choice, true);
+      const unclipped = await choice.evaluate((element) => {
+        const r = element.getBoundingClientRect();
+        const box = element.closest('.scene-choices, .interview-finish')?.getBoundingClientRect();
+        return {
+          element: r.toJSON(),
+          parent: box?.toJSON(),
+          fits:
+            !!box && r.top >= box.top && r.bottom <= box.bottom && r.left >= box.left && r.right <= box.right,
+        };
+      });
+      assert.ok(
+        unclipped.fits,
+        `${label} ${index} is fully inside its response box: ${JSON.stringify(unclipped)}`,
+      );
+    }
+    await page.locator('.scene-choices').evaluate((element) => {
+      element.scrollTop = 0;
+    });
   };
   const newestSpeechFitsTranscript = async (label: string) => {
     const geometry = await page
@@ -195,6 +221,29 @@ try {
     };
   };
   await open();
+  assert.equal(await page.getByRole('combobox', { name: 'Clock speed' }).count(), 0, 'Clock has no select');
+  for (const name of ['Gallop', 'Trot', 'Walk', 'Slow']) {
+    await tap(name);
+    const speed = page.getByRole('button', { name, exact: true });
+    assert.equal(await speed.getAttribute('aria-pressed'), 'true', `${name} selects by visible label`);
+    await fits(`speed ${name}`, speed, true);
+    const colors = await speed.evaluate((element) => {
+      const style = getComputedStyle(element);
+      return [style.color, style.borderColor, style.outlineColor];
+    });
+    assert.ok(
+      colors.every((color) => !['rgb(194, 65, 45)', 'rgb(226, 97, 74)'].includes(color)),
+      'Speed never carries the accent',
+    );
+  }
+  await page.keyboard.press('Tab');
+  const unselectedSpeed = page.getByRole('button', { name: 'Trot', exact: true });
+  await unselectedSpeed.focus();
+  assert.equal(
+    await unselectedSpeed.evaluate((element) => getComputedStyle(element).outlineColor),
+    'rgb(35, 32, 27)',
+    'Keyboard focus on an unselected speed stays ink',
+  );
   await fits('Task', page.getByTestId('task'));
   await fits('bench', page.getByTestId('bench'));
   await page.getByRole('button', { name: 'Task', exact: true }).click({ trial: true });
@@ -208,7 +257,7 @@ try {
   await tap(page.getByRole('button', { name: /^Interview/ }));
   await page.getByTestId('scene').waitFor();
   await fits('scene', page.getByTestId('scene'));
-  await fits('scene choices', page.getByTestId('scene-choice'), true);
+  await choicesFit('scene choices');
   await fits('scene Task', page.getByTestId('task'));
   await fits('scene bench', page.getByTestId('bench'));
   await page.screenshot({ path: `${shots}/02-interview.png` });
@@ -223,8 +272,8 @@ try {
   await newestSpeechFitsTranscript('Interview');
   await page.getByRole('button', { name: 'Task', exact: true }).click({ trial: true });
   await fits('answer scene', page.getByTestId('scene'));
-  await fits('all answer controls', page.getByTestId('scene').getByRole('button'), true);
-  await fits('answer choices', page.getByTestId('scene-choice'), true);
+  await fits('finish interview choices', page.locator('.interview-finish button'), true);
+  await choicesFit('answer choices');
   await fits('answer Task', page.getByTestId('task'));
   await fits('answer bench', page.getByTestId('bench'));
   await page.screenshot({ path: `${shots}/03-three-answers.png` });
@@ -233,7 +282,7 @@ try {
     await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth),
     'No horizontal overflow',
   );
-  await tap('Other questions');
+  assert.equal(await page.getByRole('button', { name: 'Other questions', exact: true }).count(), 0);
   const questionsBeforeInterrupt = await page.getByTestId('scene-choice').allTextContents();
   const beforeInterrupt = await transcript.innerText();
   const phone = page.getByRole('button', { name: /^Answer phone/ });
@@ -241,9 +290,11 @@ try {
   await tap(phone);
   assert.match(await page.locator('.held-scene').innerText(), /Interview with Sevda is waiting/);
   await fits('held conversation status', page.locator('.held-scene'));
-  await fits('interrupted phone choices', page.getByTestId('scene-choice'), true);
+  await choicesFit('interrupted phone choices');
   await cli('shot', 'phone-interrupt');
   await tap(page.getByTestId('scene-choice').first());
+  const endCall = page.getByRole('button', { name: 'End the conversation', exact: true });
+  if (await endCall.count()) await tap(endCall);
   assert.match(await page.getByTestId('scene').innerText(), /Interview: Sevda/);
   assert.ok(
     (await transcript.innerText()).includes(beforeInterrupt),
@@ -252,7 +303,7 @@ try {
   assert.deepEqual(
     await page.getByTestId('scene-choice').allTextContents(),
     questionsBeforeInterrupt,
-    'Resume preserves the visible question page',
+    'Resume preserves every remaining question',
   );
   assert.equal(await page.locator('.held-scene').count(), 0, 'Waiting notice clears on resume');
   await cli('shot', 'phone-resumed');
@@ -296,7 +347,19 @@ try {
   liveClock.send({ type: 'speed', speed: 3 });
   liveClock.send({ type: 'interview', candidate: 'sevda' });
   await importState(liveClock.state, liveClock.inputs);
-  assert.equal(await page.getByRole('combobox', { name: 'Clock speed' }).inputValue(), '3');
+  assert.deepEqual(
+    await page
+      .getByTestId('scene-choice')
+      .evaluateAll((elements) => elements.map((element) => (element as HTMLElement).dataset.choice)),
+    required(view(liveClock.state).scene).choices.map((choice) => choice.id),
+    'Every remaining interview question and both endings appear together',
+  );
+  assert.equal(await page.getByRole('button', { name: 'Other questions', exact: true }).count(), 0);
+  await page.screenshot({ path: `${shots}/interview-all-questions-and-endings.png` });
+  assert.equal(
+    await page.getByRole('button', { name: 'Gallop', exact: true }).getAttribute('aria-pressed'),
+    'true',
+  );
   const minuteOfDay = async () => {
     const [hours, minutes] = (await page.locator('[data-time]').innerText()).split(':').map(Number);
     return required(hours) * 60 + required(minutes);
@@ -307,7 +370,20 @@ try {
   assert.ok(slowElapsed >= 1 && slowElapsed <= 3, `Scene holds real clock slow: ${slowElapsed} minutes`);
   assert.match(await page.locator('[data-speed]').innerText(), /held slow.*Gallop/);
   await page.screenshot({ path: `${shots}/clock-slow-scene.png` });
-  await tap('Finish the interview');
+  await fits('finish on bench', page.getByRole('button', { name: /^Ask her to wait on the bench/ }), true);
+  await fits(
+    'finish send home',
+    page.getByRole('button', { name: /^Send her home; you have her number/ }),
+    true,
+  );
+  await tap(page.getByRole('button', { name: /^Ask her to wait on the bench/ }));
+  assert.equal(
+    await page.getByTestId('bench').getByRole('button', { name: 'Sevda', exact: true }).count(),
+    1,
+    'Waiting leaves Sevda on the bench',
+  );
+  await page.screenshot({ path: `${shots}/interview-wait-bench-result.png` });
+  await tap('End the conversation');
   const resumedStart = await minuteOfDay();
   await page.waitForTimeout(1100);
   const resumedElapsed = (await minuteOfDay()) - resumedStart;
@@ -317,6 +393,19 @@ try {
   );
   assert.match(await page.locator('[data-speed]').innerText(), /Gallop.*clock moving/);
   await page.screenshot({ path: `${shots}/clock-resumed.png` });
+
+  const cityCall = scenario();
+  for (let step = 0; step < 12 && !view(cityCall.state).phoneRinging; step++)
+    cityCall.send({ type: 'wait-for' });
+  assert.ok(view(cityCall.state).phoneRinging, 'City fixture has a waiting caller');
+  await importState(cityCall.state, cityCall.inputs);
+  await tap('City');
+  await fits('City phone strip', page.locator('.phone-strip'));
+  await fits('City answer phone', page.getByRole('button', { name: /^Answer phone/ }), true);
+  await page.screenshot({ path: `${shots}/city-ringing-phone.png` });
+  await tap(page.getByRole('button', { name: /^Answer phone/ }));
+  assert.ok(await page.getByTestId('scene').isVisible(), 'City phone opens the caller scene');
+  await page.screenshot({ path: `${shots}/city-phone-answered.png` });
 
   const coaching = scenario();
   coaching.send({ type: 'interview', candidate: 'sevda' });
@@ -335,11 +424,11 @@ try {
     'Coaching keeps the authored promise',
   );
   await newestSpeechFitsTranscript('Contextual coaching');
-  await fits('contextual coaching choices', page.getByTestId('scene-choice'), true);
+  await choicesFit('contextual coaching choices');
   await fits('contextual coaching Task', page.getByTestId('task'));
   await fits('contextual coaching bench', page.getByTestId('bench'));
-  assert.equal(await page.evaluate(() => scrollY), 0, 'Contextual coaching needs no page scroll');
   await page.screenshot({ path: `${shots}/03-contextual-coaching.png` });
+  assert.equal(await page.evaluate(() => scrollY), 0, 'Contextual coaching needs no page scroll');
 
   const reference = scenario();
   reference.send({ type: 'interview', candidate: 'sevda' });
@@ -367,7 +456,7 @@ try {
   for (const line of referenceScene.lines)
     assert.ok(referenceTranscript.includes(line.text), `Reference preserves: ${line.text}`);
   assert.equal(await page.getByText('Earlier words', { exact: true }).count(), 0);
-  await fits('reference choices', page.getByTestId('scene-choice'), true);
+  await choicesFit('reference choices');
   await fits('reference Task', page.getByTestId('task'));
   await fits('reference bench', page.getByTestId('bench'));
   assert.equal(await page.evaluate(() => scrollY), 0, 'Reference needs no page scroll');
@@ -376,7 +465,7 @@ try {
   reference.close();
   await importState(reference.state, reference.inputs);
   if (!(await page.getByRole('button', { name: 'Sevda', exact: true }).count())) {
-    if (!(await page.getByRole('button', { name: /^Sevda ·/ }).count())) await tap('Other cards');
+    if (!(await page.getByRole('button', { name: /^Sevda ·/ }).count())) await tap('Your books');
     await tap(page.getByRole('button', { name: /^Sevda ·/ }));
   } else await tap('Sevda');
   const notes = page.locator('.notes-details');
@@ -454,8 +543,9 @@ try {
   for (const side of ['worker', 'family']) {
     assert.ok((await page.locator(`.side-${side}`).count()) >= 1, `${side} account labelled`);
   }
+  await page.screenshot({ path: `${shots}/06-two-sides.png` });
   await newestSpeechFitsTranscript('Two sides');
-  await fits('two sides choices', page.getByTestId('scene-choice'), true);
+  await choicesFit('two sides choices');
   await fits('two sides Task', page.getByTestId('task'));
   await fits('two sides bench', page.getByTestId('bench'));
   assert.equal(await page.evaluate(() => scrollY), 0, 'Two sides needs no page scroll');
@@ -498,6 +588,8 @@ try {
   waiting.close();
   waiting.send({ type: 'place', candidate: 'sevda', family: 'arslans', vouch: ['patient'] });
   waiting.until(1080);
+  for (const candidate of view(waiting.state).bench)
+    waiting.send({ type: 'take-number', candidate: candidate.id });
   waiting.send({ type: 'speed', speed: 0 });
   const next = view(waiting.state).next;
   assert.ok(next, 'Idle office names the next scheduled event');
@@ -521,7 +613,7 @@ try {
   await waitButton.click();
   assert.match(await page.locator('[data-speed]').innerText(), /Waiting for.*clock running fast/);
   assert.ok(
-    await page.getByRole('combobox', { name: 'Clock speed' }).isDisabled(),
+    await page.getByRole('button', { name: 'Slow', exact: true }).isDisabled(),
     'Wait sweep disables clock selection',
   );
   await page.screenshot({ path: `${shots}/clock-wait-sweep.png` });
@@ -529,8 +621,8 @@ try {
   const targetTime = `${String(Math.floor((waitResult.now % 1440) / 60)).padStart(2, '0')}:${String(Math.floor(waitResult.now % 60)).padStart(2, '0')}`;
   await page.locator('[data-time]').filter({ hasText: targetTime }).waitFor();
   assert.equal(
-    await page.getByRole('combobox', { name: 'Clock speed' }).inputValue(),
-    '0',
+    await page.getByRole('button', { name: 'Slow', exact: true }).getAttribute('aria-pressed'),
+    'true',
     'Wait preserves chosen speed',
   );
   await page.screenshot({ path: `${shots}/clock-wait-for.png` });
@@ -585,10 +677,17 @@ try {
   await tap(page.getByRole('button', { name: /^Interview/ }));
   await tap(page.getByTestId('scene-choice').filter({ hasText: 'last job' }));
   const patienceQuestion = page.getByTestId('scene-choice').filter({ hasText: 'child keeps crying' });
-  for (let turn = 0; turn < 5 && !(await patienceQuestion.count()); turn++) await tap('Other questions');
-  assert.equal(await patienceQuestion.count(), 1, 'Patience question appears through question paging');
+  assert.equal(await patienceQuestion.count(), 1, 'Patience question is in the full question list');
   await tap(patienceQuestion);
-  await tap(page.getByTestId('scene').getByRole('button', { name: /^Finish/ }));
+  await tap(page.getByRole('button', { name: /^Send her home; you have her number/ }));
+  assert.equal(
+    await page.getByTestId('bench').getByRole('button', { name: 'Gül', exact: true }).count(),
+    0,
+    'Sending Gül home removes her from the bench',
+  );
+  assert.match(await cli('text'), /Gül.*(home|books)/, 'Departure has a visible result');
+  await page.screenshot({ path: `${shots}/interview-send-home-result.png` });
+  await tap('End the conversation');
   await tap(page.locator('[data-action="place"]'));
   const toggles = page.locator('[data-vouch]');
   assert.equal(await toggles.count(), 6, 'Every quality has a vouch toggle');

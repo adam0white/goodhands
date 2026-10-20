@@ -52,9 +52,6 @@ let updateInspection: (() => void) | null = null;
 let screen = '';
 let notice = '';
 let waitAnimation: { before: View; start: number; end: number; label: string } | null = null;
-let questionPage = 0;
-let questionScene = '';
-let heldQuestions: { id: string; page: number } | null = null;
 let transcriptKey = '';
 let saveReady = false;
 const ALL_GAMES = 'https://human.adamwhite.work/games/';
@@ -185,16 +182,12 @@ function begin(next: State | null, history: LoggedInput[]): void {
   playing = true;
   last = performance.now();
   lastHour = Math.floor(current().now / 60);
-  questionScene = '';
-  heldQuestions = null;
   notice = '';
   render(true);
   save();
 }
 function shell(v: View): void {
-  root.innerHTML = `<main class="game" data-testid="office"><header class="topbar"><a class="hub" href="${ALL_GAMES}" aria-label="human framework games">◇ human framework</a><button type="button" data-action="menu">Game menu</button><div class="clock"><span data-date></span> <strong data-time></strong></div><label class="speed-control">Clock <select aria-label="Clock speed">${SPEED_NAMES.map((name, i) => `<option value="${i}">${name}</option>`).join('')}</select></label><p class="speed-status" data-speed></p><button type="button" data-action="wait-for" class="wait-for" hidden></button></header><div class="room"><canvas id="office" role="img" aria-label="Nermin’s desk, telephone, window and the waiting bench"></canvas><div class="seat-targets"></div><button class="phone-control" type="button" data-action="phone"></button></div><button class="task now" type="button" aria-label="Task" data-testid="task" data-action="task"><strong>Task</strong><span></span></button><p class="status" role="status" data-status></p><nav class="bench-strip" aria-label="Waiting bench" data-testid="bench"></nav><div data-content></div><footer><span data-money></span><a href="${ALL_GAMES}">All games</a></footer></main>`;
-  const speeds = root.querySelector('select');
-  speeds?.addEventListener('change', () => send({ type: 'speed', speed: Number(speeds.value) as Speed }));
+  root.innerHTML = `<main class="game" data-testid="office"><header class="topbar"><a class="hub" href="${ALL_GAMES}" aria-label="human framework games">◇ human framework</a><button type="button" data-action="menu">Game menu</button><div class="clock"><span data-date></span> <strong data-time></strong></div><div class="speed-control" role="group" aria-label="Clock speed">${SPEED_NAMES.map((name, i) => `<button type="button" data-speed-choice="${i}" aria-pressed="${v.speed === i}">${name}</button>`).join('')}</div><p class="speed-status" data-speed></p><button type="button" data-action="wait-for" class="wait-for" hidden></button></header><div class="office-front"><div class="room"><canvas id="office" role="img" aria-label="Nermin’s desk, telephone, window and the waiting bench"></canvas><div class="seat-targets"></div></div><div class="phone-strip" hidden><button class="phone-control" type="button" data-action="phone"></button><p id="phone-reason" class="phone-reason reason"></p></div></div><button class="task now" type="button" aria-label="Task" data-testid="task" data-action="task"><strong>Task</strong><span></span></button><p class="status" role="status" data-status></p><nav class="bench-strip" aria-label="Waiting bench" data-testid="bench"></nav><div data-content></div><footer><span data-money></span><a href="${ALL_GAMES}">All games</a></footer></main>`;
   updateClock(v);
 }
 function updateClock(v: View): void {
@@ -215,10 +208,9 @@ function updateClock(v: View): void {
     wait.hidden = !v.next || v.slowed || !!v.scene || !!v.phoneRinging || !!v.dayCard;
     wait.textContent = v.next ? `Wait for ${v.next.label} · ${v.next.dateLabel}` : '';
   }
-  const select = root.querySelector<HTMLSelectElement>('select');
-  if (select) {
-    select.disabled = !!waitAnimation;
-    if (document.activeElement !== select) select.value = String(v.speed);
+  for (const speed of root.querySelectorAll<HTMLButtonElement>('[data-speed-choice]')) {
+    speed.disabled = !!waitAnimation;
+    speed.setAttribute('aria-pressed', String(Number(speed.dataset.speedChoice) === v.speed));
   }
   text('[data-money]', `${money(v.cash)} · Rent ${money(v.rent.amount)} ${v.rent.label}`);
 }
@@ -273,6 +265,8 @@ function render(force = false): void {
       : null;
   const activeLabel = active?.getAttribute('aria-label') ?? active?.textContent;
   root.querySelector('.game')?.classList.toggle('has-scene', !!v.scene);
+  root.querySelector('.game')?.classList.toggle('has-interview', v.scene?.kind === 'interview');
+  root.querySelector('.game')?.classList.toggle('has-ringing-phone', !!v.phoneRinging);
   root
     .querySelector('.game')
     ?.classList.toggle('has-phone-limit', !!v.phoneRinging && !!phoneAvailability(v));
@@ -283,18 +277,13 @@ function render(force = false): void {
   const phone = root.querySelector<HTMLButtonElement>('.phone-control');
   if (phone) {
     phone.textContent = v.phoneRinging ? `Answer phone · ${v.phoneRinging.who}` : 'Telephone';
-    phone.hidden = !v.phoneRinging;
+    const strip = root.querySelector<HTMLElement>('.phone-strip');
+    if (strip) strip.hidden = !v.phoneRinging;
+    phone.setAttribute('aria-describedby', 'phone-reason');
     const reason = phoneAvailability(v);
     phone.disabled = !!reason;
-    let line = root.querySelector<HTMLElement>('.phone-reason');
-    if (!line) {
-      line = document.createElement('p');
-      line.id = 'phone-reason';
-      line.className = 'phone-reason reason';
-      phone.after(line);
-      phone.setAttribute('aria-describedby', line.id);
-    }
-    line.textContent = v.phoneRinging ? (reason ?? '') : '';
+    const line = root.querySelector<HTMLElement>('.phone-reason');
+    if (line) line.textContent = v.phoneRinging ? (reason ?? '') : '';
   }
   drawOffice(root.querySelector<HTMLCanvasElement>('#office') as HTMLCanvasElement, v, selected);
   const targets = root.querySelector('.seat-targets');
@@ -326,6 +315,9 @@ function render(force = false): void {
   if (!v.bench.length && bench) bench.textContent = 'The bench is empty.';
   const content = root.querySelector<HTMLElement>('[data-content]');
   if (!content) return;
+  const oldChoices = content.querySelector<HTMLElement>('.scene-choices');
+  const choicesScroll = oldChoices?.scrollTop ?? 0;
+  const oldSceneId = content.querySelector<HTMLElement>('[data-scene-id]')?.dataset.sceneId;
   const oldTranscript = content.querySelector<HTMLElement>('.exchange');
   const oldScroll =
     oldTranscript && oldTranscript.scrollTop + oldTranscript.clientHeight < oldTranscript.scrollHeight - 2
@@ -344,6 +336,8 @@ function render(force = false): void {
     setScreen(sheet ? 'menu' : city ? 'city' : 'office');
   }
   gloss(content);
+  const choices = content.querySelector<HTMLElement>('.scene-choices');
+  if (choices && oldSceneId === v.scene?.id) choices.scrollTop = choicesScroll;
   const transcript = content.querySelector<HTMLElement>('.exchange');
   if (transcript)
     transcript.scrollTop =
@@ -381,7 +375,7 @@ function benchHtml(v: View): string {
     },
   ).join(
     '',
-  )}</div><h3>Experience</h3>${c.experience.length ? c.experience.map((e) => `<p>${h(e)}</p>`).join('') : '<p>She has not told you yet.</p>'}<h3>Referees</h3>${c.referees.map((r) => `<p>${h(r.name)} · ${r.reachable ? 'reachable' : h(r.why ?? 'Not reachable now; try later')}${r.called ? ' · already called' : ''}</p>`).join('') || '<p>No referee yet. Ask in the interview.</p>'}</details><button type="button" data-action="all-cards">Other cards</button></article>`;
+  )}</div><h3>Experience</h3>${c.experience.length ? c.experience.map((e) => `<p>${h(e)}</p>`).join('') : '<p>She has not told you yet.</p>'}<h3>Referees</h3>${c.referees.map((r) => `<p>${h(r.name)} · ${r.reachable ? 'reachable' : h(r.why ?? 'Not reachable now; try later')}${r.called ? ' · already called' : ''}</p>`).join('') || '<p>No referee yet. Ask in the interview.</p>'}</details><button type="button" data-action="all-cards">Your books</button></article>`;
 }
 function action(label: string, key: string, disabled?: string, hint?: string): string {
   return `<button type="button" data-action="${key}" ${disabled ? 'disabled' : ''}><span>${h(label)}</span>${hint ? `<small>${h(hint)}</small>` : ''}</button>`;
@@ -415,28 +409,17 @@ function sceneHtml(v: View): string {
   const finish = s.canLeave
     ? s.choices.find((c) => (c.id === 'finish' || /^Finish/.test(c.label)) && !c.disabled)
     : undefined;
-  if (questionScene !== s.id) {
-    if (v.heldScene?.id === questionScene) heldQuestions = { id: questionScene, page: questionPage };
-    questionScene = s.id;
-    questionPage = heldQuestions?.id === s.id ? heldQuestions.page : 0;
-    if (heldQuestions?.id === s.id) heldQuestions = null;
-  }
-  const available = s.choices.filter((c) => c !== finish);
+  const endings =
+    s.kind === 'interview' ? s.choices.filter((c) => c.id === 'wait-bench' || c.id === 'send-home') : [];
+  const available = s.choices.filter((c) => c !== finish && !endings.includes(c));
   const questions = s.kind === 'interview' ? available.filter((c) => c.id !== 'coach') : [];
   const sharedHint =
     questions.length && questions.every((c) => c.hint === questions[0]?.hint)
       ? questions[0]?.hint
       : undefined;
   const details = s.choices.filter((c) => c.hint && (s.kind === 'two-sides' || c.id === 'coach'));
-  const pages = Math.ceil(questions.length / 2);
-  const choices =
-    questions.length > 2
-      ? [
-          ...questions.slice((questionPage % pages) * 2, ((questionPage % pages) + 1) * 2),
-          ...available.filter((c) => c.id === 'coach'),
-        ]
-      : available;
-  return `<section class="scene-sheet" data-testid="scene" aria-label="${h(s.title)}"><div class="sheet-heading"><h2>${h(s.title)}</h2>${finish ? `<button type="button" data-choice="${h(finish.id)}">${h(finish.label)}</button>` : s.canLeave ? '<button type="button" data-action="leave-scene">Finish</button>' : ''}</div>${held ? `<p class="held-scene" role="status">${h(held)} is waiting.</p>` : ''}${finish?.hint ? `<p class="question-limit">${h(finish.hint)}</p>` : ''}<div class="exchange" role="region" aria-label="Conversation transcript" tabindex="0">${
+  const choices = available;
+  return `<section class="scene-sheet ${s.kind === 'interview' ? 'interview-sheet' : ''}" data-testid="scene" data-scene-id="${h(s.id)}" aria-label="${h(s.title)}"><div class="sheet-heading"><h2>${h(s.title)}</h2>${finish ? `<button type="button" data-choice="${h(finish.id)}">${h(finish.label)}</button>` : s.canLeave && s.kind !== 'interview' ? '<button type="button" data-action="leave-scene">Finish</button>' : ''}</div>${held ? `<p class="held-scene" role="status">${h(held)} is waiting.</p>` : ''}${finish?.hint ? `<p class="question-limit">${h(finish.hint)}</p>` : ''}<div class="exchange" role="region" aria-label="Conversation transcript" tabindex="0">${
     details.length
       ? `<details class="response-details"><summary>Response details</summary>${details
           .map((c) => `<p><strong>${h(c.label)}:</strong> ${h(c.hint ?? '')}</p>`)
@@ -449,7 +432,7 @@ function sceneHtml(v: View): string {
           .map((n) => `${h(n.quality)} · ${n.source}`)
           .join('; ')}</p>`
       : ''
-  }${sharedHint ? `<p class="question-cost">${h(sharedHint)} per question.</p>` : ''}<div class="scene-choices">${choices.map((c) => `<div class="choice"><button type="button" data-testid="scene-choice" data-choice="${h(c.id)}" ${c.disabled ? 'disabled' : ''}>${h(c.label)}${c.hint && s.kind !== 'two-sides' && c.id !== 'coach' && !(sharedHint && questions.includes(c)) ? `<small>${h(c.hint)}</small>` : ''}</button>${c.disabled ? `<p class="reason">${h(c.disabled)}</p>` : ''}</div>`).join('')}${questions.length > 2 ? '<button type="button" data-action="more-questions">Other questions</button>' : ''}</div></section>`;
+  }${sharedHint ? `<p class="question-cost">${h(sharedHint)} per question.</p>` : ''}<div class="scene-choices" ${s.kind === 'interview' ? 'role="region" aria-label="Remaining interview questions" tabindex="0"' : ''}>${choices.map((c) => `<div class="choice"><button type="button" data-testid="scene-choice" data-choice="${h(c.id)}" ${c.disabled ? 'disabled' : ''}>${h(c.label)}${c.hint && s.kind !== 'two-sides' && c.id !== 'coach' && !(sharedHint && questions.includes(c)) ? `<small>${h(c.hint)}</small>` : ''}</button>${c.disabled ? `<p class="reason">${h(c.disabled)}</p>` : ''}</div>`).join('')}</div>${endings.length ? `<div class="interview-finish" aria-label="Finish the interview">${endings.map((c) => `<button type="button" data-testid="scene-choice" data-choice="${h(c.id)}" ${c.disabled ? 'disabled' : ''}>${h(c.label)}${c.hint ? `<small>${h(c.hint)}</small>` : ''}</button>`).join('')}</div>` : ''}</section>`;
 }
 function dayHtml(v: View): string {
   const d = v.dayCard;
@@ -467,8 +450,17 @@ function updateCity(v: View): void {
   const canvas = root.querySelector<HTMLCanvasElement>('#city');
   const targets = root.querySelector<HTMLElement>('.city-targets');
   if (!canvas || !targets) return;
-  drawCity(canvas, v, cityPerson ?? undefined);
   const positions = cityFigurePositions(v);
+  const selected = positions.find((p) => p.figure.id === cityPerson);
+  const caption = root.querySelector('[data-city-person]');
+  if (caption) caption.textContent = selected ? `${selected.figure.name} · ${selected.place}` : '';
+  const map = canvas.parentElement;
+  if (map) {
+    const height = Math.max(120, Math.min(200, window.innerHeight - map.getBoundingClientRect().top - 8));
+    map.style.height = `${height}px`;
+    canvas.style.height = `${height}px`;
+  }
+  drawCity(canvas, v, cityPerson ?? undefined);
   // Groups share a target and a labelled list, so dense meetings never stack hit areas.
   const groups: { x: number; y: number; right: number; bottom: number; ids: string[] }[] = [];
   for (const p of positions) {
@@ -545,9 +537,6 @@ function updateCity(v: View): void {
     b.style.height = `${g.bottom - g.y}px`;
     b.setAttribute('aria-pressed', String(g.ids.includes(cityPerson ?? '')));
   });
-  const selected = positions.find((p) => p.figure.id === cityPerson);
-  const caption = root.querySelector('[data-city-person]');
-  if (caption) caption.textContent = selected ? `${selected.figure.name} · ${selected.place}` : '';
 }
 
 function review(v: View): void {
@@ -803,6 +792,10 @@ function handleClick(event: Event): void {
   const b = (event.target as HTMLElement).closest<HTMLButtonElement>('button');
   if (!b || b.disabled || waitAnimation) return;
   const v = state ? current() : null;
+  if (b.dataset.speedChoice) {
+    send({ type: 'speed', speed: Number(b.dataset.speedChoice) as Speed });
+    return;
+  }
   if (b.dataset.cityFigure) {
     cityPerson = b.dataset.cityFigure;
     closeSheet(false);
@@ -856,11 +849,6 @@ function handleClick(event: Event): void {
     case 'wait-for':
       send({ type: 'wait-for' });
       break;
-    case 'more-questions':
-      questionPage++;
-      render(true);
-      root.querySelector<HTMLElement>('[data-testid="scene-choice"]')?.focus({ preventScroll: true });
-      break;
     case 'menu':
       menu();
       break;
@@ -909,7 +897,7 @@ function handleClick(event: Event): void {
     case 'all-cards':
       if (v)
         openSheet(
-          'Cards on the books',
+          'Your books',
           candidates(v)
             .map(
               (c) =>

@@ -4,7 +4,7 @@
  * Vite serves 4310; driver listens on 4311. Separate instances use separate port pairs.
  * Commands: node scripts/browser-drive.ts 4310 text
  *   ... 4310 shot opening | tap 'New month' | speed Gallop | wait 5 | export scratch/run.json | quit
- * Omit the port for commands to use 4310. Screenshots: scratch/shots-p2/<port>/<name>.png.
+ * Omit the port for commands to use 4310. Screenshots: scratch/shots-p3/<port>/<name>.png.
  */
 import { mkdirSync } from 'node:fs';
 import { createServer } from 'node:http';
@@ -98,7 +98,7 @@ async function run(page: Page, port: number, command: string, args: string[]): P
     const name = args.join(' ') || 'screen';
     if (!/^[\w-]+$/.test(name))
       throw new Error('Screenshot name may contain letters, numbers, underscores and hyphens.');
-    const path = resolve(`scratch/shots-p2/${port}/${name}.png`);
+    const path = resolve(`scratch/shots-p3/${port}/${name}.png`);
     mkdirSync(dirname(path), { recursive: true });
     await page.screenshot({ path });
     return path;
@@ -124,7 +124,7 @@ async function run(page: Page, port: number, command: string, args: string[]): P
     const name = args.join(' ');
     if (!['Slow', 'Walk', 'Trot', 'Gallop'].includes(name))
       throw new Error('Speed must be Slow, Walk, Trot or Gallop.');
-    await page.getByRole('combobox', { name: 'Clock speed', exact: true }).selectOption({ label: name });
+    await page.getByRole('button', { name, exact: true }).click();
     return page.locator('body').innerText();
   }
   if (command === 'wait') {

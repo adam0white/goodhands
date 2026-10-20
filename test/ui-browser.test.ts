@@ -2,7 +2,7 @@ import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { expect, it } from 'vitest';
 
-it('accepts CLI placement and vouch toggles, transcript, relationship, city and clock behavior on the built phone screen', () => {
+it('accepts speed labels, City phone, interview endings, full questions and placement on the built phone screen', () => {
   const output = execFileSync(
     process.execPath,
     ['scripts/verify-browser.ts', String(48000 + (process.pid % 1000))],
