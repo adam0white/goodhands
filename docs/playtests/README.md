@@ -21,3 +21,4 @@ All files below are from 20 October 2026. HF cohorts use three personas on three
 | [Lukas, r3 tester F](2026-10-20-r3-tester-f.md) | Would return for Gül's fair placement; duplicate household labels ended the session before he could check arrangements. |
 | [HF r5 report](2026-10-20-hf-r5.md) | Three completionist time caps, five agenda stops and one quit; 33 withdrawn-action warnings; no fresh source-unread verdict. |
 | [HF r5 traces](2026-10-20-hf-r5.json.gz) | Verbatim nine-session cohort on polish-round-4 commit `27d8d90`; no completed months or crashes. |
+| [Owner, 2026-10-20](owner-2026-10-20.md) | Owner run on `bba1a43`: "very good potential"; trial morning stuck, no negotiation, interviews too immediate, repeated reference calls duplicate notes, lost jobs still shown, no way to talk to families. |
