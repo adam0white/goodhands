@@ -73,6 +73,7 @@ export interface CandidateView {
   busy?: string;
   /** Interview cooldown only; taking a number and other available work remain possible. */
   interviewAfter?: Minute;
+  matchReasons?: { family: string; words: string }[];
   wants?: string;
   wage: number | null; // lira per month she asked for, once known
   experience: string[]; // in words, once known
@@ -91,6 +92,7 @@ export interface RequestView {
   by: Minute; // deadline
   byLabel: string; // 'Tuesday 3 November, 08:00'
   status: 'open' | 'filled' | 'lost';
+  lostReason?: string;
 }
 
 export interface FamilyView {
@@ -257,7 +259,7 @@ export interface Review {
 
 /** The sim's state: plain JSON. People are HF Persons, keyed by id. */
 export interface State {
-  version: 1;
+  version: 1 | 2;
   seed: number;
   rng: number; // seeded RNG state
   now: Minute;

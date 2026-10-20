@@ -1,4 +1,4 @@
-import type { CandidateView, Note, PlacementView, Quality, View } from '../sim/types.ts';
+import type { CandidateView, Note, PlacementView, Quality, RequestView, View } from '../sim/types.ts';
 
 export const SPEED_NAMES = ['Slow', 'Walk', 'Trot', 'Gallop'] as const;
 export const INTRO =
@@ -87,5 +87,32 @@ export function clockLabels(minute: number): { dateLabel: string; timeLabel: str
       hourCycle: 'h23',
       timeZone: 'UTC',
     }).format(date),
+  };
+}
+
+/** Eligibility comes from the public view; unknown character facts stay in the simulation. */
+export function matchingReason(candidate: CandidateView, request?: RequestView): string | undefined {
+  return (
+    candidateAvailability(candidate) ??
+    candidate.refuses?.find((refusal) => refusal.family === request?.family)?.words ??
+    (request?.status !== 'open'
+      ? 'This request is no longer open. Choose another family or answer the phone.'
+      : (candidate.matchReasons?.find((reason) => reason.family === request.family)?.words ??
+        (!candidate.roles.includes(request.role)
+          ? `${candidate.name} is looking for ${candidate.roles.join(' or ')} work. This family needs a ${request.role}.`
+          : undefined)))
+  );
+}
+
+export function referenceReason(referee: CandidateView['referees'][number]): string | undefined {
+  if (referee.called)
+    return referee.why ?? 'You already heard this reference. Read the account in Nermin’s notes.';
+  return referee.reachable ? undefined : (referee.why ?? 'Not reachable now. Try later.');
+}
+
+export function requestGroups(requests: RequestView[]): { open: RequestView[]; lost: RequestView[] } {
+  return {
+    open: requests.filter((request) => request.status === 'open'),
+    lost: requests.filter((request) => request.status === 'lost'),
   };
 }

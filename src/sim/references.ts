@@ -620,7 +620,11 @@ export function referenceChoices(ref: Referee, asked: string[]): SceneChoice[] {
       label: `I'm not sure I believe ${ref.name.startsWith('Mr ') ? 'him' : 'her'}`,
       hint: 'Their claims will count less.',
     },
-    { id: 'finish', label: 'End the call' },
+    {
+      id: 'finish',
+      label: 'End the call',
+      hint: 'Ask what you need before hanging up. This employer has no new account to give on another call.',
+    },
   ].filter((choice) => !asked.includes(choice.id));
 }
 

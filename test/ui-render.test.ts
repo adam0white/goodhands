@@ -6,8 +6,11 @@ import {
   escapeHtml,
   evidence,
   INTRO,
+  matchingReason,
   noteText,
   phoneAvailability,
+  referenceReason,
+  requestGroups,
   resumeLine,
   speedLabel,
   vouchLabel,
@@ -97,4 +100,54 @@ it('keeps a source’s own claim beside Nermin’s read', () => {
 
 it('shows fictional clock dates in English across a day boundary', () => {
   expect(clockLabels(1440 + 720)).toEqual({ dateLabel: 'Tuesday 3 November', timeLabel: '12:00' });
+});
+
+const request = {
+  id: 'request-demirs',
+  family: 'demirs',
+  role: 'driver' as const,
+  wants: 'School journeys',
+  wage: 8500,
+  by: 4800,
+  byLabel: 'Thursday 5 November, 08:00',
+  status: 'open' as const,
+};
+
+it('uses public match reasons without reading or inferring hidden wages', () => {
+  const driver = { ...candidate, id: 'cem', name: 'Cem', roles: ['driver' as const] };
+  expect(matchingReason(driver, request)).toBeUndefined();
+  expect(
+    matchingReason(
+      {
+        ...driver,
+        wage: 9000,
+        matchReasons: [{ family: 'demirs', words: 'Cem needs ₺9,000; this family offers ₺8,500.' }],
+      },
+      request,
+    ),
+  ).toContain('₺9,000');
+  expect(matchingReason({ ...driver, wage: 9000, matchReasons: [] }, request)).toBeUndefined();
+  expect(matchingReason({ ...driver, busy: 'Trial answer due Wednesday noon' }, request)).toContain(
+    'Wednesday noon',
+  );
+  expect(matchingReason(driver, { ...request, status: 'lost' })).toContain('no longer open');
+});
+
+it('keeps completed reference calls unavailable with their reason', () => {
+  expect(
+    referenceReason({
+      id: 'ref-cem',
+      name: 'Mr Tunç',
+      reachable: true,
+      called: true,
+      why: 'You already heard his account.',
+    }),
+  ).toBe('You already heard his account.');
+  expect(referenceReason({ id: 'ref-cem', name: 'Mr Tunç', reachable: true, called: false })).toBeUndefined();
+});
+
+it('separates open requests from lost requests and excludes filled requests', () => {
+  const lost = { ...request, id: 'lost', status: 'lost' as const, lostReason: 'We asked elsewhere.' };
+  const filled = { ...request, id: 'filled', status: 'filled' as const };
+  expect(requestGroups([request, lost, filled])).toEqual({ open: [request], lost: [lost] });
 });

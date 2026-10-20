@@ -21,10 +21,13 @@ import {
   evidence,
   escapeHtml as h,
   INTRO,
+  matchingReason,
   money,
   noteText,
   phoneAvailability,
   placementLabel,
+  referenceReason,
+  requestGroups,
   resumeLine,
   SPEED_NAMES,
   speedLabel,
@@ -392,13 +395,19 @@ function action(label: string, key: string, disabled?: string, hint?: string): s
   return `<button type="button" data-action="${key}" ${disabled ? 'disabled' : ''}><span>${h(label)}</span>${hint ? `<small>${h(hint)}</small>` : ''}</button>`;
 }
 function familiesHtml(v: View): string {
-  return (
-    v.requests
+  const { open, lost } = requestGroups(v.requests);
+  const active =
+    open
       .map(
         (r) =>
-          `<article class="family-card"><h2>${h(person(v, r.family))}</h2><p>“${h(r.wants)}”</p><p>${h(r.role)} · ${money(r.wage)} a month</p><p class="deadline">By ${h(r.byLabel)} · ${r.status}</p><button type="button" data-family="${h(r.family)}">${h(person(v, r.family).replace(/^the /, 'The '))}: household and request</button></article>`,
+          `<article class="family-card"><h2>${h(person(v, r.family))}</h2><p>“${h(r.wants)}”</p><p>${h(r.role)} · ${money(r.wage)} a month</p><p class="deadline">By ${h(r.byLabel)}</p><button type="button" data-family="${h(r.family)}">${h(person(v, r.family).replace(/^the /, 'The '))}: household and request</button></article>`,
       )
-      .join('') || '<p>No requests have reached Nermin.</p>'
+      .join('') || '<p>No open requests. Current placements are in Placed.</p>';
+  return (
+    active +
+    (lost.length
+      ? `<details class="lost-requests"><summary>Lost requests · ${lost.length}</summary>${lost.map((r) => `<p>${h(person(v, r.family))} — ${h(r.lostReason ?? 'The family went elsewhere.')}</p>`).join('')}</details>`
+      : '')
   );
 }
 function placedHtml(v: View): string {
@@ -650,7 +659,7 @@ function referenceSheet(): void {
   if (!c) return;
   const d = openSheet(
     `Call a reference · ${c.name}`,
-    `<p>About 15 minutes on the telephone.</p>${c.referees.map((r) => `<div class="reference-option"><button type="button" data-referee="${h(r.id)}" ${!r.reachable ? 'disabled' : ''}>Call ${h(r.name)}${r.called ? ' again' : ''}</button><p data-referee-reason="${h(r.id)}">${r.reachable ? 'Reachable now' : h(r.why ?? 'Not reachable now. Try later.')}</p></div>`).join('') || '<p>No referee yet. Ask about her last family in the interview.</p>'}`,
+    `<p>About 15 minutes on the telephone.</p>${c.referees.map((r) => `<div class="reference-option"><button type="button" data-referee="${h(r.id)}" ${referenceReason(r) ? 'disabled' : ''}>Call ${h(r.name)}</button><p data-referee-reason="${h(r.id)}">${h(referenceReason(r) ?? 'Reachable now')}</p></div>`).join('') || '<p>No referee yet. Ask about her last family in the interview.</p>'}`,
   );
   updateInspection = () => {
     const latest = candidates(current()).find((p) => p.id === c.id);
@@ -662,10 +671,8 @@ function referenceSheet(): void {
         (el) => el.dataset.refereeReason === referee.id,
       );
       const busy = latest ? candidateAvailability(latest) : 'She is no longer on your books.';
-      if (b) b.disabled = !referee.reachable || !!busy;
-      if (reason)
-        reason.textContent =
-          busy ?? (referee.reachable ? 'Reachable now' : (referee.why ?? 'Not reachable now. Try later.'));
+      if (b) b.disabled = !!referenceReason(referee) || !!busy;
+      if (reason) reason.textContent = busy ?? referenceReason(referee) ?? 'Reachable now';
     }
   };
 }
@@ -688,7 +695,7 @@ function matchSheet(kind: 'trial' | 'place'): void {
   const requests = v.requests.filter((r) => r.status === 'open');
   const d = openSheet(
     kind === 'trial' ? 'Send for a trial morning' : `Vouch for ${c.name}`,
-    `<p ${kind === 'place' ? 'data-fee-terms' : ''}>${kind === 'trial' ? 'She will spend the next morning with the family. Their word comes back later.' : 'The family pays one week’s wage as a deposit now; the rest of the fee after the trial week if they keep her. They will remember what you vouch for.'}</p><label>Family <select aria-label="Family" data-match-family>${requests.map((r) => `<option value="${h(r.family)}">${h(person(v, r.family))} · ${h(r.role)}</option>`).join('')}</select></label>${!requests.length ? '<p>No open request. Answer a family’s call first.</p>' : ''}${kind === 'place' ? `<fieldset><legend>What will you put your word behind?</legend><div class="vouch-controls">${QUALITIES.map((q) => `<button type="button" class="vouch" data-vouch="${q}" aria-pressed="false">${h(vouchLabel(c, q))}</button>`).join('')}</div><details class="vouch-evidence"><summary>Read the evidence</summary>${QUALITIES.map((q) => `<p><strong>${q}</strong> — ${h(evidence(c, q))}</p>`).join('')}</details></fieldset>` : ''}<p data-match-reason class="reason"></p><button type="button" data-confirm-match ${!requests.length ? 'disabled' : ''}>${kind === 'trial' ? 'Send for a trial' : 'Place with this family'}</button>`,
+    `<p ${kind === 'place' ? 'data-fee-terms' : ''}>${kind === 'trial' ? 'She will spend the next morning with the family. Their word comes back later.' : 'The family pays one week’s wage as a deposit now; the rest of the fee after the trial week if they keep her. They will remember what you vouch for.'}</p><label>Family <select aria-label="Family" data-match-family>${requests.map((r) => `<option value="${h(r.family)}">${h(person(v, r.family))} · ${h(r.role)}</option>`).join('')}</select></label>${!requests.length ? '<p>No open request. Answer a family’s call first.</p>' : ''}${kind === 'place' ? `<fieldset><legend>What will you put your word behind?</legend><div class="vouch-controls">${QUALITIES.map((q) => `<button type="button" class="vouch" data-vouch="${q}" aria-pressed="false">${h(vouchLabel(c, q))}</button>`).join('')}</div><details class="vouch-evidence"><summary>Read the evidence</summary>${QUALITIES.map((q) => `<p><strong>${q}</strong> — ${h(evidence(c, q))}</p>`).join('')}</details></fieldset>` : ''}<p id="match-reason" data-match-reason class="reason"></p><button type="button" data-confirm-match aria-describedby="match-reason" ${!requests.length ? 'disabled' : ''}>${kind === 'trial' ? 'Send for a trial' : 'Place with this family'}</button>`,
   );
   const select = d.querySelector<HTMLSelectElement>('[data-match-family]'),
     confirm = d.querySelector<HTMLButtonElement>('[data-confirm-match]');
@@ -696,15 +703,7 @@ function matchSheet(kind: 'trial' | 'place'): void {
     const live = current();
     const request = live.requests.find((r) => r.status === 'open' && r.family === select?.value);
     const liveCandidate = candidates(live).find((p) => p.id === c.id) ?? c;
-    const refusal =
-      candidateAvailability(liveCandidate) ??
-      liveCandidate.refuses?.find((r) => r.family === select?.value)?.words ??
-      (!request ? 'This request is no longer open. Choose another family or answer the phone.' : undefined);
-    const reason =
-      refusal ??
-      (request && !c.roles.includes(request.role)
-        ? `She is looking for ${c.roles.join(' or ')} work. This family needs a ${request.role}.`
-        : undefined);
+    const reason = matchingReason(liveCandidate, request);
     const line = d.querySelector('[data-match-reason]');
     if (line) line.textContent = reason ?? '';
     const terms = d.querySelector('[data-fee-terms]');

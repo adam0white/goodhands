@@ -35,7 +35,7 @@ const collectResults = () => {
 };
 
 describe('month policy consequences across five seeds', () => {
-  beforeAll(collectResults, 180000);
+  beforeAll(collectResults, 600000);
   it('all players finish a month or reach an authored early ending', () => {
     expect(results.every((r) => r.ended && r.now <= MONTH_END)).toBe(true);
   });

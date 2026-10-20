@@ -4,10 +4,11 @@
  * Vite serves 4310; driver listens on 4311. Separate instances use separate port pairs.
  * Commands: node scripts/browser-drive.ts 4310 text
  *   ... 4310 shot opening | tap 'New month' | speed Gallop | wait 5 | export scratch/run.json | quit
- * Omit the port for commands to use 4310. Screenshots: scratch/shots-p3/<port>/<name>.png.
+ * Omit the port for commands to use 4310. Screenshots: /Users/abdul/code/scratch-intake2/goodhands-browser/<port>/<name>.png.
  */
 import { mkdirSync } from 'node:fs';
 import { createServer } from 'node:http';
+import { homedir } from 'node:os';
 import { dirname, resolve } from 'node:path';
 import { chromium, type Page } from 'playwright-core';
 import { createServer as createViteServer } from 'vite';
@@ -98,7 +99,7 @@ async function run(page: Page, port: number, command: string, args: string[]): P
     const name = args.join(' ') || 'screen';
     if (!/^[\w-]+$/.test(name))
       throw new Error('Screenshot name may contain letters, numbers, underscores and hyphens.');
-    const path = resolve(`scratch/shots-p3/${port}/${name}.png`);
+    const path = resolve(homedir(), `code/scratch-intake2/goodhands-browser/${port}/${name}.png`);
     mkdirSync(dirname(path), { recursive: true });
     await page.screenshot({ path });
     return path;
@@ -135,7 +136,7 @@ async function run(page: Page, port: number, command: string, args: string[]): P
     return page.locator('body').innerText();
   }
   if (command === 'export') {
-    const path = resolve(args.join(' ') || 'scratch/run.json');
+    const path = resolve(args.join(' ') || `${homedir()}/code/scratch-intake2/goodhands-run.json`);
     mkdirSync(dirname(path), { recursive: true });
     const downloadButton = page.getByRole('button', { name: 'Download this run', exact: true });
     if (!(await downloadButton.isVisible()))

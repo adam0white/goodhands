@@ -4,6 +4,7 @@ import { type Input, type LoggedInput, QUALITIES, type State } from '../sim/type
 export interface RunExport {
   game: 'goodhands';
   version: 1;
+  simulation?: 1 | 2;
   seed: number;
   minute: number;
   inputs: LoggedInput[];
@@ -17,6 +18,7 @@ export function exportRun(state: State, inputs: LoggedInput[]): RunExport {
   return {
     game: 'goodhands',
     version: 1,
+    ...(state.version === 2 ? { simulation: 2 as const } : {}),
     seed: visible.seed,
     minute: visible.now,
     inputs: structuredClone(inputs),
@@ -25,8 +27,16 @@ export function exportRun(state: State, inputs: LoggedInput[]): RunExport {
   };
 }
 export function compactRun(run: RunExport): CompactRunExport {
-  const { game, version, seed, minute, inputs, fingerprint } = run;
-  return { game, version, seed, minute, inputs: structuredClone(inputs), fingerprint };
+  const { game, version, simulation, seed, minute, inputs, fingerprint } = run;
+  return {
+    game,
+    version,
+    ...(simulation ? { simulation } : {}),
+    seed,
+    minute,
+    inputs: structuredClone(inputs),
+    fingerprint,
+  };
 }
 
 function record(value: unknown): value is Record<string, unknown> {
@@ -109,7 +119,9 @@ export function verifyImport(text: string): { state: State; inputs: LoggedInput[
     previous = entry.at;
   }
   const inputs = structuredClone(data.inputs) as LoggedInput[];
-  const state = replay(data.seed as number, inputs, data.minute);
+  const simulation = data.simulation ?? 1;
+  if (simulation !== 1 && simulation !== 2) throw new Error('Unsupported simulation version.');
+  const state = replay(data.seed as number, inputs, data.minute, simulation);
   const visible = view(state);
   if (visible.now !== data.minute || visible.seed !== data.seed)
     throw new Error('The run clock or seed did not match the replay.');

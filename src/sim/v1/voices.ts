@@ -1,0 +1,387 @@
+import { outwardSigns, type Person, selfReport } from '@adam0white/human-framework';
+import { authoredTraitAnswer } from './dialogue.ts';
+import { QUALITIES, type Quality, type Role } from './types.ts';
+import { quality, ROLE_SKILL } from './world.ts';
+
+export {
+  contextualConcern,
+  personalAnswer,
+  personalQuestions,
+  workerDisagreement,
+  workerNeed,
+} from './dialogue.ts';
+
+type Band = 'chatty' | 'quiet' | 'polished' | 'nervous' | 'blunt';
+type Grade = 'good' | 'uncertain' | 'poor';
+type Six = readonly [string, string, string, string, string, string];
+
+const LABELS: Record<Role, Six> = {
+  nanny: [
+    'What if a child keeps crying?',
+    'What if you break something?',
+    'Can you get here before school?',
+    'How do you meet a shy child?',
+    'What happens after the children sleep?',
+    'What would you tell another nanny about the family?',
+  ],
+  cook: [
+    'What if dinner is sent back?',
+    'How do you account for the shopping money?',
+    'Can you have lunch ready at one?',
+    'What if someone eats very little?',
+    'Who cleans up after dinner?',
+    'What would you tell a neighbour about the household?',
+  ],
+  carer: [
+    'What if the old man throws his plate?',
+    'What if you make a mistake with his routine?',
+    'Can the family depend on your morning visit?',
+    'How do you get to know someone in your care?',
+    'What if the washing piles up?',
+    'Who would you tell about his private troubles?',
+  ],
+  driver: [
+    'What if you are kept waiting in traffic?',
+    'How do you account for petrol money?',
+    'Can you manage an early airport pickup?',
+    'How do you help an anxious passenger?',
+    'What do you do between journeys?',
+    'What about conversations you hear in the car?',
+  ],
+  housekeeper: [
+    'What if they ask you to clean the room again?',
+    'What if you find money under a chair?',
+    'Can they depend on you on laundry day?',
+    'How do you work around people at home?',
+    'What if the whole house needs doing?',
+    'What about things you see in the bedrooms?',
+  ],
+};
+
+export function questions(role: Role): { id: string; label: string; quality: Quality }[] {
+  return QUALITIES.map((q, index) => ({ id: `q-${q}`, label: LABELS[role][index] ?? '', quality: q }));
+}
+
+// Each answer has six authored versions at each level. Presentation changes the delivery,
+// never the evidence. The engine owns how often a person has answered each question.
+function lines(q: Quality, grade: Grade, role: Role): Six {
+  const welcome = {
+    nanny: 'I learn what makes each child feel safe.',
+    cook: 'I learn what everyone likes to eat.',
+    carer: 'I learn the small things that make their day easier.',
+    driver: 'I check that everyone is comfortable before we set off.',
+    housekeeper: 'I learn which rooms people need quiet in.',
+  }[role];
+  const task = {
+    nanny: 'the bedtime routine',
+    cook: 'the kitchen',
+    carer: 'the evening washing',
+    driver: 'the car',
+    housekeeper: 'the laundry',
+  }[role];
+  const pools: Record<Quality, Record<Grade, Six>> = {
+    patient: {
+      good: [
+        'I give it a moment. Getting cross makes it worse.',
+        'I lower my voice and try again.',
+        'I can wait. There is usually a reason.',
+        'First I listen. We can sort the rest out slowly.',
+        'I take a breath before I answer.',
+        'Repeating myself is part of the work.',
+      ],
+      uncertain: [
+        'I manage, unless it goes on all morning.',
+        'I try again. Sometimes I need a minute outside.',
+        'It depends how tired I am that day.',
+        'I can put up with a fair amount.',
+        'I am better if someone explains what is wrong.',
+        'I keep my voice down. Mostly.',
+      ],
+      poor: [
+        'Once I have explained, I expect to be listened to.',
+        'I cannot keep having the same argument.',
+        'I would tell them to stop making a fuss.',
+        'There is work to do. We cannot wait all day.',
+        'I get sharp if it keeps happening.',
+        'I can do the work, but I will answer back.',
+      ],
+    },
+    honest: {
+      good: [
+        'I tell them straight away, even if it costs me.',
+        'I keep the receipts and return the change.',
+        'I would rather admit it than have them find out later.',
+        'If it is my mistake, I say it was mine.',
+        'Their money stays separate from mine.',
+        'I leave a note if they are out. They should hear it from me.',
+      ],
+      uncertain: [
+        'I tell them if it is something that matters.',
+        'I try to keep all the receipts.',
+        'I would explain, once I had put it right.',
+        'A small mistake is sometimes better fixed quietly.',
+        'I do not like being questioned over every coin.',
+        'I would want to know how they might take it first.',
+      ],
+      poor: [
+        'If no harm is done, why upset everyone?',
+        'Small things disappear in every house.',
+        'I would put it right without mentioning it.',
+        'They can afford to lose a little change.',
+        'I would say it was like that when I arrived.',
+        'There is no need to tell them everything.',
+      ],
+    },
+    reliable: {
+      good: [
+        'I check the route the night before.',
+        'I leave time for a missed bus.',
+        'If there is trouble, I phone before they are waiting.',
+        'Once I agree a time, I arrange my day around it.',
+        'I write the hours down and check them back.',
+        'They will know ahead of time if I cannot come.',
+      ],
+      uncertain: [
+        'Usually, though the buses can be difficult.',
+        'I can manage if the hours stay the same.',
+        'I would try to telephone if I was running late.',
+        'I need a little notice for an early start.',
+        'Some mornings are harder to arrange than others.',
+        'I have been late, but never by very much.',
+      ],
+      poor: [
+        'They will have to allow a little flexibility.',
+        'I cannot promise the same time every morning.',
+        'Sometimes something more urgent comes up.',
+        'I do not like being tied to the clock.',
+        'If I am late, they can wait a few minutes.',
+        'I might need to leave early without much notice.',
+      ],
+    },
+    warm: {
+      good: [
+        welcome,
+        'I ask how they like things before I start.',
+        'I sit and listen if someone needs company.',
+        'I remember the little things they tell me.',
+        'I leave room for people to get used to me.',
+        'I notice when someone has gone quiet.',
+      ],
+      uncertain: [
+        'I am friendly once I know people.',
+        'I do the work first. We get acquainted later.',
+        'I am not always sure what to say.',
+        'Some people take to me, some need time.',
+        'I help if they ask me.',
+        'I prefer them to tell me what they need.',
+      ],
+      poor: [
+        'I am there to work, not to make friends.',
+        'I prefer everyone to leave me to it.',
+        'I do not have time to sit and listen.',
+        'They must say what they want. I cannot guess.',
+        'I keep my distance. It is easier that way.',
+        'I do not get involved when people are upset.',
+      ],
+    },
+    hardworking: {
+      good: [
+        `I finish ${task} before I sit down.`,
+        'I look for what needs doing next.',
+        'I make a list so the small jobs do not get forgotten.',
+        'I put things ready for the next morning.',
+        'I do the awkward jobs before they pile up.',
+        'If something needs a second go, I do it again.',
+      ],
+      uncertain: [
+        `I do ${task}, if there is time.`,
+        'I finish the main jobs. The rest may have to wait.',
+        'I work better with a clear list.',
+        'Some days I get more done than others.',
+        'I will need someone to show me their way first.',
+        'I do what we agreed, and ask about anything extra.',
+      ],
+      poor: [
+        `I would leave ${task} until tomorrow.`,
+        'I do enough to keep things going.',
+        'If nobody notices, it can wait.',
+        'I need plenty of breaks to get through a day.',
+        'I do not go looking for extra work.',
+        'They would need to remind me about the small jobs.',
+      ],
+    },
+    discreet: {
+      good: [
+        'I say I cannot discuss another household.',
+        'What happens there stays there.',
+        'I would talk to the family, not the neighbours.',
+        'I would ask before passing on a private message.',
+        'Their troubles are not mine to tell.',
+        'I can talk about my work without naming people.',
+      ],
+      uncertain: [
+        'I might ask someone for advice, without names.',
+        'I do not repeat the serious things.',
+        'I sometimes talk to my sister about a difficult day.',
+        'I would need to know what they consider private.',
+        'People ask questions. I try not to say much.',
+        'I have let something slip before. I regretted it.',
+      ],
+      poor: [
+        'People find out anyway. It is a small city.',
+        'If they ask me, I tell them what I know.',
+        'My friends and I compare the houses we work in.',
+        'A good story helps the day pass.',
+        'I would tell you. You should know who you are dealing with.',
+        'I do not see the harm if it is true.',
+      ],
+    },
+  };
+  return pools[q][grade];
+}
+
+function bandOf(presentation: string): Band {
+  if (/quiet|reserved|shy/i.test(presentation)) return 'quiet';
+  if (/polished|smooth/i.test(presentation)) return 'polished';
+  if (/nervous|anxious/i.test(presentation)) return 'nervous';
+  if (/blunt|direct|plain/i.test(presentation)) return 'blunt';
+  return 'chatty';
+}
+
+function deliver(text: string, band: Band, index: number): string {
+  const openings: Record<Exclude<Band, 'quiet'>, Six> = {
+    chatty: [
+      'Well, I will tell you: ',
+      'You know, ',
+      'I was just thinking about that: ',
+      'That comes up often: ',
+      'Let me put it this way: ',
+      'We were talking about this yesterday: ',
+    ],
+    polished: [
+      'My approach is straightforward: ',
+      'I have a clear rule: ',
+      'I can be quite clear: ',
+      'I take it seriously: ',
+      'I would explain it this way: ',
+      'To answer your question: ',
+    ],
+    nervous: [
+      'Let me think: ',
+      'I hope I can explain this: ',
+      'I have not been asked that before, but ',
+      'Well, ',
+      'I do not know how to put it, but ',
+      'If I understand you, ',
+    ],
+    blunt: [
+      'Look, ',
+      'Simply put: ',
+      'I will be direct: ',
+      'Here is my answer: ',
+      'It is simple: ',
+      'To be clear: ',
+    ],
+  };
+  return band === 'quiet' ? text : `${openings[band][index]}${text}`;
+}
+
+function notice(person: Person, variant: number): string {
+  const signs = outwardSigns(person);
+  let pool: Six;
+  if (signs.fatigue > 0.3) {
+    pool = [
+      'Their eyelids droop between answers.',
+      'They stifle a yawn behind one hand.',
+      'They rub their eyes before continuing.',
+      'Their shoulders settle lower in the chair.',
+      'They blink slowly, then sit up again.',
+      'They stop to gather themselves before the next sentence.',
+    ];
+  } else if (signs.fear > 0.2) {
+    pool = [
+      'Their fingers hold the edge of the chair.',
+      'They look towards the door before answering.',
+      'Their voice catches on the first word.',
+      'They press their palms together in their lap.',
+      'They take a shallow breath before continuing.',
+      'Their hands move, then go still.',
+    ];
+  } else if (signs.pain > 0.2) {
+    pool = [
+      'They shift their weight carefully in the chair.',
+      'They wince before settling again.',
+      'They move one shoulder with care.',
+      'They pause to find a more comfortable position.',
+      'Their face tightens as they sit forward.',
+      'They brace a hand on the chair before moving.',
+    ];
+  } else if ((signs.mood ?? 0) < -0.15) {
+    pool = [
+      'Their mouth tightens after the answer.',
+      'They look down at their hands for a moment.',
+      'The last words come out quietly.',
+      'They let out a long breath.',
+      'Their face stays drawn as they wait.',
+      'They look away before the next question.',
+    ];
+  } else if ((signs.mood ?? 0) > 0.15) {
+    pool = [
+      'A small smile stays after the answer.',
+      'Their face brightens as they speak.',
+      'They settle easily into the chair.',
+      'They meet Nermin’s eyes and smile.',
+      'Their shoulders loosen as they continue.',
+      'They give a brief, easy laugh.',
+    ];
+  } else {
+    pool = [
+      'Nermin cannot read much from their expression.',
+      'Their face gives little away.',
+      'They finish speaking and wait.',
+      'Their expression stays much the same.',
+      'Nermin watches, but sees no clear change.',
+      'They pause before the next question.',
+    ];
+  }
+  return pool[variant] ?? pool[0];
+}
+
+export function answer(
+  person: Person,
+  presentation: string,
+  role: Role,
+  questionId: string,
+  variant: number,
+): { text: string; quality: Quality; claim: number; notice: string } {
+  const q = QUALITIES.find((item) => `q-${item}` === questionId) ?? 'reliable';
+  const band = bandOf(presentation);
+  const index = ((Math.trunc(variant) % 6) + 6) % 6;
+  const report = selfReport(person);
+  // HF selfReport covers condition, not character. Character claims are host-authored
+  // from HF traits/skills via quality(), with concealment and modesty applied here.
+  const strain = report.fatigue * 0.08 + report.pain * 0.04 + report.fear * 0.06;
+  const skill = person.skills[ROLE_SKILL[role]]?.level ?? 0;
+  const skillWeight = q === 'patient' || q === 'hardworking' ? 0.12 : 0;
+  const truth = quality(person, q) * (1 - skillWeight) + skill * skillWeight;
+  const honesty = person.traits.honesty;
+  const ideal = 0.9;
+  const concealment = Math.max(0, (0.65 - honesty) / 0.65);
+  let claim = (honesty < 0.35 ? ideal : truth + (ideal - truth) * concealment) - strain;
+  if (band === 'quiet') claim -= 0.19;
+  if (band === 'nervous') claim -= 0.09;
+  if (band === 'polished') claim += 0.06;
+  claim = Math.max(0.05, Math.min(0.97, claim));
+  const grade: Grade = claim >= 0.62 ? 'good' : claim >= 0.38 ? 'uncertain' : 'poor';
+  const text =
+    authoredTraitAnswer(person.id, q, grade) ??
+    (q === 'reliable'
+      ? (lines(q, grade, role)[index] ?? '')
+      : deliver(lines(q, grade, role)[index] ?? '', band, index));
+  return {
+    text,
+    quality: q,
+    claim,
+    notice: notice(person, index),
+  };
+}

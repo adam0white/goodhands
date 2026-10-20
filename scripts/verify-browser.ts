@@ -2,6 +2,8 @@
 import assert from 'node:assert/strict';
 import { execFile, execFileSync } from 'node:child_process';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { homedir } from 'node:os';
+import { join } from 'node:path';
 import { performance } from 'node:perf_hooks';
 import { promisify } from 'node:util';
 import { chromium, type Locator } from 'playwright-core';
@@ -29,7 +31,7 @@ const port = Number(process.argv[2] ?? 4410);
 execFileSync(process.execPath, ['node_modules/vite/bin/vite.js', 'build'], { stdio: 'inherit' });
 const server = await preview({ preview: { host: '127.0.0.1', port, strictPort: true } });
 const browser = await chromium.launch({ channel: 'chromium-headless-shell' });
-const shots = 'scratch/shots-p3';
+const shots = join(homedir(), 'code/scratch-intake2/goodhands-browser');
 let driver: Awaited<ReturnType<typeof startCommandServer>> | undefined;
 const cliCommands: string[][] = [];
 mkdirSync(`${shots}/${port}`, { recursive: true });
@@ -42,11 +44,24 @@ try {
   driver = await startCommandServer(page, port, async () => {});
   const cli = async (command: string, ...args: string[]) => {
     cliCommands.push([command, ...args]);
-    const { stdout } = await promisify(execFile)(
-      process.execPath,
-      ['scripts/browser-drive.ts', String(port), command, ...args],
-      { timeout: 10000 },
-    );
+    // Exercise the standalone CLI once; other commands use its same public HTTP boundary.
+    // Re-importing Playwright and Vite in a new Node for every tap made the fixture
+    // spend most of its real clock budget starting processes under machine load.
+    if (cliCommands.length === 1) {
+      const { stdout } = await promisify(execFile)(
+        process.execPath,
+        ['scripts/browser-drive.ts', String(port), command, ...args],
+        { timeout: 10000 },
+      );
+      return stdout;
+    }
+    const response = await fetch(`http://127.0.0.1:${port + 1}/`, {
+      method: 'POST',
+      body: JSON.stringify({ command, args }),
+      signal: AbortSignal.timeout(15000),
+    });
+    const stdout = await response.text();
+    assert.ok(response.ok, stdout);
     return stdout;
   };
   const tap = async (target: string | Locator) => {
@@ -246,6 +261,55 @@ try {
     };
   };
   await open();
+  const wageMismatch = scenario();
+  for (const candidate of ['gul', 'sevda', 'pinar']) wageMismatch.send({ type: 'take-number', candidate });
+  wageMismatch.until(900);
+  wageMismatch.send({ type: 'interview', candidate: 'cem' });
+  wageMismatch.send({ type: 'choose', scene: required(view(wageMismatch.state).scene).id, choice: 'wage' });
+  wageMismatch.send({
+    type: 'choose',
+    scene: required(view(wageMismatch.state).scene).id,
+    choice: 'send-home',
+  });
+  wageMismatch.close();
+  await importState(wageMismatch.state, wageMismatch.inputs);
+  await tap('Bench');
+  await tap('Cem · books');
+  await tap(page.getByRole('button', { name: /^Send for a trial/ }));
+  await page.locator('[data-match-family]').selectOption('demirs');
+  const mismatch = page.locator('[data-match-reason]');
+  assert.match(await mismatch.innerText(), /Cem.*9,?000.*8,?500/);
+  assert.equal(
+    await page.locator('[data-confirm-match]').isDisabled(),
+    true,
+    'Known wage mismatch prevents a trial before confirmation',
+  );
+  assert.equal(
+    await page.locator('[data-confirm-match]').getAttribute('aria-describedby'),
+    await mismatch.getAttribute('id'),
+  );
+  assert.equal(
+    await mismatch.evaluate((element) => element.nextElementSibling?.hasAttribute('data-confirm-match')),
+    true,
+    'Wage reason is adjacent to trial confirmation',
+  );
+  await page.screenshot({ path: `${shots}/phase1-wage-mismatch.png` });
+  await tap('Back');
+  const lostRequest = scenario();
+  for (const candidate of ['gul', 'sevda', 'pinar']) lostRequest.send({ type: 'take-number', candidate });
+  lostRequest.until(1950);
+  await importState(lostRequest.state, lostRequest.inputs);
+  await tap('Families');
+  assert.equal(
+    await page.getByRole('button', { name: 'The Arslans: household and request', exact: true }).count(),
+    0,
+    'Expired request leaves the active family list',
+  );
+  const lost = page.locator('.lost-requests');
+  assert.equal(await lost.getAttribute('open'), null, 'Lost request history starts collapsed');
+  await tap(lost.locator('summary'));
+  assert.match(await lost.innerText(), /Arslans.*needed someone earlier|Arslans.*asked elsewhere/i);
+  await page.screenshot({ path: `${shots}/phase1-lost-request.png` });
   const labels = scenario();
   for (const candidate of ['gul', 'sevda', 'pinar']) labels.send({ type: 'take-number', candidate });
   labels.until(900);
@@ -254,15 +318,16 @@ try {
   labels.send({ type: 'choose', scene: required(view(labels.state).scene).id, choice: 'coach' });
   labels.send({ type: 'choose', scene: required(view(labels.state).scene).id, choice: 'send-home' });
   labels.close();
-  labels.send({ type: 'place', candidate: 'sevda', family: 'arslans', vouch: [] });
-  labels.send({ type: 'place', candidate: 'cem', family: 'demirs', vouch: [] });
-  assert.equal(view(labels.state).placements.length, 2, 'Label audit has two different placements');
   await importState(labels.state, labels.inputs);
   await tap('Families');
   await uniqueControls('Families');
   await tap('The Arslans: household and request');
   assert.match(await page.locator('dialog.sheet').innerText(), /Ada|Deniz/);
   await tap('Back');
+  labels.send({ type: 'place', candidate: 'sevda', family: 'arslans', vouch: [] });
+  labels.send({ type: 'place', candidate: 'cem', family: 'demirs', vouch: [] });
+  assert.equal(view(labels.state).placements.length, 2, 'Label audit has two different placements');
+  await importState(labels.state, labels.inputs);
   await tap('Placed');
   await uniqueControls('Placed');
   await tap(page.locator('[data-placement]').first());
@@ -554,6 +619,7 @@ try {
   assert.equal(await page.evaluate(() => scrollY), 0, 'Reference needs no page scroll');
   await fits('reference newest line', page.locator('[data-scene-line]').last());
   await page.screenshot({ path: `${shots}/04-reference.png` });
+  reference.send({ type: 'choose', scene: required(view(reference.state).scene).id, choice: 'ref-reliable' });
   reference.close();
   await importState(reference.state, reference.inputs);
   if (!(await page.getByRole('button', { name: 'Sevda', exact: true }).count())) {
@@ -568,11 +634,12 @@ try {
   await page.screenshot({ path: `${shots}/05-candidate-card.png`, fullPage: true });
   await page.locator('[data-action="references"]').click();
   assert.equal(await page.locator('dialog.sheet').count(), 1, 'One reference sheet');
-  await page.locator('dialog.sheet [data-referee]').first().click();
-  await page.getByTestId('scene').waitFor();
-  assert.equal(await page.locator('dialog.sheet').count(), 0, 'Reference sheet becomes the scene');
-  await tap(page.locator('[data-choice="ref-reliable"]'));
-  await tap(page.locator('[data-choice="finish"]'));
+  assert.ok(
+    await page.locator('dialog.sheet [data-referee]').first().isDisabled(),
+    'A called reference cannot repeat the account',
+  );
+  assert.match(await page.locator('[data-referee-reason]').innerText(), /already told you/);
+  await tap('Back');
   await page.locator('[data-action="place"]').click();
   assert.equal(await page.locator('dialog.sheet').count(), 1, 'One matching sheet');
   await tap('reliable · heard');

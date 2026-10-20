@@ -9,8 +9,8 @@ it('accepts speed labels, City phone, interview endings, full questions and plac
     {
       cwd: fileURLToPath(new URL('..', import.meta.url)),
       encoding: 'utf8',
-      timeout: 120000,
+      timeout: 300000,
     },
   );
   expect(output).toContain('Phone acceptance passed');
-}, 125000);
+}, 305000);

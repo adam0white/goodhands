@@ -1,3 +1,5 @@
+// Version 1 is frozen for exact replay of earlier saves and compact exports.
+
 import {
   believe,
   confirm,
@@ -41,6 +43,7 @@ import type {
   View,
 } from './types.ts';
 import { QUALITIES } from './types.ts';
+import * as legacy from './v1/index.ts';
 import {
   answer,
   contextualConcern,
@@ -360,7 +363,10 @@ function arrive(s: Sim) {
         status: 'open',
       };
       const reputation = credence(s.people[`${f.id}-0`]!, 'nermin:reliable');
-      if (reputation < 0.42) request.status = 'lost';
+      if (reputation < 0.42) {
+        request.status = 'lost';
+        request.lostReason = 'They heard how the last placement ended and chose another agency.';
+      }
       const words =
         reputation < 0.42
           ? 'We heard how the last placement ended. We are going to another agency.'
@@ -484,9 +490,10 @@ function quietOffice(s: Sim) {
   s.quietOfficeAt = s.now + 45;
 }
 
-export function newGame(seed: number): State {
+export function newGame(seed: number, version: 1 | 2 = 2): State {
+  if (version === 1) return legacy.newGame(seed);
   const s: Sim = {
-    version: 1,
+    version: 2,
     seed: Math.trunc(seed) || 1,
     rng: Math.trunc(seed) >>> 0,
     now: 510,
@@ -648,6 +655,7 @@ function step(s: Sim) {
   for (const r of s.requests)
     if (r.status === 'open' && s.now > r.by) {
       r.status = 'lost';
+      r.lostReason = 'They needed someone earlier and asked elsewhere.';
       log(s, 'word', `${name(r.family)}: “We needed someone earlier. We have asked elsewhere.”`, {
         family: r.family,
       });
@@ -727,6 +735,7 @@ function runTo(s: Sim, target: number, stopOnNew = false) {
   }
 }
 export function advance(state: State, minutes: number): State {
+  if (state.version === 1) return legacy.advance(state as legacy.State, minutes);
   snapshots.delete(state);
   const s = sim(state);
   if (Number.isFinite(minutes) && minutes > 0) runTo(s, s.now + minutes, true);
@@ -773,6 +782,7 @@ function choiceReply(s: Sim, sc: SceneView, choice: string, cashBefore: number):
   );
 }
 export function apply(state: State, input: Input): State {
+  if (state.version === 1) return legacy.apply(state as legacy.State, input as legacy.Input);
   const before = sim(state);
   const sc = input.type === 'choose' && before.scene?.id === input.scene ? before.scene : null;
   const valid = !!(
@@ -1146,7 +1156,10 @@ function applyInput(state: State, input: Input): State {
     }
     if (input.choice === 'decline') {
       const r = s.requests.find((r) => r.family === sc.with && r.status === 'open');
-      if (r) r.status = 'lost';
+      if (r) {
+        r.status = 'lost';
+        r.lostReason = 'Nermin declined the request; the family is looking elsewhere.';
+      }
     }
     s.scene = null;
     runTo(s, s.now + 3);
@@ -1274,6 +1287,10 @@ function applyInput(state: State, input: Input): State {
     const c = CANDIDATES.find((p) => p.id === input.candidate);
     const card = s.cards[input.candidate];
     if (!ref || !c || !card?.met) return s;
+    if (card.called.includes(ref.id)) {
+      refuse(s, `${ref.name} has already told you what they think of ${c.name}.`);
+      return s;
+    }
     if (s.now % DAY < ref.reachableAt) {
       refuse(s, `${ref.name} cannot answer until ${timeLabel(ref.reachableAt)}; they are at work.`);
       return s;
@@ -1323,7 +1340,10 @@ function applyInput(state: State, input: Input): State {
       return s;
     }
     if (c.wage > r.wage && !card.coached.length) {
-      refuse(s, `${c.name}: “I need ₺${c.wage}. That wage will not cover home.”`);
+      card.wageKnown = true;
+      const words = `I need ₺${c.wage}. This family offers ₺${r.wage}; that will not cover home. Choose another family or worker.`;
+      s.scene = scene(s, 'phone', c.id, `${c.name}: the wage`, words);
+      refuse(s, `${c.name}: “${words}”`);
       return s;
     }
     if (card.refuses.some((a) => a.family === f.id)) {
@@ -1471,6 +1491,7 @@ function applyInput(state: State, input: Input): State {
   return s;
 }
 export function view(state: State): View {
+  if (state.version === 1) return legacy.view(state as legacy.State);
   const cached = snapshots.get(state);
   if (cached) return cached;
   const s = sim(state);
@@ -1512,19 +1533,37 @@ export function view(state: State): View {
             busy: `Works at ${name(s.placements.findLast((p) => p.candidate === c.id)!.family)}; finishes ${timeLabel(workerNeed(c.id).finishBy)}`,
           }
         : card.status === 'trial'
-          ? { busy: 'At a trial morning; an answer is due at noon' }
+          ? {
+              busy: (() => {
+                const key = s.eventKeys.find((k) => k.startsWith(`trial:${c.id}:`));
+                const [, , family, at] = key?.split(':') ?? [];
+                return `Trial arranged with ${name(family ?? '')}; their answer is due ${label(Number(at))}`;
+              })(),
+            }
           : {}),
       ...(card.wants ? { wants: card.wants } : {}),
       wage: card.wageKnown ? c.wage : null,
       experience: card.experience,
+      matchReasons: s.requests
+        .filter((r) => r.status === 'open' && card.wageKnown && c.wage > r.wage && !card.coached.length)
+        .map((r) => ({
+          family: r.family,
+          words: `${c.name} needs ₺${c.wage}; this family offers ₺${r.wage}. Choose another family or worker.`,
+        })),
       notes: card.notes,
       referees: c.referees.map((id) => {
         const r = REFEREES.find((r) => r.id === id)!;
         return {
           id,
           name: r.name,
-          reachable: t >= r.reachableAt,
-          ...(t < r.reachableAt ? { why: `At work until ${timeLabel(r.reachableAt)}` } : {}),
+          reachable: !card.called.includes(id) && t >= r.reachableAt,
+          ...(card.called.includes(id)
+            ? {
+                why: `${r.name} has already told you what ${s.people[r.id]!.life.sex === 'male' ? 'he thinks' : 'she thinks'} of ${c.name}.`,
+              }
+            : t < r.reachableAt
+              ? { why: `At work until ${timeLabel(r.reachableAt)}` }
+              : {}),
           called: card.called.includes(id),
         };
       }),
@@ -1657,7 +1696,8 @@ export function view(state: State): View {
   snapshots.set(state, snapshot);
   return snapshot;
 }
-export function replay(seed: number, inputs: LoggedInput[], until: number): State {
+export function replay(seed: number, inputs: LoggedInput[], until: number, version: 1 | 2 = 2): State {
+  if (version === 1) return legacy.replay(seed, inputs as legacy.LoggedInput[], until);
   const s = sim(newGame(seed));
   for (const entry of inputs) {
     if (entry.at > until) break;

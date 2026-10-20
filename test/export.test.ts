@@ -100,3 +100,22 @@ it('keeps a saved candidate’s number through full and compact imports', () => 
     expect(view(imported.state).books.find((c) => c.id === 'pinar')?.status).toBe('books');
   }
 });
+
+// Authored two-input history, in the same compact envelope used by notebook exports.
+it('loads an unversioned simulation export through the frozen original engine', () => {
+  const run = {
+    game: 'goodhands',
+    version: 1,
+    seed: 37,
+    minute: 519,
+    inputs: [
+      { at: 510, input: { type: 'interview', candidate: 'sevda' } },
+      { at: 510, input: { type: 'choose', scene: 'scene-1', choice: 'q-patient' } },
+    ],
+    fingerprint: 'ef02eb7b',
+  };
+  const imported = verifyImport(JSON.stringify(run));
+  expect(imported.state.version).toBe(1);
+  expect(fingerprint(imported.state)).toBe('ef02eb7b');
+  expect(compactRun(exportRun(imported.state, imported.inputs))).toEqual(run);
+});
