@@ -103,6 +103,8 @@ The 360×690 CSS px fixture. The Now line, the current scene's choices and the b
 
 Screens: `title`, `office`, `city`, `scene`, `review`, `menu`. Milestones: `run started`, `first interview`, `first placement`, `first trial verdict`, `first confidence`, `week 1 done`, `week 2 done`, `week 3 done`, `month ended`. These exact strings are also in the HF site's `apps/site/src/lab/games.ts`.
 
+**Round 1 polish (sim).** Interviews remember each question and make wage, experience and personal needs separate conversations; a callback reopens the remaining questions. References give quoted claims one answer at a time, with a visible choice to distrust a speaker; Nermin’s card follows her trust-weighted HF estimate. Every placement opens a two-sides disagreement in its first two days. An intervention records an arrangement and a dated household test of the worker’s actual need, including money, care handover and time off; broken promises move worker trust and preventable quits have a warning. Worker calls, visits, contextual coaching, named waits, moving city figures, commute conversations and traced confidence exposure share the deterministic replay. Day cards and the month question name this run’s live relationships. Policy acceptance now compares retention and worker trust across five seeds; speaking for a worker can cost family trust. HF round 2 is recorded separately and does not establish human enjoyment.
+
 ## Deferred
 
 (none yet)

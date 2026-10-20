@@ -27,9 +27,11 @@ export class GoodHandsAdapter {
   private seenLog = new Set<number>();
   private seenScene = new Map<string, number>();
   private cards = new Map<string, string>();
+  private placements = new Map<string, string>();
   private receipts: Event[] = [];
   private carry = 0;
   private previousCash: number;
+  private interviewed = new Set<string>();
 
   constructor(seed: number) {
     this.state = newGame(seed);
@@ -57,10 +59,16 @@ export class GoodHandsAdapter {
       this.seenScene.set(v.scene.id, v.scene.lines.length);
     }
     for (const c of [...v.bench, ...v.books]) {
-      const summary = `${c.name}: ${c.look}. ${c.status}${c.busy ? `; ${c.busy}` : ''}. ${c.notes.map((n) => `${n.crossedOut ? 'Crossed out: ' : ''}${n.quality}: ${n.phrase} (${n.source}, ${n.from})`).join('; ')}`;
+      const summary = `${c.name}: ${c.look}. ${c.status}${c.busy ? `; ${c.busy}` : ''}${c.wants ? `; wants: ${c.wants}` : ''}. ${c.notes.map((n) => `${n.crossedOut ? 'Crossed out: ' : ''}${n.quality}: ${n.phrase} (${n.source}, ${n.from})`).join('; ')}`;
       if (this.cards.get(c.id) === summary) continue;
       this.cards.set(c.id, summary);
       events.push({ kind: 'candidate-card', summary, valence: 0, salience: 0.55, answers: false });
+    }
+    for (const p of v.placements) {
+      const summary = `${p.candidate} at ${p.family}: ${p.status}. ${p.arrangement ?? ''}${p.pending ? ` ${p.pending.text} (${p.pending.dateLabel}).` : ''}${p.lastWord ? ` Latest word: ${p.lastWord}` : ''}`;
+      if (this.placements.get(p.id) === summary) continue;
+      this.placements.set(p.id, summary);
+      events.push({ kind: 'placement-card', summary, valence: 0, salience: 0.7, answers: false });
     }
     const cashChange = v.cash - this.previousCash;
     if (cashChange !== 0)
@@ -78,13 +86,15 @@ export class GoodHandsAdapter {
           v.task.text,
           `Rent: ₺${v.rent.amount}, ${v.rent.label}.`,
           ...(v.dayCard ? [v.dayCard.tomorrow] : []),
+          ...(v.next ? [`${v.next.label}: ${v.next.dateLabel}`] : []),
+          ...v.placements.flatMap((p) => (p.pending ? [`${p.pending.text}: ${p.pending.dateLabel}`] : [])),
         ];
     return {
       clock: `${v.dateLabel} ${v.timeLabel}`,
       phase: v.ended ? 'review' : (v.scene?.kind ?? (v.dayCard ? 'day-card' : 'office')),
       chapter: `week ${Math.floor(v.now / (7 * 1440)) + 1}, ${v.dateLabel}`,
       goal: v.ended ? '' : 'You run Good Hands, a small placement agency.',
-      next: v.ended ? '' : v.task.text,
+      next: v.ended ? '' : (v.next?.label ?? v.task.text),
       text: [
         { level: 'now' as const, text: v.task.text },
         ...events.map((e) => ({ level: 'happened' as const, text: e.summary })),
@@ -135,17 +145,20 @@ export class GoodHandsAdapter {
     }
     if (v.phoneRinging)
       add('answer-phone', `Answer the phone: ${v.phoneRinging.who}`, { type: 'answer-phone' }, 0.9);
+    if (v.next && !v.phoneRinging && !v.dayCard)
+      add('wait-for', `${v.next.label} (${v.next.dateLabel})`, { type: 'wait-for' }, 0.7);
     if (v.dayCard) add('sleep', `Close for the evening. ${v.dayCard.tomorrow}`, { type: 'sleep' }, 0.85);
     if (v.open) {
       for (const c of [...v.bench, ...v.books].filter(
         (c) => ['bench', 'books'].includes(c.status) && !c.busy,
       )) {
-        add(
-          `interview:${c.id}`,
-          `Interview ${c.name}`,
-          { type: 'interview', candidate: c.id },
-          c.notes.length ? 0.3 : 0.75,
-        );
+        if (!this.interviewed.has(c.id))
+          add(
+            `interview:${c.id}`,
+            `Interview ${c.name}`,
+            { type: 'interview', candidate: c.id },
+            c.notes.length ? 0.3 : 0.75,
+          );
         for (const r of c.referees.filter((r) => !r.called))
           add(
             `reference:${c.id}:${r.id}`,
@@ -182,13 +195,14 @@ export class GoodHandsAdapter {
       for (const p of v.placements.filter((p) => ['trial', 'kept'].includes(p.status))) {
         const candidate = [...v.bench, ...v.books].find((c) => c.id === p.candidate)?.name ?? p.candidate;
         const family = v.families.find((f) => f.id === p.family)?.name ?? p.family;
-        for (const how of ['phone', 'visit', 'drop-by'] as const)
-          add(
-            `check-in:${p.id}:${how}`,
-            `Check in on ${candidate} at ${family}: ${how}`,
-            { type: 'check-in', placement: p.id, how },
-            p.seems === 'trouble' ? 0.8 : 0.35,
-          );
+        if (v.now >= (p.checkInAt ?? p.since + 1440))
+          for (const how of ['phone', 'visit', 'drop-by'] as const)
+            add(
+              `check-in:${p.id}:${how}`,
+              `Check in on ${candidate} at ${family}: ${how}`,
+              { type: 'check-in', placement: p.id, how },
+              p.seems === 'trouble' ? 0.8 : 0.35,
+            );
         add(
           `withdraw:${p.id}`,
           `Withdraw ${candidate} from ${family}`,
@@ -243,6 +257,7 @@ export class GoodHandsAdapter {
     const input = this.offered.get(id);
     if (!input) throw new Error(`No currently offered action: ${id}`);
     const before = view(this.state);
+    if (input.type === 'interview') this.interviewed.add(input.candidate);
     this.state = apply(this.state, input);
     const after = view(this.state);
     const lines =
@@ -252,7 +267,7 @@ export class GoodHandsAdapter {
     if (input.type === 'speed' && after.speed !== before.speed)
       visible.push(`Clock: ${['slow', 'walk', 'trot', 'gallop'][after.speed]}.`);
     if (before.scene && !after.scene) visible.push(`Conversation finished. ${after.task.text}`);
-    if (input.type === 'sleep' && after.now > before.now)
+    if (['sleep', 'wait-for'].includes(input.type) && after.now > before.now)
       visible.push(`${after.dateLabel}, ${after.timeLabel}. ${after.task.text}`);
     if (visible.length)
       this.receipts.push({

@@ -1,6 +1,15 @@
 import { outwardSigns, type Person, selfReport } from '@adam0white/human-framework';
+import { authoredTraitAnswer } from './dialogue.ts';
 import { QUALITIES, type Quality, type Role } from './types.ts';
 import { quality, ROLE_SKILL } from './world.ts';
+
+export {
+  contextualConcern,
+  personalAnswer,
+  personalQuestions,
+  workerDisagreement,
+  workerNeed,
+} from './dialogue.ts';
 
 type Band = 'chatty' | 'quiet' | 'polished' | 'nervous' | 'blunt';
 type Grade = 'good' | 'uncertain' | 'poor';
@@ -133,7 +142,7 @@ function lines(q: Quality, grade: Grade, role: Role): Six {
         'They will know ahead of time if I cannot come.',
       ],
       uncertain: [
-        'Usually. The buses can be difficult.',
+        'Usually, though the buses can be difficult.',
         'I can manage if the hours stay the same.',
         'I would try to telephone if I was running late.',
         'I need a little notice for an early start.',
@@ -242,35 +251,35 @@ function bandOf(presentation: string): Band {
 function deliver(text: string, band: Band, index: number): string {
   const openings: Record<Exclude<Band, 'quiet'>, Six> = {
     chatty: [
-      'Well, I will tell you. ',
-      'You know how these things are. ',
-      'I was just thinking about that. ',
-      'That comes up more than you would think. ',
-      'Let me put it this way. ',
-      'We were talking about this only yesterday. ',
+      'Well, I will tell you: ',
+      'You know, ',
+      'I was just thinking about that: ',
+      'That comes up often: ',
+      'Let me put it this way: ',
+      'We were talking about this yesterday: ',
     ],
     polished: [
-      'My approach is straightforward. ',
-      'I have a clear rule about that. ',
-      'I can be quite clear on this. ',
-      'It is something I take seriously. ',
-      'I would explain it this way. ',
-      'That is a fair question. ',
+      'My approach is straightforward: ',
+      'I have a clear rule: ',
+      'I can be quite clear: ',
+      'I take it seriously: ',
+      'I would explain it this way: ',
+      'To answer your question: ',
     ],
     nervous: [
-      'Let me think. ',
-      'I hope I can explain this. ',
-      'Sorry, I have not been asked that before. ',
-      'Well... ',
-      'I do not know how to put it. ',
-      'Is this what you mean? ',
+      'Let me think: ',
+      'I hope I can explain this: ',
+      'I have not been asked that before, but ',
+      'Well, ',
+      'I do not know how to put it, but ',
+      'If I understand you, ',
     ],
     blunt: [
-      'Look. ',
+      'Look, ',
       'Simply put: ',
-      'I will be direct. ',
-      'Here is my answer. ',
-      'It is simple. ',
+      'I will be direct: ',
+      'Here is my answer: ',
+      'It is simple: ',
       'To be clear: ',
     ],
   };
@@ -364,8 +373,13 @@ export function answer(
   if (band === 'polished') claim += 0.06;
   claim = Math.max(0.05, Math.min(0.97, claim));
   const grade: Grade = claim >= 0.62 ? 'good' : claim >= 0.38 ? 'uncertain' : 'poor';
+  const text =
+    authoredTraitAnswer(person.id, q, grade) ??
+    (q === 'reliable'
+      ? (lines(q, grade, role)[index] ?? '')
+      : deliver(lines(q, grade, role)[index] ?? '', band, index));
   return {
-    text: deliver(lines(q, grade, role)[index] ?? '', band, index),
+    text,
     quality: q,
     claim,
     notice: notice(person, index),

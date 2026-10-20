@@ -10,6 +10,7 @@ function status() {
   );
   console.log(`Cash: ₺${v.cash}. Rent: ₺${v.rent.amount}, due ${v.rent.label}.`);
   console.log(`Now: ${v.task.text}`);
+  if (v.next) console.log(`Next: ${v.next.label} · ${v.next.dateLabel}. Use {"type":"wait-for"}.`);
   if (v.phoneRinging) console.log(`Telephone: ${v.phoneRinging.who} is waiting.`);
   if (v.scene) {
     console.log(`\n${v.scene.title} [${v.scene.id}]`);
@@ -25,10 +26,10 @@ function status() {
     console.log(
       `${c.id} · ${c.name} · ${c.status}${c.posture ? `, ${c.posture}` : ''}${c.busy ? `, ${c.busy}` : ''}${c.wage !== null ? ` · asks ₺${c.wage}` : ''}`,
     );
-    console.log(`  ${c.look} Roles: ${c.roles.join(', ')}.`);
+    console.log(`  ${c.look} Roles: ${c.roles.join(', ')}.${c.wants ? ` Wants: ${c.wants}` : ''}`);
     for (const n of c.notes)
       console.log(
-        `  ${n.crossedOut ? 'Crossed out: ' : ''}${n.quality}: ${n.phrase} [${n.source}: ${n.from}]`,
+        `  ${n.crossedOut ? 'Crossed out: ' : ''}${n.quality}: ${n.phrase} [${n.source}: ${n.from}]${n.claim ? ` · ${n.claim}` : ''}`,
       );
     for (const r of c.referees)
       console.log(
@@ -43,7 +44,7 @@ function status() {
   console.log('\nPlacements:');
   for (const p of v.placements)
     console.log(
-      `${p.id}: ${p.candidate} at ${p.family} · ${p.status}${p.lastWord ? ` · “${p.lastWord}”` : ''}`,
+      `${p.id}: ${p.candidate} at ${p.family} · ${p.status}${p.lastWord ? ` · “${p.lastWord}”` : ''}${p.arrangement ? ` · ${p.arrangement}` : ''}${p.pending ? ` · ${p.pending.text} (${p.pending.dateLabel})` : ''}`,
     );
   if (v.dayCard)
     console.log(`\n${v.dayCard.lines.join('\n')}\n${v.dayCard.tomorrow}\nUse {"type":"sleep"} to sleep.`);
@@ -61,7 +62,7 @@ function status() {
   console.log('\nLatest words:');
   for (const l of v.log.slice(-4)) console.log(`  ${l.text}`);
 }
-console.log('Commands: new [seed], status, do <Input JSON>, wait [minutes], quit');
+console.log('Commands: new [seed], status, city, do <Input JSON>, next, wait [minutes], quit');
 const lines = createInterface({
   input: process.stdin,
   output: process.stdout,
@@ -79,12 +80,19 @@ lines.on('line', (line) => {
       if (!Number.isFinite(seed)) throw new Error('Seed must be finite.');
       state = newGame(seed);
     } else if (command.startsWith('do ')) state = apply(state, JSON.parse(command.slice(3)) as Input);
+    else if (command === 'city') {
+      const v = view(state);
+      for (const f of v.city.figures)
+        console.log(`${f.name}: ${f.place ?? 'in the city'}${f.mood ? `, ${f.mood}` : ''}`);
+      for (const t of v.city.threads.slice(-10))
+        console.log(`${t.from} → ${t.to}, ${t.place}${t.consequence ? `: ${t.consequence}` : ''}`);
+    } else if (command === 'next') state = apply(state, { type: 'wait-for' });
     else if (/^wait(?:\s|$)/.test(command)) {
       const minutes = Number(command.slice(4).trim() || 30);
       if (!Number.isFinite(minutes) || minutes < 0) throw new Error('Wait must be finite and nonnegative.');
       state = advance(state, minutes);
     } else if (command !== 'status')
-      throw new Error('Use new [seed], status, do <Input JSON>, wait [minutes], or quit.');
+      throw new Error('Use new [seed], status, do <Input JSON>, next, wait [minutes], or quit.');
     status();
   } catch (error) {
     console.error(error instanceof Error ? error.message : String(error));

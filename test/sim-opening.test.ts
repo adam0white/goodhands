@@ -16,10 +16,11 @@ describe('the first morning', () => {
     const first = view(s);
     apply(s, { type: 'interview', candidate: 'sevda' });
     let scene = view(s).scene!;
-    apply(s, { type: 'choose', scene: scene.id, choice: scene.choices[0]!.id });
+    apply(s, { type: 'choose', scene: scene.id, choice: 'q-patient' });
     scene = view(s).scene!;
     expect(scene.lines.some((l) => l.kind === 'speech')).toBe(true);
-    expect(scene.choices.some((c) => c.label.includes('Coach'))).toBe(true);
+    expect(scene.choices.some((c) => c.label === 'Coach her')).toBe(false);
+    expect(scene.choices.some((c) => c.id === 'q-patient')).toBe(false);
     expect(view(s).bench.find((c) => c.id === 'sevda')!.notes.length).toBeGreaterThan(0);
     apply(s, { type: 'close-scene', scene: scene.id });
     const ref = view(s).bench.find((c) => c.id === 'sevda')!.referees[0]!;

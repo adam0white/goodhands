@@ -51,7 +51,13 @@ if (out) {
       {
         out,
         sessions: games.length,
-        finalGames: output.finalGames,
+        finalGames: output.finalGames.map(({ minute, ended, fingerprint, visible }) => ({
+          minute,
+          ended,
+          fingerprint,
+          cash: visible.cash,
+          placements: visible.placements.length,
+        })),
         ...('summary' in result ? { summary: result.summary } : { report: result.report }),
       },
       null,

@@ -64,6 +64,8 @@ export function runPolicy(seed: number, policy: Policy, until = MONTH_END): Stat
   let state = newGame(seed);
   const attempted = new Set<string>();
   const coached = new Set<string>();
+  const interviewed = new Set<string>();
+  const interviewQuestions = new Map<string, Set<string>>();
   const checked = new Set<string>();
   const rejected = new Set<string>();
   let stagnant = 0;
@@ -93,20 +95,32 @@ export function runPolicy(seed: number, policy: Policy, until = MONTH_END): Stat
       let choice = choices[0];
       if (sc.kind === 'interview') {
         const candidate = [...v.bench, ...v.books].find((c) => c.id === sc.with);
-        const count = candidate?.notes.filter((note) => note.source === 'says').length ?? 0;
+        const asked = interviewQuestions.get(sc.with) ?? new Set<string>();
+        interviewQuestions.set(sc.with, asked);
+        const count = asked.size;
         const target = v.requests.find((r) => r.status === 'open' && candidate && matches(candidate, r));
         const priorities = [
-          ...new Set([target ? pressure(target) : 'patient', 'honest', 'reliable', ...QUALITIES]),
+          ...new Set([
+            policy === 'cunning' ? 'reliable' : target ? pressure(target) : 'patient',
+            'honest',
+            'reliable',
+            ...QUALITIES,
+          ]),
         ];
-        const question = priorities
-          .map((q) =>
-            choices.find(
-              (c) =>
-                c.id === `q-${q}` &&
-                !candidate?.notes.some((note) => note.quality === q && note.source === 'says'),
-            ),
-          )
+        const personal = ['hours', 'home', 'why-left', 'last-family', 'wage']
+          .map((id) => choices.find((c) => c.id === id && !asked.has(c.id)))
           .find(Boolean);
+        const question =
+          (policy === 'careful' && count === 1 ? personal : undefined) ??
+          priorities
+            .map((q) =>
+              choices.find(
+                (c) =>
+                  c.id === `q-${q}` &&
+                  !candidate?.notes.some((note) => note.quality === q && note.source === 'says'),
+              ),
+            )
+            .find(Boolean);
         if (
           policy === 'cunning' &&
           count >= 1 &&
@@ -117,9 +131,25 @@ export function runPolicy(seed: number, policy: Policy, until = MONTH_END): Stat
           choice = choices.find((c) => c.id === 'coach');
         } else
           choice =
-            count < (policy === 'careful' ? 3 : 1) && question
+            count < (policy === 'careful' ? 4 : 1) && question
               ? question
               : choices.find((c) => c.id === 'finish');
+      } else if (sc.kind === 'reference') {
+        const hostile = sc.lines.some((line) => /wage|pay|owed|ungrateful|left.*notice/i.test(line.text));
+        choice =
+          (policy === 'careful' && hostile && !choices.some((c) => c.id.startsWith('ref-'))
+            ? choices.find((c) => /distrust|challenge|wage/.test(c.id))
+            : undefined) ??
+          choices.find((c) => /^(ref-patient|ref-honest|ref-reliable|ref-leaving|ref-return)$/.test(c.id)) ??
+          choices.find((c) => /^(trust|believe|finish|thank)$/.test(c.id)) ??
+          choice;
+      } else if (choices.some((c) => c.id === 'accept-condition')) {
+        choice =
+          choices.find((c) => c.id === (policy === 'reckless' ? 'refuse-condition' : 'accept-condition')) ??
+          choice;
+      } else if (sc.kind === 'two-sides') {
+        const preferred = policy === 'careful' ? 'negotiate' : policy === 'cunning' ? 'promise' : 'bend';
+        choice = choices.find((c) => c.id === preferred || c.id.startsWith(`${preferred}-`)) ?? choice;
       } else if (sc.kind === 'rent') {
         choice =
           choices.find(
@@ -147,8 +177,11 @@ export function runPolicy(seed: number, policy: Policy, until = MONTH_END): Stat
             ),
           ) ?? choice;
       }
-      if (choice) act({ type: 'choose', scene: sc.id, choice: choice.id });
-      else if (sc.canLeave) act({ type: 'close-scene', scene: sc.id });
+      if (choice) {
+        if (sc.kind === 'interview' && !['finish', 'coach'].includes(choice.id))
+          interviewQuestions.get(sc.with)?.add(choice.id);
+        act({ type: 'choose', scene: sc.id, choice: choice.id });
+      } else if (sc.canLeave) act({ type: 'close-scene', scene: sc.id });
       else throw new Error(`No available choice in ${sc.id}`);
     } else if (v.phoneRinging) act({ type: 'answer-phone' });
     else if (v.dayCard) act({ type: 'sleep' });
@@ -165,11 +198,11 @@ export function runPolicy(seed: number, policy: Policy, until = MONTH_END): Stat
           if (!c) continue;
           acted = act({ type: 'place', candidate: c.id, family: request.family, vouch: [...QUALITIES] });
         } else {
-          const unasked = candidates.find(
-            (c) => c.notes.filter((n) => n.source === 'says').length < (policy === 'careful' ? 3 : 1),
-          );
-          if (unasked) acted = act({ type: 'interview', candidate: unasked.id });
-          else {
+          const unasked = candidates.find((c) => !interviewed.has(c.id));
+          if (unasked) {
+            interviewed.add(unasked.id);
+            acted = act({ type: 'interview', candidate: unasked.id });
+          } else {
             const uncalled =
               policy === 'careful'
                 ? candidates.flatMap((c) =>
@@ -211,14 +244,17 @@ export function runPolicy(seed: number, policy: Policy, until = MONTH_END): Stat
       }
       // Meet people even between requests so they remain on the books after leaving the bench.
       if (!acted && policy !== 'reckless') {
-        const candidate = v.bench.find((c) => !c.notes.some((n) => n.source === 'says'));
-        if (candidate) acted = act({ type: 'interview', candidate: candidate.id });
+        const candidate = v.bench.find((c) => !interviewed.has(c.id) && !c.busy);
+        if (candidate) {
+          interviewed.add(candidate.id);
+          acted = act({ type: 'interview', candidate: candidate.id });
+        }
       }
       if (!acted && policy !== 'reckless') {
         const p = v.placements.find(
           (p) =>
             ['trial', 'kept'].includes(p.status) &&
-            v.now - p.since >= 1440 &&
+            v.now >= (p.checkInAt ?? p.since + 1440) &&
             !checked.has(`${p.id}:${Math.floor(v.now / 1440)}`),
         );
         if (p) {
@@ -226,7 +262,10 @@ export function runPolicy(seed: number, policy: Policy, until = MONTH_END): Stat
           acted = act({ type: 'check-in', placement: p.id, how: policy === 'careful' ? 'visit' : 'phone' });
         }
       }
-      if (!acted) state = advance(state, Math.min(30, until - v.now));
+      if (!acted) {
+        if (v.next && v.next.at <= until) acted = act({ type: 'wait-for' });
+        if (!acted) state = advance(state, Math.min(30, until - v.now));
+      }
     }
     stagnant = state.now === beforeMinute ? stagnant + 1 : 0;
     if (stagnant > 30) throw new Error(`Policy ${policy} stalled at ${state.now}`);

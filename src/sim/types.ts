@@ -110,6 +110,7 @@ export interface PlacementView {
   seems: 'good' | 'unsure' | 'trouble' | 'unknown';
   lastWord?: string; // the latest words that reached Nermin about it
   status: 'trial' | 'kept' | 'returned' | 'quit' | 'withdrawn' | 'dismissed';
+  checkInAt?: Minute; // Earliest moment a check-in can have a new answer.
   arrangement?: string;
   pending?: { text: string; at: Minute; dateLabel: string };
   vouched: Quality[];

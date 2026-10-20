@@ -9,6 +9,7 @@ type Result = {
   cash: number;
   kept: number;
   trusted: number;
+  workersTrust: number;
   ended: boolean;
   now: number;
 };
@@ -24,6 +25,7 @@ const collectResults = () => {
         cash: v.cash,
         kept: v.placements.filter((p) => p.status === 'kept').length,
         trusted: v.review?.trustedBy.length ?? 0,
+        workersTrust: v.review?.workersTrust?.filter((worker) => worker.trust === 'warm').length ?? 0,
         ended: v.ended,
         now: v.now,
       });
@@ -37,7 +39,9 @@ describe('month policy consequences across five seeds', () => {
   it('all players finish a month or reach an authored early ending', () => {
     expect(results.every((r) => r.ended && r.now <= MONTH_END)).toBe(true);
   });
-  it.each(['kept', 'trusted'] as const)(
+  // Supporting a worker can cost the family's favour. Retention and the workers'
+  // end-review trust must still improve across most seeds. Family trust stays in the evidence.
+  it.each(['kept', 'workersTrust'] as const)(
     'careful earns more %s than reckless in a majority of seeds',
     (metric) => {
       const improved = seeds.filter((seed) => {
