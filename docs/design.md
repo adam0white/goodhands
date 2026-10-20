@@ -106,3 +106,7 @@ Screens: `title`, `office`, `city`, `scene`, `review`, `menu`. Milestones: `run 
 ## Deferred
 
 (none yet)
+
+## Build measurement
+
+Measured on this Apple Silicon Mac on 20 October 2026 with Node 26.12.0 and HF 2.9.0, simulation commit `38d17ce`: five seeds × three policies completed all 15 headless months in 0.43–1.09 seconds each (`npm run measure -- 5`). Careful retained more workers than reckless in four of five seeds and earned more family trust in three; cunning earned the most cash in three. `npm run check` passed 38 tests, including two-seed ten-day replay, replacement fees, delayed evidence and ordinary word-of-mouth consequences; independent full-month replays also matched. The nine HF-character sessions are recorded in [round 1](playtests/2026-10-20-hf-r1.md): all three completionists finished the month; five other sessions ended for agendas and one quit. The adapter reported 22 withdrawn-control warnings for UI inspection. These model runs do not establish human enjoyment or acceptance.
