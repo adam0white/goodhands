@@ -211,6 +211,8 @@ export interface View {
   };
   phoneRinging: { who: string; since: Minute } | null;
   scene: SceneView | null; // at most one open scene (DL-24)
+  /** Conversation waiting while Nermin answers a call. */
+  heldScene?: { id: string; title: string } | null;
   bench: CandidateView[]; // waiting now, in seat order
   books: CandidateView[]; // all others met (on the books, on trial, placed, gone)
   requests: RequestView[];
