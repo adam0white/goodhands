@@ -71,6 +71,8 @@ export interface CandidateView {
   posture?: 'settled' | 'restless' | 'leaving';
   /** Why she is not available now, if she is not (DL-4): 'At the Arslans until 18:00'. */
   busy?: string;
+  /** Interview cooldown only; taking a number and other available work remain possible. */
+  interviewAfter?: Minute;
   wants?: string;
   wage: number | null; // lira per month she asked for, once known
   experience: string[]; // in words, once known
@@ -150,6 +152,10 @@ export interface SceneView {
   lines: SceneLine[]; // the exchange so far, newest last
   choices: SceneChoice[];
   canLeave: boolean;
+  /** How much more conversation the candidate can offer, in words. */
+  interviewPace?: string;
+  /** Quiet news can end politely when a consequential call rings. */
+  yieldsToPhone?: boolean;
   /** Notes added by this scene, so the UI can show "added to her card". */
   added?: Note[];
 }

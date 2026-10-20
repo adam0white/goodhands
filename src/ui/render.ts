@@ -33,6 +33,7 @@ export function vouchLabel(candidate: CandidateView, quality: Quality): string {
 }
 
 export function phoneAvailability(v: View): string | undefined {
+  if (v.scene?.yieldsToPhone) return undefined;
   if (v.heldScene || (v.scene && !['interview', 'reference'].includes(v.scene.kind)))
     return 'Finish this conversation before answering another call.';
   return undefined;

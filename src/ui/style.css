@@ -945,7 +945,7 @@ legend {
 /* All interview questions remain in one list, with the departure choices in view. */
 .has-scene .interview-sheet .scene-choices {
   flex: 0 1 180px;
-  min-height: 104px;
+  min-height: 90px;
   overflow-y: auto;
   overscroll-behavior: contain;
   scrollbar-gutter: stable;
@@ -971,7 +971,7 @@ legend {
   color: var(--ink-soft);
 }
 .has-scene .interview-sheet .exchange {
-  flex: 1 0 100px;
+  flex: 1 0 94px;
 }
 .has-city .room {
   display: block;

@@ -155,7 +155,10 @@ function title(): void {
 }
 function newMonth(): void {
   closeSheet();
+  let started = false;
   const start = () => {
+    if (started) return;
+    started = true;
     const seed = crypto.getRandomValues(new Uint32Array(1))[0] ?? 20261102;
     begin(sim.newGame(seed), []);
     lab.milestone('run started');
@@ -169,7 +172,11 @@ function newMonth(): void {
   });
   if (card) {
     const b = card.querySelector('button');
-    if (b) b.textContent = 'Open the office';
+    if (b) {
+      b.textContent = 'Open the office';
+      // The kit's close event runs later. Render while the click still owns the screen.
+      b.addEventListener('click', start);
+    }
   } else start();
 }
 function begin(next: State | null, history: LoggedInput[]): void {
@@ -366,8 +373,12 @@ function benchHtml(v: View): string {
     return `<div class="empty-card"><h1>Nermin’s desk</h1><p>Choose someone on the bench to open her card.</p>${v.books.length ? `<div class="book-list">${v.books.map((c) => `<button type="button" data-candidate="${h(c.id)}">${h(c.name)} · ${h(c.busy ?? c.status)}</button>`).join('')}</div>` : ''}</div>`;
   const unavailable =
     candidateAvailability(c) ?? (!v.open ? 'The office is closed. Sleep to open tomorrow.' : undefined);
-  const reason = unavailable ? `<p class="reason">${h(unavailable)}</p>` : '';
-  return `<article class="candidate-card"><div class="card-heading"><h2>${h(c.name)}</h2><span>${h(c.roles.join(' / '))}</span></div><p class="look">${h(c.look)}</p><div class="candidate-actions">${action('Interview', 'interview', unavailable, 'About 30 minutes')}${action('Call a reference', 'references', unavailable, 'About 15 minutes')}${action('Send for a trial', 'trial', unavailable, 'Her next morning away')}${action('Place', 'place', unavailable, 'Choose what to vouch for')}${c.status === 'bench' ? action('Take her number', 'take-number', unavailable, '2 minutes · she goes home; stays on the books') : ''}</div>${reason}${c.wants ? `<p class="candidate-wants handwritten">Needs: ${h(c.wants)}</p>` : ''}<details class="notes-details" open><summary>Nermin’s notes · ${c.wage === null ? 'Wage not yet asked' : `${money(c.wage)} a month`}</summary><div class="card-notes">${QUALITIES.map(
+  const interviewLimit = c.interviewAfter
+    ? `Call ${c.name} back after ${clockLabels(c.interviewAfter).dateLabel}, ${clockLabels(c.interviewAfter).timeLabel}.`
+    : undefined;
+  const reason =
+    unavailable || interviewLimit ? `<p class="reason">${h(unavailable ?? interviewLimit!)}</p>` : '';
+  return `<article class="candidate-card"><div class="card-heading"><h2>${h(c.name)}</h2><span>${h(c.roles.join(' / '))}</span></div><p class="look">${h(c.look)}</p><div class="candidate-actions">${action('Interview', 'interview', unavailable ?? interviewLimit, 'About 30 minutes')}${action('Call a reference', 'references', unavailable, 'About 15 minutes')}${action('Send for a trial', 'trial', unavailable, 'Her next morning away')}${action('Place', 'place', unavailable, 'Choose what to vouch for')}${c.status === 'bench' ? action('Take her number', 'take-number', unavailable, '2 minutes · she goes home; stays on the books') : ''}</div>${reason}${c.wants ? `<p class="candidate-wants handwritten">Needs: ${h(c.wants)}</p>` : ''}<details class="notes-details" open><summary>Nermin’s notes · ${c.wage === null ? 'Wage not yet asked' : `${money(c.wage)} a month`}</summary><div class="card-notes">${QUALITIES.map(
     (q) => {
       const notes = c.notes.filter((n) => n.quality === q);
       const read = notes.findLast((n) => !n.crossedOut) ?? notes.at(-1);
@@ -385,7 +396,7 @@ function familiesHtml(v: View): string {
     v.requests
       .map(
         (r) =>
-          `<article class="family-card"><h2>${h(person(v, r.family))}</h2><p>“${h(r.wants)}”</p><p>${h(r.role)} · ${money(r.wage)} a month</p><p class="deadline">By ${h(r.byLabel)} · ${r.status}</p><button type="button" data-family="${h(r.family)}">Household and request</button></article>`,
+          `<article class="family-card"><h2>${h(person(v, r.family))}</h2><p>“${h(r.wants)}”</p><p>${h(r.role)} · ${money(r.wage)} a month</p><p class="deadline">By ${h(r.byLabel)} · ${r.status}</p><button type="button" data-family="${h(r.family)}">${h(person(v, r.family).replace(/^the /, 'The '))}: household and request</button></article>`,
       )
       .join('') || '<p>No requests have reached Nermin.</p>'
   );
@@ -395,7 +406,7 @@ function placedHtml(v: View): string {
     v.placements
       .map(
         (p) =>
-          `<article class="placement-card"><h2>${h(person(v, p.candidate))} · ${h(person(v, p.family))}</h2><p>${placementLabel(p)}</p>${p.arrangement ? `<p class="placement-arrangement">${h(p.arrangement)}</p>` : ''}${p.pending ? `<p class="placement-pending">${h(p.pending.dateLabel)}: ${h(p.pending.text)}</p>` : ''}<p>${h(p.lastWord ?? 'No word from the house yet.')}</p>${['trial', 'kept'].includes(p.status) ? `<button type="button" data-placement="${h(p.id)}">Check in or withdraw</button>` : ''}</article>`,
+          `<article class="placement-card"><h2>${h(person(v, p.candidate))} · ${h(person(v, p.family))}</h2><p>${placementLabel(p)}</p>${p.arrangement ? `<p class="placement-arrangement">${h(p.arrangement)}</p>` : ''}${p.pending ? `<p class="placement-pending">${h(p.pending.dateLabel)}: ${h(p.pending.text)}</p>` : ''}<p>${h(p.lastWord ?? 'No word from the house yet.')}</p>${['trial', 'kept'].includes(p.status) ? `<button type="button" data-placement="${h(p.id)}">${h(person(v, p.candidate))} at ${h(person(v, p.family))}: check in or withdraw</button>` : ''}</article>`,
       )
       .join('') || '<p>No one placed yet. Your word will go with them.</p>'
   );
@@ -414,7 +425,7 @@ function sceneHtml(v: View): string {
   const available = s.choices.filter((c) => c !== finish && !endings.includes(c));
   const questions = s.kind === 'interview' ? available.filter((c) => c.id !== 'coach') : [];
   const sharedHint =
-    questions.length && questions.every((c) => c.hint === questions[0]?.hint)
+    !s.interviewPace && questions.length && questions.every((c) => c.hint === questions[0]?.hint)
       ? questions[0]?.hint
       : undefined;
   const details = s.choices.filter((c) => c.hint && (s.kind === 'two-sides' || c.id === 'coach'));
@@ -432,7 +443,7 @@ function sceneHtml(v: View): string {
           .map((n) => `${h(n.quality)} · ${n.source}`)
           .join('; ')}</p>`
       : ''
-  }${sharedHint ? `<p class="question-cost">${h(sharedHint)} per question.</p>` : ''}<div class="scene-choices" ${s.kind === 'interview' ? 'role="region" aria-label="Remaining interview questions" tabindex="0"' : ''}>${choices.map((c) => `<div class="choice"><button type="button" data-testid="scene-choice" data-choice="${h(c.id)}" ${c.disabled ? 'disabled' : ''}>${h(c.label)}${c.hint && s.kind !== 'two-sides' && c.id !== 'coach' && !(sharedHint && questions.includes(c)) ? `<small>${h(c.hint)}</small>` : ''}</button>${c.disabled ? `<p class="reason">${h(c.disabled)}</p>` : ''}</div>`).join('')}</div>${endings.length ? `<div class="interview-finish" aria-label="Finish the interview">${endings.map((c) => `<button type="button" data-testid="scene-choice" data-choice="${h(c.id)}" ${c.disabled ? 'disabled' : ''}>${h(c.label)}${c.hint ? `<small>${h(c.hint)}</small>` : ''}</button>`).join('')}</div>` : ''}</section>`;
+  }${s.interviewPace || sharedHint ? `<p class="question-cost">${s.interviewPace ? h(s.interviewPace) : `${h(sharedHint!)} per question.`}</p>` : ''}<div class="scene-choices" ${s.kind === 'interview' ? 'role="region" aria-label="Remaining interview questions" tabindex="0"' : ''}>${choices.map((c) => `<div class="choice"><button type="button" data-testid="scene-choice" data-choice="${h(c.id)}" ${c.disabled ? 'disabled' : ''}>${h(c.label)}${c.hint && s.kind !== 'two-sides' && c.id !== 'coach' && !(sharedHint && questions.includes(c)) ? `<small>${h(c.hint)}</small>` : ''}</button>${c.disabled ? `<p class="reason">${h(c.disabled)}</p>` : ''}</div>`).join('')}</div>${endings.length ? `<div class="interview-finish" aria-label="Finish the interview">${endings.map((c) => `<button type="button" data-testid="scene-choice" data-choice="${h(c.id)}" ${c.disabled ? 'disabled' : ''}>${h(c.label)}${c.hint ? `<small>${h(c.hint)}</small>` : ''}</button>`).join('')}</div>` : ''}</section>`;
 }
 function dayHtml(v: View): string {
   const d = v.dayCard;

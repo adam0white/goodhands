@@ -96,6 +96,7 @@ try {
     bounds[label] = boxes;
   };
   const choicesFit = async (label: string) => {
+    await uniqueControls(label);
     await fits(`${label} box`, page.locator('.scene-choices'));
     const choices = page.getByTestId('scene-choice');
     for (let index = 0; index < (await choices.count()); index++) {
@@ -146,12 +147,36 @@ try {
   const open = async () => {
     await page.goto(`http://127.0.0.1:${port}/`);
     await tap('New month');
+    await page.evaluate(() => {
+      document.addEventListener('click', (event) => {
+        if ((event.target as HTMLElement).textContent === 'Open the office')
+          document.documentElement.dataset.officeOnOpen = String(!!document.querySelector('.game'));
+      });
+    });
     await tap('Open the office');
+    assert.equal(
+      await page.locator('html').getAttribute('data-office-on-open'),
+      'true',
+      'Open the office renders the office during the click, before the intro uncovers the title',
+    );
     await page.getByTestId('office').waitFor();
     await Promise.race([
       page.evaluate(() => document.fonts.ready.then(() => undefined)),
       new Promise<void>((resolve) => setTimeout(resolve, 4000)),
     ]);
+  };
+  const uniqueControls = async (screen: string) => {
+    const labels = await page.locator('button:visible, summary:visible, a:visible').evaluateAll((elements) =>
+      elements
+        .filter((el) => !el.closest('body:has(dialog[open]) main'))
+        .map((el) => (el.textContent ?? '').replace(/\s+/g, ' ').trim())
+        .filter(Boolean),
+    );
+    assert.equal(
+      new Set(labels).size,
+      labels.length,
+      `${screen}: distinct visible control labels: ${labels}`,
+    );
   };
   // Later-screen fixtures are real input histories, replay-checked and imported through the UI.
   // The live opening above and clock checks below never use browser clock mocking.
@@ -221,6 +246,73 @@ try {
     };
   };
   await open();
+  const labels = scenario();
+  for (const candidate of ['gul', 'sevda', 'pinar']) labels.send({ type: 'take-number', candidate });
+  labels.until(900);
+  labels.send({ type: 'interview', candidate: 'cem' });
+  labels.send({ type: 'choose', scene: required(view(labels.state).scene).id, choice: 'q-reliable' });
+  labels.send({ type: 'choose', scene: required(view(labels.state).scene).id, choice: 'coach' });
+  labels.send({ type: 'choose', scene: required(view(labels.state).scene).id, choice: 'send-home' });
+  labels.close();
+  labels.send({ type: 'place', candidate: 'sevda', family: 'arslans', vouch: [] });
+  labels.send({ type: 'place', candidate: 'cem', family: 'demirs', vouch: [] });
+  assert.equal(view(labels.state).placements.length, 2, 'Label audit has two different placements');
+  await importState(labels.state, labels.inputs);
+  await tap('Families');
+  await uniqueControls('Families');
+  await tap('The Arslans: household and request');
+  assert.match(await page.locator('dialog.sheet').innerText(), /Ada|Deniz/);
+  await tap('Back');
+  await tap('Placed');
+  await uniqueControls('Placed');
+  await tap(page.locator('[data-placement]').first());
+  await uniqueControls('Placement sheet');
+  await tap('Back');
+  await tap('Bench');
+  await tap('Gül · books');
+  await uniqueControls('Candidate card');
+  await tap('Your books');
+  await uniqueControls('Your books');
+  await tap('Back');
+  await tap('City');
+  await uniqueControls('City');
+  await tap('Bench');
+  const capped = scenario();
+  capped.send({ type: 'interview', candidate: 'sevda' });
+  for (const choice of ['wage', 'hours', 'need', 'last-family'])
+    capped.send({ type: 'choose', scene: required(view(capped.state).scene).id, choice });
+  await importState(capped.state, capped.inputs);
+  assert.match(
+    await page.locator('.question-cost').innerText(),
+    /told you what she can for now.*Call her back after/,
+  );
+  assert.ok(
+    await page.locator('.scene-choices button:disabled').count(),
+    'Unasked questions stay visible and disabled',
+  );
+  for (const reason of await page.locator('.scene-choices .reason').allTextContents())
+    assert.match(reason, /told you what she can for now.*Call her back after/);
+  await fits('interview pace', page.locator('.question-cost'));
+  await choicesFit('capped interview questions');
+  await page.screenshot({ path: `${shots}/p4-interview-cap.png` });
+  capped.send({ type: 'choose', scene: required(view(capped.state).scene).id, choice: 'wait-bench' });
+  capped.close();
+  while (view(capped.state).phoneRinging) {
+    capped.send({ type: 'answer-phone' });
+    capped.close();
+  }
+  await importState(capped.state, capped.inputs);
+  await tap('Sevda');
+  assert.match(await page.getByTestId('task').innerText(), /Sevda has to go now.*Take her number/);
+  assert.equal(await page.getByRole('button', { name: /^Interview/ }).isDisabled(), true);
+  assert.equal(await page.getByRole('button', { name: /^Take her number/ }).isEnabled(), true);
+  await tap(page.getByRole('button', { name: /^Take her number/ }));
+  assert.equal(
+    await page.getByTestId('bench').getByRole('button', { name: 'Sevda', exact: true }).count(),
+    0,
+  );
+  await page.screenshot({ path: `${shots}/p4-number-taken.png` });
+  await importState(newGame(1), []);
   assert.equal(await page.getByRole('combobox', { name: 'Clock speed' }).count(), 0, 'Clock has no select');
   for (const name of ['Gallop', 'Trot', 'Walk', 'Slow']) {
     await tap(name);

@@ -2,6 +2,7 @@
 import { advance, apply, fingerprint, newGame, view } from '../../src/sim/index.ts';
 import type { Input, Quality, State, View } from '../../src/sim/types.ts';
 import { QUALITIES, SPEEDS } from '../../src/sim/types.ts';
+import { clockLabels } from '../../src/ui/render.ts';
 
 type Action = {
   id: string;
@@ -127,7 +128,10 @@ export class GoodHandsAdapter {
     };
     if (v.ended) return out;
     if (v.scene) {
-      if (v.phoneRinging && !v.heldScene && ['interview', 'reference'].includes(v.scene.kind))
+      if (
+        v.phoneRinging &&
+        (v.scene.yieldsToPhone || (!v.heldScene && ['interview', 'reference'].includes(v.scene.kind)))
+      )
         add('answer-phone', `Answer the phone: ${v.phoneRinging.who}`, { type: 'answer-phone' }, 0.9);
       for (const c of v.scene.choices)
         add(
@@ -168,6 +172,9 @@ export class GoodHandsAdapter {
             `Interview ${c.name}`,
             { type: 'interview', candidate: c.id },
             c.notes.length ? 0.3 : 0.75,
+            c.interviewAfter
+              ? `Call back after ${clockLabels(c.interviewAfter).dateLabel}, ${clockLabels(c.interviewAfter).timeLabel}`
+              : undefined,
           );
         for (const r of c.referees.filter((r) => !r.called))
           add(

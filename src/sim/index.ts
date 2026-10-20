@@ -55,6 +55,7 @@ import { CANDIDATES, FAMILIES, makePeople, QUALITY_MAP, quality, REFEREES, ROLE_
 export * from './types.ts';
 
 interface Card {
+  introduced?: boolean;
   wants?: string;
   interviewCount: number;
   interviewUntil: number;
@@ -258,23 +259,36 @@ function synthesize(s: Sim, candidate: string, q: Quality): Note['read'] {
   const read = estimate(observer, candidate, cue(q), s.now);
   return read.value > 0.62 ? 'yes' : read.value < 0.4 ? 'no' : 'maybe';
 }
+function callbackTime(s: Sim, at: number): string {
+  return day(s) === Math.floor(at / DAY) ? timeLabel(at) : label(at);
+}
+function interviewPace(s: Sim, id: string): string {
+  const card = s.cards[id]!;
+  const he = s.people[id]!.life.sex === 'male';
+  if (card.interviewCount >= 4)
+    return `${he ? 'He' : 'She'} has told you what ${he ? 'he' : 'she'} can for now. Call ${he ? 'him' : 'her'} back after ${callbackTime(s, card.interviewUntil)}.`;
+  return `${he ? "He'll" : "She'll"} take ${card.interviewCount >= 3 ? 'one more question' : card.interviewCount >= 2 ? 'a couple more questions' : 'a few more questions'} before ${he ? 'he' : 'she'} wants an answer.`;
+}
 function interviewChoices(s: Sim, id: string): SceneView['choices'] {
   const card = s.cards[id]!;
   const c = CANDIDATES.find((p) => p.id === id)!;
   const available = card.interviewCount < 4;
   return [
-    ...(available
-      ? [
-          ...(card.referenceClaims ?? []).map(({ id, label }) => ({ id, label })),
-          ...personalQuestions(id),
-          ...questions(c.roles[0]!),
-          ...(card.wageDispute
-            ? [{ id: 'follow-wages', label: `${card.wageDispute} says you argued over wages` }]
-            : []),
-        ]
-          .filter((q) => !card.asked[q.id])
-          .map((q) => ({ id: q.id, label: q.label, hint: 'Takes 8–12 minutes' }))
-      : []),
+    ...[
+      ...(card.referenceClaims ?? []).map(({ id, label }) => ({ id, label })),
+      ...personalQuestions(id),
+      ...questions(c.roles[0]!),
+      ...(card.wageDispute
+        ? [{ id: 'follow-wages', label: `${card.wageDispute} says you argued over wages` }]
+        : []),
+    ]
+      .filter((q) => !card.asked[q.id])
+      .map((q) => ({
+        id: q.id,
+        label: q.label,
+        hint: 'Takes 8–12 minutes',
+        ...(!available ? { disabled: interviewPace(s, id) } : {}),
+      })),
     ...(available && card.lastQuestion === 'q-reliable' && !card.coached.length
       ? [
           {
@@ -284,8 +298,7 @@ function interviewChoices(s: Sim, id: string): SceneView['choices'] {
           },
         ]
       : []),
-    ...(available &&
-    card.referenceDispute &&
+    ...(card.referenceDispute &&
     !card.wageDispute &&
     !card.asked['follow-reference'] &&
     !card.referenceClaims?.some((claim) => claim.id.endsWith('ref-leaving'))
@@ -294,6 +307,7 @@ function interviewChoices(s: Sim, id: string): SceneView['choices'] {
             id: 'follow-reference',
             label: `${card.referenceDispute.from} says the job ended differently`,
             hint: card.referenceDispute.story,
+            ...(!available ? { disabled: interviewPace(s, id) } : {}),
           },
         ]
       : []),
@@ -463,6 +477,7 @@ function quietOffice(s: Sim) {
       words,
       [{ id: 'listen', label: kind === 2 && placed ? 'Send a short reply' : 'Thank him for the news' }],
     );
+    exchange.yieldsToPhone = true;
     queue(s, caller, exchange);
     log(s, 'city', `At the office: ${words}`);
   }
@@ -1105,6 +1120,7 @@ function applyInput(state: State, input: Input): State {
       runTo(s, s.now + 8 + (hash(`${s.seed}:${c.id}:${input.choice}`) % 5));
       tick(s.people[c.id]!, s.now);
       sc.choices = interviewChoices(s, c.id);
+      sc.interviewPace = interviewPace(s, c.id);
       return s;
     }
     if (sc.kind === 'offer') offerChoice(s, sc, input.choice);
@@ -1135,6 +1151,10 @@ function applyInput(state: State, input: Input): State {
     s.scene = null;
     runTo(s, s.now + 3);
     return s;
+  }
+  if (input.type === 'answer-phone' && s.phones.length && s.scene?.yieldsToPhone) {
+    log(s, 'word', 'Nermin: “Excuse me, the phone.”');
+    s.scene = null;
   }
   if (
     input.type === 'answer-phone' &&
@@ -1209,6 +1229,7 @@ function applyInput(state: State, input: Input): State {
       return s;
     }
     card.status = 'books';
+    card.introduced = true;
     log(
       s,
       'arrival',
@@ -1233,6 +1254,7 @@ function applyInput(state: State, input: Input): State {
       card.interviewCount = 0;
     }
     s.people[c.id]!.now = s.now;
+    card.introduced = true;
     glimpse(s.people.nermin!, c.id, outwardSigns(s.people[c.id]!), s.now);
     s.scene = scene(
       s,
@@ -1243,6 +1265,7 @@ function applyInput(state: State, input: Input): State {
       interviewChoices(s, c.id),
     );
     s.scene.lines[0]!.kind = 'narration';
+    s.scene.interviewPace = interviewPace(s, c.id);
     log(s, 'word', `You began an interview with ${c.name}.`, { candidate: c.id });
     return s;
   }
@@ -1256,6 +1279,7 @@ function applyInput(state: State, input: Input): State {
       return s;
     }
     if (!card.called.includes(ref.id)) card.called.push(ref.id);
+    card.introduced = true;
     s.scene = scene(
       s,
       'reference',
@@ -1460,6 +1484,9 @@ export function view(state: State): View {
       age: c.age,
       roles: c.roles,
       look: c.look,
+      ...(card.interviewCount >= 4 && s.now < card.interviewUntil
+        ? { interviewAfter: card.interviewUntil }
+        : {}),
       status:
         card.status === 'books' &&
         s.placements.some(
@@ -1519,6 +1546,7 @@ export function view(state: State): View {
   const r = s.requests.find((r) => r.status === 'open');
   const phone = s.phones[0];
   const urgent = bench.find((c) => c.posture === 'leaving');
+  const departing = bench.find((c) => c.interviewAfter !== undefined);
   const task: View['task'] = s.ended
     ? { text: 'The month is over. Read what happened beside what you believed.' }
     : s.scene
@@ -1528,21 +1556,26 @@ export function view(state: State): View {
             text: `${cap(phone.who)} ${FAMILIES.some((f) => f.name === phone.who) ? 'are' : 'is'} waiting on the phone.`,
             target: { kind: 'phone', id: 'phone' },
           }
-        : urgent
+        : departing
           ? {
-              text: `${urgent.name} will give up by about ${timeLabel(s.cards[urgent.id]!.arrived + 210 + (hash(urgent.id) % 90))}. Interview ${s.people[urgent.id]!.life.sex === 'male' ? 'him' : 'her'} or take ${s.people[urgent.id]!.life.sex === 'male' ? 'his' : 'her'} number.`,
-              target: { kind: 'candidate', id: urgent.id },
+              text: `${departing.name} has to go now. Take ${s.people[departing.id]!.life.sex === 'male' ? 'his' : 'her'} number to call ${s.people[departing.id]!.life.sex === 'male' ? 'him' : 'her'} after ${callbackTime(s, departing.interviewAfter!)}.`,
+              target: { kind: 'candidate', id: departing.id },
             }
-          : r
+          : urgent
             ? {
-                text: `${cap(name(r.family))} need a ${r.role} by ${r.byLabel}. ${bench.length ? 'Candidates are waiting on your bench.' : 'Your books hold the people you have met.'}`,
-                target: { kind: 'family', id: r.family },
+                text: `${urgent.name} will give up by about ${timeLabel(s.cards[urgent.id]!.arrived + 210 + (hash(urgent.id) % 90))}. Interview ${s.people[urgent.id]!.life.sex === 'male' ? 'him' : 'her'} or take ${s.people[urgent.id]!.life.sex === 'male' ? 'his' : 'her'} number.`,
+                target: { kind: 'candidate', id: urgent.id },
               }
-            : {
-                text: nextEvent(s)
-                  ? `Next: ${nextEvent(s)!.label}. Wait or meet someone on your bench.`
-                  : 'Meet someone on your bench, or read your books.',
-              };
+            : r
+              ? {
+                  text: `${cap(name(r.family))} need a ${r.role} by ${r.byLabel}. ${bench.length ? 'Candidates are waiting on your bench.' : 'Your books hold the people you have met.'}`,
+                  target: { kind: 'family', id: r.family },
+                }
+              : {
+                  text: nextEvent(s)
+                    ? `Next: ${nextEvent(s)!.label}. Wait or meet someone on your bench.`
+                    : 'Meet someone on your bench, or read your books.',
+                };
   const snapshot: View = structuredClone({
     next: nextEvent(s),
     seed: s.seed,
@@ -1550,7 +1583,7 @@ export function view(state: State): View {
     dateLabel: dateLabel(s.now),
     timeLabel: timeLabel(s.now),
     speed: s.speed,
-    slowed: !!(s.scene || phone || urgent || s.dayCard),
+    slowed: !!(s.scene || phone || urgent || departing || s.dayCard),
     open: day(s) % 7 !== 6 && t >= 510 && t < 1140,
     cash: s.cash,
     rent: { due: s.rentDue, amount: 5000, label: label(s.rentDue), short: s.cash < 5000 },
@@ -2495,15 +2528,15 @@ function nextEvent(s: Sim): View['next'] {
   for (const r of s.referrals)
     events.push({ label: `Someone ${name(r.from)} recommended is due on the bench`, at: r.at });
   for (const c of CANDIDATES.filter((c) => !s.cards[c.id]!.met))
-    events.push({ label: `${c.name} is due on the bench`, at: s.cards[c.id]!.arrived });
+    events.push({ label: 'Another candidate is due on the bench', at: s.cards[c.id]!.arrived });
   for (const f of FAMILIES.filter((f) => !s.requests.some((r) => r.family === f.id)))
-    events.push({ label: `${cap(f.name)}' call`, at: f.arrives });
-  for (const c of CANDIDATES.filter((c) => s.cards[c.id]!.met))
+    events.push({ label: 'A family is due to call', at: f.arrives });
+  for (const c of CANDIDATES.filter((c) => s.cards[c.id]!.introduced))
     for (const id of c.referees) {
       const ref = REFEREES.find((r) => r.id === id)!;
       if (!s.cards[c.id]!.called.includes(id) && s.now % DAY < ref.reachableAt && day(s) % 7 !== 6)
         events.push({
-          label: `${ref.name} can answer the reference call`,
+          label: `${c.name}'s reference, ${ref.name}, can be reached from ${timeLabel(ref.reachableAt)}`,
           at: day(s) * DAY + ref.reachableAt,
         });
     }

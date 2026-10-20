@@ -96,8 +96,12 @@ test('four questions require an answer and callback before more questions', () =
   const s = newGame(1);
   apply(s, { type: 'interview', candidate: 'sevda' });
   for (const q of ['hours', 'wage', 'last-family', 'q-patient']) choose(s, q);
-  expect(view(s).scene?.choices.map((c) => c.id)).toEqual(['wait-bench', 'send-home']);
-  expect(view(s).scene?.choices[1]?.hint).toContain('Call again');
+  expect(
+    view(s)
+      .scene?.choices.filter((c) => !c.disabled)
+      .map((c) => c.id),
+  ).toEqual(['wait-bench', 'send-home']);
+  expect(view(s).scene?.choices.find((c) => c.id === 'send-home')?.hint).toContain('Call again');
   close(s);
   apply(s, { type: 'interview', candidate: 'sevda' });
   expect(view(s).scene).toBeNull();
