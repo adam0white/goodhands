@@ -1,0 +1,741 @@
+/* Good Hands: Nermin’s field notebook. The task alone carries the red accent. */
+:root {
+  font-size: 17px;
+}
+body {
+  min-width: 0;
+}
+button,
+a,
+select {
+  -webkit-tap-highlight-color: transparent;
+}
+button {
+  line-height: 1.2;
+  padding: 0.45rem 0.55rem;
+}
+button:hover:not(:disabled) {
+  background: var(--paper);
+}
+button[aria-pressed="true"] {
+  outline: 2px solid var(--ink);
+  outline-offset: -4px;
+  font-weight: 600;
+}
+button:disabled {
+  border-style: dashed;
+}
+a {
+  color: var(--ink);
+  text-decoration-color: var(--ink-soft);
+}
+h1,
+h2,
+h3,
+p {
+  margin: 0;
+}
+h1 {
+  font-size: 2rem;
+  font-weight: 400;
+  line-height: 1.15;
+}
+h2 {
+  font-size: 1.1rem;
+  font-weight: 600;
+  line-height: 1.25;
+}
+h3 {
+  font-size: 1rem;
+}
+small {
+  display: block;
+  font-size: 0.82rem;
+  line-height: 1.25;
+}
+.hub {
+  font-size: 0.82rem;
+  text-decoration: none;
+  white-space: normal;
+}
+.title-page {
+  max-width: 540px;
+  margin: auto;
+  padding: 14px 24px 24px;
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  text-align: center;
+}
+.title-page .hub {
+  align-self: flex-start;
+}
+.eyebrow {
+  font-size: 0.82rem;
+  color: var(--ink-soft);
+  letter-spacing: 0.04em;
+}
+.agency-mark {
+  width: 180px;
+  height: 112px;
+  border: 1.5px solid var(--ink);
+  border-radius: 45% 45% 2px 2px;
+  margin-top: 12px;
+  padding-top: 13px;
+  font-size: 2.2rem;
+  letter-spacing: 0.18em;
+  transform: rotate(-2deg);
+}
+.agency-mark span {
+  display: block;
+  font-size: 0.7rem;
+  letter-spacing: 0.04em;
+}
+.subtitle {
+  font-style: italic;
+}
+.title-actions {
+  width: 100%;
+  display: grid;
+  gap: 10px;
+  margin-top: 14px;
+}
+.continue-line {
+  font-size: 0.88rem;
+  text-align: left;
+}
+.title-status {
+  font-size: 0.82rem;
+}
+.title-page > button,
+.title-actions > button {
+  width: 100%;
+}
+.title-page .all-games {
+  margin-top: auto;
+}
+.lk-intro .now {
+  font-size: 1.1rem;
+  font-weight: 400;
+  line-height: 1.55;
+}
+.lk-intro h2 {
+  display: none;
+}
+.lk-intro button {
+  margin-top: 18px;
+  width: 100%;
+}
+.game {
+  max-width: 760px;
+  margin: auto;
+  min-height: 100dvh;
+  padding: 0 12px;
+}
+.topbar {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0 8px;
+  align-items: center;
+  padding: 2px 0 4px;
+}
+.topbar > button {
+  font-size: 0.82rem;
+  background: transparent;
+}
+.clock {
+  font-size: 0.88rem;
+  line-height: 1.3;
+}
+.clock strong {
+  display: inline-block;
+}
+.speed-control {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+  font-size: 0.82rem;
+}
+.speed-control select {
+  min-height: 44px;
+  padding: 2px;
+  background: var(--paper);
+  border: 1px solid var(--ink-soft);
+  max-width: 110px;
+}
+.speed-status {
+  grid-column: 1 / -1;
+  font-size: 0.82rem;
+  color: var(--ink-soft);
+  line-height: 1.2;
+  padding-top: 3px;
+}
+.room {
+  height: 142px;
+  position: relative;
+  border: 1.5px solid var(--ink-soft);
+  overflow: hidden;
+}
+canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+.seat-targets {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.seat-target {
+  position: absolute;
+  pointer-events: auto;
+  border: 1px dashed var(--ink-soft);
+  background: transparent;
+  border-radius: 38% 38% 4px 4px;
+  padding: 0;
+}
+.seat-target:hover:not(:disabled) {
+  background: transparent;
+  border-style: solid;
+}
+.seat-target[aria-pressed="true"] {
+  outline: 2px solid var(--ink);
+  outline-offset: -4px;
+}
+.phone-control {
+  position: absolute;
+  left: 4px;
+  bottom: 3px;
+  max-width: 37%;
+  font-size: 0.82rem;
+  background: var(--paper);
+}
+.phone-control[hidden] {
+  display: none;
+}
+.task {
+  display: flex;
+  align-items: start;
+  gap: 8px;
+  width: 100%;
+  text-align: left;
+  margin: 7px 0;
+  border: 0;
+  border-left: 4px solid var(--rope);
+  border-radius: 0;
+  background: transparent;
+  padding: 3px 7px;
+  color: var(--ink);
+  font-size: 1rem;
+  line-height: 1.3;
+  font-weight: 400;
+}
+.task strong {
+  color: var(--rope);
+  font-size: 0.82rem;
+  padding-top: 2px;
+}
+.task span {
+  flex: 1;
+}
+.bench-strip {
+  display: flex;
+  gap: 6px;
+  padding-bottom: 7px;
+  min-height: 51px;
+}
+.bench-strip button {
+  flex: 1;
+  min-width: 44px;
+  font-size: 1rem;
+  background: var(--paper);
+}
+.tabs {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 4px;
+  border-top: 1px solid var(--ink-soft);
+  padding-top: 6px;
+}
+.tabs button {
+  min-width: 0;
+  padding: 4px 1px;
+  font-size: 0.88rem;
+  background: transparent;
+}
+.desk-content {
+  padding-top: 8px;
+}
+.empty-card p {
+  margin-top: 7px;
+}
+.empty-card h1 {
+  font-size: 1.2rem;
+}
+.candidate-card {
+  border-top: 1px solid var(--ink-soft);
+  padding-top: 7px;
+}
+.card-heading {
+  display: flex;
+  gap: 8px;
+  justify-content: space-between;
+  align-items: baseline;
+}
+.card-heading span {
+  font-size: 0.82rem;
+  color: var(--ink-soft);
+}
+.look {
+  font-size: 0.88rem;
+  font-style: italic;
+  line-height: 1.3;
+  margin: 5px 0 7px;
+}
+.candidate-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+}
+.candidate-actions button {
+  text-align: left;
+  font-size: 0.9rem;
+  min-height: 54px;
+}
+.candidate-actions small {
+  color: var(--ink-soft);
+  margin-top: 3px;
+}
+.reason {
+  font-size: 0.85rem;
+  margin: 5px 0;
+}
+details {
+  border-top: 1px solid var(--ink-soft);
+  margin-top: 8px;
+}
+summary {
+  min-height: 44px;
+  padding: 10px 0;
+  cursor: pointer;
+  font-size: 0.9rem;
+}
+.notes-details p {
+  margin-bottom: 9px;
+}
+.handwritten {
+  font-family: Caveat, cursive;
+  font-size: 1.28rem;
+  line-height: 1.25;
+}
+.handwritten p {
+  border-bottom: 1px solid var(--paper-2);
+}
+.handwritten strong {
+  font-weight: 500;
+}
+.note {
+  display: block;
+  padding-left: 8px;
+}
+.note small {
+  display: inline;
+  font-family: Literata, Georgia, serif;
+  font-size: 0.78rem;
+}
+.crossed-out {
+  text-decoration: line-through;
+  text-decoration-thickness: 1.5px;
+}
+.unknown {
+  color: var(--ink-soft);
+}
+.book-list {
+  display: grid;
+  gap: 6px;
+  margin-top: 8px;
+}
+.family-card,
+.placement-card {
+  padding: 8px 0;
+  border-bottom: 1px solid var(--ink-soft);
+}
+.family-card p,
+.placement-card p {
+  font-size: 0.9rem;
+  margin: 7px 0;
+}
+.deadline {
+  font-weight: 600;
+}
+.status {
+  font-size: 0.85rem;
+  margin-top: 6px;
+}
+.status:empty {
+  display: none;
+}
+footer {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 0;
+  font-size: 0.8rem;
+  color: var(--ink-soft);
+}
+.game footer span {
+  max-width: 65%;
+}
+footer a {
+  margin-left: auto;
+}
+.scene-sheet {
+  border: 1.5px solid var(--ink);
+  padding: 8px;
+  background: var(--paper-2);
+}
+.sheet-heading {
+  flex-wrap: wrap;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 6px;
+}
+.sheet-heading h2 {
+  flex: 1;
+}
+.sheet-heading button {
+  flex-shrink: 0;
+  background: transparent;
+  font-size: 0.82rem;
+}
+.exchange {
+  max-height: 100px;
+  overflow-y: auto;
+  margin: 5px 0;
+  font-size: 0.9rem;
+  line-height: 1.3;
+}
+.exchange details {
+  margin-top: 2px;
+}
+.exchange summary {
+  padding: 2px 0;
+  min-height: 44px;
+  font-size: 0.82rem;
+}
+.exchange p {
+  margin-bottom: 5px;
+}
+.speech {
+  font-family: Caveat, cursive;
+  font-size: 1.22rem;
+  line-height: 1.2;
+}
+.speech strong {
+  font-family: Literata, Georgia, serif;
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+.scene-choices {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 5px;
+}
+.choice {
+  min-width: 0;
+}
+.choice button {
+  width: 100%;
+  height: 100%;
+  min-height: 44px;
+  text-align: left;
+  font-size: 0.85rem;
+  padding: 5px;
+}
+.choice small {
+  font-size: 0.78rem;
+  color: var(--ink-soft);
+  margin-top: 3px;
+}
+.added {
+  border-block: 1px solid var(--ink-soft);
+  font-size: 0.82rem;
+  line-height: 1.2;
+  padding: 4px 0;
+  margin-bottom: 5px;
+}
+.has-scene .room {
+  height: 86px;
+}
+.has-scene .seat-target {
+  min-height: 44px;
+}
+.has-scene .topbar {
+  padding-bottom: 2px;
+}
+.has-scene footer {
+  display: none;
+}
+.has-scene .task {
+  font-size: 0.9rem;
+  margin-block: 5px;
+}
+.has-scene .bench-strip {
+  padding-bottom: 5px;
+  min-height: 49px;
+}
+.day-card {
+  padding: 12px;
+  border: 1.5px solid var(--ink);
+}
+.day-card p {
+  margin: 8px 0;
+  font-size: 0.9rem;
+}
+.day-card button {
+  width: 100%;
+}
+.tomorrow {
+  font-weight: 600;
+}
+#city {
+  height: 235px;
+  margin-top: 6px;
+  border: 1px solid var(--ink-soft);
+}
+.map-key {
+  font-size: 0.82rem;
+  line-height: 1.3;
+  margin-top: 6px;
+}
+.sheet {
+  margin: auto;
+  width: min(500px, calc(100% - 16px));
+  max-height: calc(100dvh - 16px);
+  padding: 12px;
+  overflow: auto;
+  background: var(--paper);
+  color: var(--ink);
+  border: 1.5px solid var(--ink);
+  border-radius: 3px;
+}
+.sheet::backdrop {
+  background: rgb(0 0 0 / 40%);
+}
+.sheet > .sheet-heading {
+  position: sticky;
+  top: -12px;
+  background: var(--paper);
+  padding-bottom: 6px;
+  z-index: 1;
+}
+.sheet-content {
+  display: grid;
+  gap: 8px;
+}
+.sheet-content > p {
+  font-size: 0.92rem;
+  line-height: 1.4;
+}
+.sheet-content > button {
+  width: 100%;
+  text-align: left;
+}
+.sheet-content select {
+  max-width: 100%;
+  background: var(--paper-2);
+}
+.sheet-content label {
+  display: grid;
+  gap: 5px;
+}
+.sheet-status {
+  margin-top: 8px;
+  font-size: 0.9rem;
+}
+fieldset {
+  padding: 7px;
+  margin: 0;
+  border: 1px solid var(--ink-soft);
+  min-width: 0;
+}
+legend {
+  font-size: 0.9rem;
+}
+.sheet-content .vouch {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  min-height: 55px;
+  border-bottom: 1px solid var(--ink-soft);
+  padding: 4px 0;
+  gap: 8px;
+}
+.vouch input {
+  flex: 0 0 44px;
+  width: 44px;
+  height: 44px;
+  accent-color: var(--ink);
+}
+.vouch small {
+  margin-top: 3px;
+}
+.lk-term {
+  color: var(--ink);
+  background: transparent;
+  border: 0;
+  padding: 0 3px;
+  min-height: 44px;
+}
+.review {
+  max-width: 760px;
+  margin: auto;
+  padding: 12px;
+}
+.review header {
+  display: flex;
+  justify-content: space-between;
+  gap: 6px;
+}
+.review h1 {
+  margin: 20px 0 10px;
+}
+.review h2 {
+  margin-top: 20px;
+}
+.review p {
+  margin: 8px 0;
+}
+.review table {
+  table-layout: fixed;
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+}
+.review th,
+.review td {
+  padding: 5px;
+  text-align: left;
+  vertical-align: top;
+  border: 1px solid var(--ink-soft);
+  overflow-wrap: anywhere;
+}
+.review th:first-child {
+  width: 24%;
+}
+.review th:last-child {
+  width: 18%;
+}
+#review-city {
+  height: 250px;
+}
+.review-question {
+  font-style: italic;
+}
+@media (min-width: 700px) {
+  .game {
+    padding-inline: 24px;
+    border-inline: 1px solid var(--ink-soft);
+  }
+  .room {
+    height: 230px;
+  }
+  .has-scene .room {
+    height: 150px;
+  }
+  .scene-choices {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .exchange {
+    max-height: 180px;
+  }
+  .topbar {
+    grid-template-columns: 1fr auto 1fr auto;
+    gap: 6px 12px;
+  }
+  .speed-status {
+    grid-column: 3 / -1;
+  }
+}
+@media (max-width: 340px) {
+  .game {
+    padding-inline: 8px;
+  }
+  .hub {
+    font-size: 0.75rem;
+  }
+  .clock {
+    font-size: 0.82rem;
+  }
+  .speed-control {
+    font-size: 0.78rem;
+  }
+  .scene-choices {
+    grid-template-columns: 1fr;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  * {
+    scroll-behavior: auto;
+  }
+}
+/* Large text reflows rather than widening the page. */
+.topbar > * {
+  min-width: 0;
+}
+.speed-control {
+  justify-content: flex-end;
+}
+.speed-control select {
+  min-width: 44px;
+}
+.scene-choices > button {
+  font-size: 0.85rem;
+}
+.has-scene .room {
+  height: 70px;
+}
+.has-scene .exchange {
+  max-height: 95px;
+}
+.sheet-content > *,
+.sheet-content .vouch span {
+  min-width: 0;
+}
+.sheet-content select {
+  width: 100%;
+}
+
+@media (max-width: 340px) {
+  .scene-choices {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.choice button,
+.scene-choices > button {
+  font-size: max(15px, 0.88rem);
+}
+.choice small,
+.question-cost,
+.notice-line {
+  font-size: max(15px, 0.88rem);
+  line-height: 1.2;
+}
+.question-cost {
+  margin: 3px 0 5px;
+}
+
+.sheet-heading h2 {
+  flex: 1 1 8rem;
+  min-width: 0;
+}
+.sheet-heading button {
+  max-width: 100%;
+  font-size: max(15px, 0.88rem);
+}
