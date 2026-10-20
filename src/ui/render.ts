@@ -91,13 +91,20 @@ export function clockLabels(minute: number): { dateLabel: string; timeLabel: str
 }
 
 /** Eligibility comes from the public view; unknown character facts stay in the simulation. */
-export function matchingReason(candidate: CandidateView, request?: RequestView): string | undefined {
+export function matchingReason(
+  candidate: CandidateView,
+  request?: RequestView,
+  kind: 'trial' | 'place' = 'trial',
+  simulation = 3,
+): string | undefined {
   return (
     candidateAvailability(candidate) ??
     candidate.refuses?.find((refusal) => refusal.family === request?.family)?.words ??
     (request?.status !== 'open'
       ? 'This request is no longer open. Choose another family or answer the phone.'
-      : (candidate.matchReasons?.find((reason) => reason.family === request.family)?.words ??
+      : ((kind === 'trial' || simulation < 3
+          ? candidate.matchReasons?.find((reason) => reason.family === request.family)?.words
+          : undefined) ??
         (!candidate.roles.includes(request.role)
           ? `${candidate.name} is looking for ${candidate.roles.join(' or ')} work. This family needs a ${request.role}.`
           : undefined)))

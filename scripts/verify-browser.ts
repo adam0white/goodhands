@@ -1,3 +1,4 @@
+/** Historical pre-stage acceptance. Current acceptance is scripts/verify-stage.ts. */
 /** Built-preview phone acceptance. Run: node scripts/verify-browser.ts [port=4410]. Real clock only. */
 import assert from 'node:assert/strict';
 import { execFile, execFileSync } from 'node:child_process';

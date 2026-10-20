@@ -1,6 +1,6 @@
 import { expect, test } from 'vitest';
-import { advance, apply, newGame, view } from '../src/sim/index.ts';
 import type { State } from '../src/sim/types.ts';
+import { advance, apply, newGame, view } from './previous-simulation.ts';
 
 const DAY = 1440;
 function required<T>(value: T | null | undefined): T {

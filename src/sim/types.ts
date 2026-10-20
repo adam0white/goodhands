@@ -28,6 +28,9 @@ export type Speed = 0 | 1 | 2 | 3; // slow, walk, trot, gallop
 export const SPEEDS: readonly number[] = [0.5, 2, 6, 20];
 
 export type Input =
+  | { type: 'call-in'; candidate: string }
+  | { type: 'propose-terms'; scene: string; terms: EmploymentTerms }
+  | { type: 'call-household'; family: string; member: string; topic: HouseholdTopic }
   | { type: 'speed'; speed: Speed }
   | { type: 'interview'; candidate: string } // opens an interview scene
   | { type: 'take-number'; candidate: string } // two minutes; keep a bench candidate on the books
@@ -60,7 +63,26 @@ export interface Note {
   crossedOut?: boolean; // contradicted by later, stronger evidence
 }
 
+export type HouseholdTopic = 'progress' | 'complaint' | 'smooth' | 'worker';
+export interface EmploymentTerms {
+  wage: number;
+  startHour: number;
+  endHour: number;
+  dayOff: number;
+  trialDays: number;
+  fee: number;
+}
+export interface NegotiationView {
+  candidate: string;
+  family: string;
+  terms: EmploymentTerms;
+  worker: 'pending' | 'accepted' | 'countered' | 'refused';
+  familyResponse: 'pending' | 'accepted' | 'countered' | 'refused';
+}
 export interface CandidateView {
+  presence?: 'office' | 'home' | 'travelling' | 'working';
+  arrival?: { at: Minute; dateLabel: string };
+  interviewUnavailable?: string;
   id: string;
   name: string;
   age: number;
@@ -99,12 +121,13 @@ export interface FamilyView {
   id: string;
   name: string; // 'the Arslans'
   district: string; // 'Karşıyaka'
-  household: { name: string; who: string }[]; // 'Grandmother Saadet', 'lives with them'
+  household: { id?: string; name: string; who: string; phoneUnavailable?: string }[]; // 'Grandmother Saadet', 'lives with them'
   trust: 'warm' | 'polite' | 'cool' | 'unknown'; // their trust in Nermin's word, in words
   line?: string; // their latest words to Nermin
 }
 
 export interface PlacementView {
+  terms?: EmploymentTerms;
   id: string;
   candidate: string;
   family: string;
@@ -136,8 +159,11 @@ export interface SceneLine {
 }
 
 export interface SceneView {
+  negotiation?: NegotiationView;
   id: string;
   kind:
+    | 'negotiation'
+    | 'household-call'
     | 'two-sides'
     | 'visit'
     | 'interview'
@@ -203,6 +229,7 @@ export interface DayCard {
 }
 
 export interface View {
+  simulation?: number;
   next: { label: string; at: Minute; dateLabel: string } | null;
   seed: number;
   now: Minute;
@@ -259,7 +286,7 @@ export interface Review {
 
 /** The sim's state: plain JSON. People are HF Persons, keyed by id. */
 export interface State {
-  version: 1 | 2;
+  version: 1 | 2 | 3;
   seed: number;
   rng: number; // seeded RNG state
   now: Minute;

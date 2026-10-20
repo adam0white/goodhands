@@ -1,6 +1,6 @@
 import { expect, test } from 'vitest';
-import { advance, apply, fingerprint, milestones, newGame, replay, view } from '../src/sim/index.ts';
 import { CANDIDATES, FAMILIES, makePeople, quality } from '../src/sim/world.ts';
+import { advance, apply, fingerprint, milestones, newGame, replay, view } from './previous-simulation.ts';
 
 function until(s: ReturnType<typeof newGame>, target: number) {
   for (let guard = 0; guard < 2000 && s.now < target && !view(s).ended; guard++) advance(s, target - s.now);

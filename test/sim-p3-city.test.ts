@@ -1,7 +1,7 @@
 import { trustOf } from '@adam0white/human-framework';
 import { expect, test } from 'vitest';
-import { advance, apply, fingerprint, newGame, replay, view } from '../src/sim/index.ts';
 import type { State } from '../src/sim/types.ts';
+import { advance, apply, fingerprint, newGame, replay, view } from './previous-simulation.ts';
 
 function until(s: State, at: number) {
   while (s.now < at) advance(s, at - s.now);

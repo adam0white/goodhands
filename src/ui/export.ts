@@ -4,7 +4,7 @@ import { type Input, type LoggedInput, QUALITIES, type State } from '../sim/type
 export interface RunExport {
   game: 'goodhands';
   version: 1;
-  simulation?: 1 | 2;
+  simulation?: 1 | 2 | 3;
   seed: number;
   minute: number;
   inputs: LoggedInput[];
@@ -18,7 +18,7 @@ export function exportRun(state: State, inputs: LoggedInput[]): RunExport {
   return {
     game: 'goodhands',
     version: 1,
-    ...(state.version === 2 ? { simulation: 2 as const } : {}),
+    ...(state.version !== 1 ? { simulation: state.version } : {}),
     seed: visible.seed,
     minute: visible.now,
     inputs: structuredClone(inputs),
@@ -50,6 +50,9 @@ function validInput(value: unknown): value is Input {
   const fields: Record<string, string[]> = {
     speed: ['speed'],
     interview: ['candidate'],
+    'call-in': ['candidate'],
+    'call-household': ['family', 'member', 'topic'],
+    'propose-terms': ['scene', 'terms'],
     'take-number': ['candidate'],
     'call-reference': ['candidate', 'referee'],
     trial: ['candidate', 'family'],
@@ -75,6 +78,37 @@ function validInput(value: unknown): value is Input {
       if (![0, 1, 2, 3].includes(value[key] as number)) return false;
     } else if (key === 'how') {
       if (!['phone', 'visit', 'drop-by'].includes(value[key] as string)) return false;
+    } else if (key === 'topic') {
+      if (!['progress', 'complaint', 'smooth', 'worker'].includes(value[key] as string)) return false;
+    } else if (key === 'terms') {
+      const terms = value[key];
+      const keys = ['wage', 'startHour', 'endHour', 'dayOff', 'trialDays', 'fee'];
+      if (
+        !record(terms) ||
+        Object.keys(terms).length !== keys.length ||
+        !keys.every((key) => typeof terms[key] === 'number' && Number.isFinite(terms[key]))
+      )
+        return false;
+      const { wage, startHour, endHour, dayOff, trialDays, fee } = terms as Record<string, number>;
+      if (
+        !(
+          wage! > 0 &&
+          wage! <= 1e6 &&
+          startHour! >= 0 &&
+          startHour! < 24 &&
+          endHour! > startHour! &&
+          endHour! <= 24 &&
+          Number.isInteger(dayOff) &&
+          dayOff! >= 0 &&
+          dayOff! <= 6 &&
+          Number.isInteger(trialDays) &&
+          trialDays! >= 1 &&
+          trialDays! <= 14 &&
+          fee! >= 0 &&
+          fee! <= 1e6
+        )
+      )
+        return false;
     } else if (key === 'vouch') {
       const qualities = value[key];
       if (
@@ -120,7 +154,8 @@ export function verifyImport(text: string): { state: State; inputs: LoggedInput[
   }
   const inputs = structuredClone(data.inputs) as LoggedInput[];
   const simulation = data.simulation ?? 1;
-  if (simulation !== 1 && simulation !== 2) throw new Error('Unsupported simulation version.');
+  if (simulation !== 1 && simulation !== 2 && simulation !== 3)
+    throw new Error('Unsupported simulation version.');
   const state = replay(data.seed as number, inputs, data.minute, simulation);
   const visible = view(state);
   if (visible.now !== data.minute || visible.seed !== data.seed)

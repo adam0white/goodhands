@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest';
-import { advance, apply, fingerprint, newGame, replay, view } from '../src/sim/index.ts';
+import { advance, apply, fingerprint, newGame, replay, view } from './previous-simulation.ts';
 
 function choose(s: ReturnType<typeof newGame>, choice: string) {
   const sc = view(s).scene;

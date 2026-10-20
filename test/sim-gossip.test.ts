@@ -1,6 +1,6 @@
 import { expect, test } from 'vitest';
-import { runPolicy } from '../scripts/policy.ts';
-import { view } from '../src/sim/index.ts';
+import { runPolicy } from './previous-policy.ts';
+import { view } from './previous-simulation.ts';
 
 test('city testimony changes incoming work during an ordinary month', () => {
   const v = view(runPolicy(1, 'careful'));

@@ -1,6 +1,6 @@
 import { expect, test } from 'vitest';
-import { advance, apply, fingerprint, newGame, replay, view } from '../src/sim/index.ts';
 import type { State } from '../src/sim/types.ts';
+import { advance, apply, fingerprint, newGame, replay, view } from './previous-simulation.ts';
 
 function until(s: State, at: number) {
   while (s.now < at && !view(s).ended) advance(s, at - s.now);

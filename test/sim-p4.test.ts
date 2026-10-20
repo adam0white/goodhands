@@ -1,7 +1,7 @@
 import { expect, test } from 'vitest';
-import { advance, apply, fingerprint, newGame, replay, view } from '../src/sim/index.ts';
 import type { State } from '../src/sim/types.ts';
 import { phoneAvailability } from '../src/ui/render.ts';
+import { advance, apply, fingerprint, newGame, replay, view } from './previous-simulation.ts';
 
 function choose(s: State, choice: string) {
   apply(s, { type: 'choose', scene: view(s).scene!.id, choice });

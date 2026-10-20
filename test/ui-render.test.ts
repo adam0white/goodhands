@@ -151,3 +151,14 @@ it('separates open requests from lost requests and excludes filled requests', ()
   const filled = { ...request, id: 'filled', status: 'filled' as const };
   expect(requestGroups([request, lost, filled])).toEqual({ open: [request], lost: [lost] });
 });
+
+it('allows wage negotiation while preserving the trial wage reason', () => {
+  const worker = {
+    ...candidate,
+    roles: ['driver' as const],
+    matchReasons: [{ family: request.family, words: 'Wage too low' }],
+  };
+  expect(matchingReason(worker, request, 'trial')).toBe('Wage too low');
+  expect(matchingReason(worker, request, 'place')).toBeUndefined();
+  expect(matchingReason(worker, request, 'place', 2)).toBe('Wage too low');
+});

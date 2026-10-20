@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { GoodHandsAdapter } from '../scripts/hf-playtest/adapter.ts';
-import { type Policy, runPolicy } from '../scripts/policy.ts';
-import { advance, apply, fingerprint, QUALITIES, view } from '../src/sim/index.ts';
+import { type Policy, runPolicy } from './previous-policy.ts';
+import { advance, apply, fingerprint, QUALITIES, view } from './previous-simulation.ts';
 
 function required<T>(value: T | undefined): T {
   if (value === undefined) throw new Error('Expected public game fixture.');
@@ -74,7 +74,7 @@ describe('public-view policies', () => {
 
 describe('HF public actions', () => {
   it('keeps a bench contact without inventing interview evidence', () => {
-    const game = new GoodHandsAdapter(1);
+    const game = new GoodHandsAdapter(1, 2);
     const candidate = required(view(game.state).bench[0]);
     const action = required(game.actions().find((a) => a.id === `take-number:${candidate.id}`));
     expect(action).toBeDefined();
@@ -91,7 +91,7 @@ describe('HF public actions', () => {
   it.each(['interview', 'reference'] as const)(
     'offers a phone interruption during %s and resumes it',
     (kind) => {
-      const game = new GoodHandsAdapter(1);
+      const game = new GoodHandsAdapter(1, 2);
       game.state = apply(game.state, { type: 'interview', candidate: 'sevda' });
       const interview = required(view(game.state).scene ?? undefined);
       game.state = apply(game.state, { type: 'choose', scene: interview.id, choice: 'q-patient' });
@@ -125,7 +125,7 @@ describe('HF public actions', () => {
     },
   );
   it('offers the named wait and withholds check-ins before the first morning', () => {
-    const game = new GoodHandsAdapter(1);
+    const game = new GoodHandsAdapter(1, 2);
     const initial = view(game.state);
     const candidate = initial.bench[0];
     const request = initial.requests[0];

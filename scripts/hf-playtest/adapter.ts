@@ -34,8 +34,8 @@ export class GoodHandsAdapter {
   private previousCash: number;
   private interviewed = new Set<string>();
 
-  constructor(seed: number) {
-    this.state = newGame(seed);
+  constructor(seed: number, version: 1 | 2 | 3 = 3) {
+    this.state = newGame(seed, version);
     this.previousCash = view(this.state).cash;
   }
 
@@ -60,7 +60,7 @@ export class GoodHandsAdapter {
       this.seenScene.set(v.scene.id, v.scene.lines.length);
     }
     for (const c of [...v.bench, ...v.books]) {
-      const summary = `${c.name}: ${c.look}. ${c.status}${c.busy ? `; ${c.busy}` : ''}${c.wants ? `; wants: ${c.wants}` : ''}. ${c.notes.map((n) => `${n.crossedOut ? 'Crossed out: ' : ''}${n.quality}: ${n.phrase} (${n.source}, ${n.from})`).join('; ')}`;
+      const summary = `${c.name}: ${c.look}. ${c.status}${c.presence ? `; ${c.presence}` : ''}${c.arrival ? `; coming ${c.arrival.dateLabel}` : ''}${c.busy ? `; ${c.busy}` : ''}${c.wants ? `; wants: ${c.wants}` : ''}. ${c.notes.map((n) => `${n.crossedOut ? 'Crossed out: ' : ''}${n.quality}: ${n.phrase} (${n.source}, ${n.from})`).join('; ')}`;
       if (this.cards.get(c.id) === summary) continue;
       this.cards.set(c.id, summary);
       events.push({ kind: 'candidate-card', summary, valence: 0, salience: 0.55, answers: false });
@@ -172,9 +172,18 @@ export class GoodHandsAdapter {
             `Interview ${c.name}`,
             { type: 'interview', candidate: c.id },
             c.notes.length ? 0.3 : 0.75,
-            c.interviewAfter
-              ? `Call back after ${clockLabels(c.interviewAfter).dateLabel}, ${clockLabels(c.interviewAfter).timeLabel}`
-              : undefined,
+            c.interviewUnavailable ??
+              (c.interviewAfter
+                ? `Call back after ${clockLabels(c.interviewAfter).dateLabel}, ${clockLabels(c.interviewAfter).timeLabel}`
+                : undefined),
+          );
+        if (v.simulation === 3 && c.presence !== 'office')
+          add(
+            `call-in:${c.id}`,
+            `Call ${c.name} into the office`,
+            { type: 'call-in', candidate: c.id },
+            0.65,
+            c.arrival ? `${c.name} is already coming; expected ${c.arrival.dateLabel}.` : undefined,
           );
         for (const r of c.referees.filter((r) => !r.called))
           add(
@@ -189,14 +198,14 @@ export class GoodHandsAdapter {
             r.status === 'open' &&
             r.by > v.now &&
             c.roles.includes(r.role) &&
-            (c.wage === null || c.wage <= r.wage) &&
+            (v.simulation === 3 || c.wage === null || c.wage <= r.wage) &&
             !c.refuses?.some((x) => x.family === r.family),
         )) {
           const family = v.families.find((f) => f.id === request.family)?.name ?? request.family;
           const vouched = this.supported(c.notes);
           add(
             `place:${c.id}:${request.family}`,
-            `Place ${c.name} with ${family}; vouch for ${vouched.length ? vouched.join(', ') : 'no qualities yet'}`,
+            `${v.simulation === 3 ? 'Negotiate a placement for' : 'Place'} ${c.name} with ${family}; vouch for ${vouched.length ? vouched.join(', ') : 'no qualities yet'}`,
             { type: 'place', candidate: c.id, family: request.family, vouch: vouched },
             c.notes.length ? 0.8 : 0.4,
           );
@@ -206,9 +215,23 @@ export class GoodHandsAdapter {
               `Send ${c.name} for a trial morning with ${family}`,
               { type: 'trial', candidate: c.id, family: request.family },
               0.65,
+              c.matchReasons?.find((reason) => reason.family === request.family)?.words,
             );
         }
       }
+      if (v.simulation === 3)
+        for (const family of v.families)
+          for (const member of family.household) {
+            if (!member.id) continue;
+            for (const topic of ['progress', 'complaint', 'smooth', 'worker'] as const)
+              add(
+                `household:${family.id}:${member.id}:${topic}`,
+                `Phone ${member.name} at ${family.name}: ${{ progress: 'ask how things are going', complaint: 'hear a complaint', smooth: 'smooth a disagreement', worker: 'check on the worker' }[topic]}`,
+                { type: 'call-household', family: family.id, member: member.id, topic },
+                0.4,
+                member.phoneUnavailable,
+              );
+          }
       for (const p of v.placements.filter((p) => ['trial', 'kept'].includes(p.status))) {
         const candidate = [...v.bench, ...v.books].find((c) => c.id === p.candidate)?.name ?? p.candidate;
         const family = v.families.find((f) => f.id === p.family)?.name ?? p.family;
@@ -274,9 +297,10 @@ export class GoodHandsAdapter {
     const input = this.offered.get(id);
     if (!input) throw new Error(`No currently offered action: ${id}`);
     const before = view(this.state);
-    if (input.type === 'interview') this.interviewed.add(input.candidate);
     this.state = apply(this.state, input);
     const after = view(this.state);
+    if (input.type === 'interview' && after.scene?.kind === 'interview')
+      this.interviewed.add(input.candidate);
     const resumed = !!after.scene && after.scene.id === before.heldScene?.id;
     const lines = resumed
       ? []

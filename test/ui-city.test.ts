@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
-import { newGame, view } from '../src/sim/index.ts';
 import type { CityFigure, View } from '../src/sim/types.ts';
 import { cityFigurePositions, drawCity, hitCityFigure } from '../src/ui/map.ts';
+import { newGame, view } from './previous-simulation.ts';
 
 const traveler: CityFigure = {
   id: 'sevda',

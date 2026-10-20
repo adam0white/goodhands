@@ -32,10 +32,10 @@ function pressure(request: RequestView): Quality {
 function available(v: View): CandidateView[] {
   return [...v.bench, ...v.books].filter((c) => ['bench', 'books'].includes(c.status) && !c.busy);
 }
-function matches(c: CandidateView, r: RequestView): boolean {
+function matches(c: CandidateView, r: RequestView, negotiate = false): boolean {
   return (
     c.roles.includes(r.role) &&
-    (c.wage === null || c.wage <= r.wage) &&
+    (negotiate || c.wage === null || c.wage <= r.wage) &&
     !c.refuses?.some((refusal) => refusal.family === r.family)
   );
 }
@@ -58,16 +58,18 @@ function vouched(c: CandidateView): Quality[] {
 }
 
 /** `until` is an absolute game minute. A chosen action may finish a few minutes after it. */
-export function runPolicy(seed: number, policy: Policy, until = MONTH_END): State {
+export function runPolicy(seed: number, policy: Policy, until = MONTH_END, version: 1 | 2 | 3 = 3): State {
   if (!Number.isFinite(until) || until < 510)
     throw new Error('Policy end must be a finite minute at or after 08:30.');
-  let state = newGame(seed);
+  let state = newGame(seed, version);
+  const match = (c: CandidateView, r: RequestView) => matches(c, r, version === 3);
   const attempted = new Set<string>();
   const coached = new Set<string>();
   const interviewed = new Set<string>();
   const interviewQuestions = new Map<string, Set<string>>();
   const checked = new Set<string>();
   const rejected = new Set<string>();
+  const negotiationChanges = new Map<string, Set<string>>();
   let stagnant = 0;
   function act(input: Input): boolean {
     const key = JSON.stringify(input);
@@ -85,6 +87,25 @@ export function runPolicy(seed: number, policy: Policy, until = MONTH_END): Stat
     if (!changed && !['close-scene', 'choose', 'sleep'].includes(input.type)) rejected.add(key);
     return true;
   }
+  function startInterview(candidate: CandidateView): boolean {
+    if (version === 3 && candidate.presence !== 'office') {
+      return candidate.presence === 'home' && !candidate.arrival
+        ? act({ type: 'call-in', candidate: candidate.id })
+        : false;
+    }
+    const acted = act({ type: 'interview', candidate: candidate.id });
+    if (version < 3 || view(state).scene?.kind === 'interview') interviewed.add(candidate.id);
+    return acted;
+  }
+  function nextInterview(candidates: CandidateView[]): CandidateView | undefined {
+    const unasked = candidates.filter(
+      (c) => !interviewed.has(c.id) && !(c.interviewAfter && c.interviewAfter > view(state).now),
+    );
+    return version < 3
+      ? unasked[0]
+      : (unasked.find((c) => c.presence === 'office') ??
+          unasked.find((c) => c.presence === 'home' && !c.arrival));
+  }
   for (let turn = 0; turn < 12000; turn++) {
     const v = view(state);
     if (v.ended || v.now >= until) return state;
@@ -100,7 +121,7 @@ export function runPolicy(seed: number, policy: Policy, until = MONTH_END): Stat
         const asked = interviewQuestions.get(sc.with) ?? new Set<string>();
         interviewQuestions.set(sc.with, asked);
         const count = asked.size;
-        const target = v.requests.find((r) => r.status === 'open' && candidate && matches(candidate, r));
+        const target = v.requests.find((r) => r.status === 'open' && candidate && match(candidate, r));
         const priorities = [
           ...new Set([
             policy === 'cunning' ? 'reliable' : target ? pressure(target) : 'patient',
@@ -136,6 +157,17 @@ export function runPolicy(seed: number, policy: Policy, until = MONTH_END): Stat
             count < (policy === 'careful' ? 4 : 1) && question
               ? question
               : choices.find((c) => c.id === 'send-home' || c.id === 'done');
+      } else if (sc.kind === 'negotiation') {
+        const tried = negotiationChanges.get(sc.id) ?? new Set<string>();
+        negotiationChanges.set(sc.id, tried);
+        choice =
+          choices.find((c) => c.id === 'accept-terms') ??
+          ['offer-hours', 'offer-wage', 'offer-trial', 'offer-fee']
+            .map((id) => choices.find((c) => c.id === id && !tried.has(id)))
+            .find(Boolean) ??
+          choices.find((c) => c.id === 'cancel') ??
+          choice;
+        if (choice?.id.startsWith('offer-')) tried.add(choice.id);
       } else if (sc.kind === 'reference') {
         const hostile = sc.lines.some((line) => /wage|pay|owed|ungrateful|left.*notice/i.test(line.text));
         choice =
@@ -200,17 +232,16 @@ export function runPolicy(seed: number, policy: Policy, until = MONTH_END): Stat
       const contact = v.bench.find((c) => c.status === 'bench' && !c.busy);
       if (contact) acted = act({ type: 'take-number', candidate: contact.id });
       for (const request of acted ? [] : requests) {
-        const candidates = free.filter((c) => matches(c, request));
+        const candidates = free.filter((c) => match(c, request));
         if (!candidates.length) continue;
         if (policy === 'reckless') {
           const c = candidates[0];
           if (!c) continue;
           acted = act({ type: 'place', candidate: c.id, family: request.family, vouch: [...QUALITIES] });
         } else {
-          const unasked = candidates.find((c) => !interviewed.has(c.id));
+          const unasked = nextInterview(candidates);
           if (unasked) {
-            interviewed.add(unasked.id);
-            acted = act({ type: 'interview', candidate: unasked.id });
+            acted = startInterview(unasked);
           } else {
             const uncalled =
               policy === 'careful'
@@ -253,10 +284,9 @@ export function runPolicy(seed: number, policy: Policy, until = MONTH_END): Stat
       }
       // Interview saved contacts between requests, without mistaking a number for evidence.
       if (!acted && policy === 'careful') {
-        const candidate = free.find((c) => !interviewed.has(c.id));
+        const candidate = nextInterview(free);
         if (candidate) {
-          interviewed.add(candidate.id);
-          acted = act({ type: 'interview', candidate: candidate.id });
+          acted = startInterview(candidate);
         }
       }
       if (!acted && policy !== 'reckless') {

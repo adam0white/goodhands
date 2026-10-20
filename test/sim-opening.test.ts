@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import { advance, apply, fingerprint, milestones, newGame, replay, view } from '../src/sim/index.ts';
+import { advance, apply, fingerprint, milestones, newGame, replay, view } from './previous-simulation.ts';
 
 describe('the first morning', () => {
   test('opens with an urgent request and three different women', () => {

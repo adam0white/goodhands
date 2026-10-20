@@ -1,7 +1,7 @@
 /** These are acceptance checks on the simulation, not special scoring rules inside the players. */
 import { beforeAll, describe, expect, it } from 'vitest';
-import { MONTH_END, type Policy, runPolicy } from '../scripts/policy.ts';
-import { view } from '../src/sim/index.ts';
+import { MONTH_END, type Policy, runPolicy } from './previous-policy.ts';
+import { view } from './previous-simulation.ts';
 
 type Result = {
   seed: number;

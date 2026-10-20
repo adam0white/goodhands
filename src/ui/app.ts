@@ -1,7 +1,19 @@
-import { defineTerms, downloadJson, glossaryPanel, introCard, term } from '@adam0white/lab-kit';
+import '@adam0white/lab-kit/stage.css';
+import {
+  defineTerms,
+  downloadJson,
+  glossaryPanel,
+  introCard,
+  type PhoneStage,
+  phoneStage,
+  term,
+} from '@adam0white/lab-kit';
 import * as sim from '../sim/index.ts';
+import { validTerms } from '../sim/negotiation.ts';
 import {
   type CandidateView,
+  type EmploymentTerms,
+  type HouseholdTopic,
   type Input,
   type LoggedInput,
   QUALITIES,
@@ -50,6 +62,8 @@ let last = performance.now();
 let shown = '';
 let lastHour = -1;
 let sheet: HTMLDialogElement | null = null;
+let stage: PhoneStage | null = null;
+const sheetOrigins: { node: HTMLDialogElement; kind: string; inspection: (() => void) | null }[] = [];
 let modal = '';
 let updateInspection: (() => void) | null = null;
 let screen = '';
@@ -197,7 +211,15 @@ function begin(next: State | null, history: LoggedInput[]): void {
   save();
 }
 function shell(v: View): void {
-  root.innerHTML = `<main class="game" data-testid="office"><header class="topbar"><a class="hub" href="${ALL_GAMES}" aria-label="human framework games">◇ human framework</a><button type="button" data-action="menu">Game menu</button><div class="clock"><span data-date></span> <strong data-time></strong></div><div class="speed-control" role="group" aria-label="Clock speed">${SPEED_NAMES.map((name, i) => `<button type="button" data-speed-choice="${i}" aria-pressed="${v.speed === i}">${name}</button>`).join('')}</div><p class="speed-status" data-speed></p><button type="button" data-action="wait-for" class="wait-for" hidden></button></header><div class="office-front"><div class="room"><canvas id="office" role="img" aria-label="Nermin’s desk, telephone, window and the waiting bench"></canvas><div class="seat-targets"></div></div><div class="phone-strip" hidden><button class="phone-control" type="button" data-action="phone"></button><p id="phone-reason" class="phone-reason reason"></p></div></div><button class="task now" type="button" aria-label="Task" data-testid="task" data-action="task"><strong>Task</strong><span></span></button><p class="status" role="status" data-status></p><nav class="bench-strip" aria-label="Waiting bench" data-testid="bench"></nav><div data-content></div><footer><span data-money></span><a href="${ALL_GAMES}">All games</a></footer></main>`;
+  stage?.destroy();
+  root.innerHTML = `<main class="game lk-stage" data-sheet="fit" data-testid="office"><header class="lk-strip"><div class="topbar"><a class="hub" href="${ALL_GAMES}" aria-label="human framework games">◇ human framework</a><button type="button" data-action="menu">Game menu</button></div><div class="lk-chips"><span class="lk-chip clock"><span data-date></span> <strong data-time></strong></span><button type="button" data-action="time" data-speed class="speed-summary"></button><span class="lk-chip" data-money></span><span class="lk-chip" data-waiting></span></div><button class="task now" type="button" aria-label="Task" data-testid="task" data-action="task"><strong>Task</strong><span></span></button></header><section class="office-front lk-scene" aria-label="The office"><div class="room"><canvas id="office" role="img" aria-label="Nermin’s desk, telephone, window and the waiting bench"></canvas><div class="seat-targets"></div></div><div class="phone-strip" hidden><button class="phone-control" type="button" data-action="phone"></button><p id="phone-reason" class="phone-reason reason"></p></div><nav class="bench-strip" aria-label="Waiting bench" data-testid="bench"></nav></section><section class="desk-sheet lk-sheet" data-content aria-label="Nermin’s desk"></section></main>`;
+  stage = phoneStage(root.querySelector<HTMLElement>('.lk-stage')!, {
+    observeOnly: true,
+    onSceneRect: () => {
+      if (state && playing)
+        drawOffice(root.querySelector<HTMLCanvasElement>('#office')!, current(), selected);
+    },
+  });
   updateClock(v);
 }
 function updateClock(v: View): void {
@@ -207,10 +229,8 @@ function updateClock(v: View): void {
   };
   text('[data-date]', v.dateLabel);
   text('[data-time]', v.timeLabel);
-  text(
-    '[data-speed]',
-    waitAnimation ? `Waiting for ${waitAnimation.label} · clock running fast` : speedLabel(v),
-  );
+  text('[data-speed]', waitAnimation ? 'Waiting fast' : v.slowed ? 'Slow ↓' : SPEED_NAMES[v.speed]);
+  root.querySelector('[data-speed]')?.setAttribute('aria-label', `${speedLabel(v)}. Change clock speed`);
   root.querySelector('.game')?.setAttribute('aria-busy', String(!!waitAnimation));
   const wait = root.querySelector<HTMLButtonElement>('[data-action="wait-for"]');
   if (wait) {
@@ -223,6 +243,10 @@ function updateClock(v: View): void {
     speed.setAttribute('aria-pressed', String(Number(speed.dataset.speedChoice) === v.speed));
   }
   text('[data-money]', `${money(v.cash)} · Rent ${money(v.rent.amount)} ${v.rent.label}`);
+  text(
+    '[data-waiting]',
+    `${v.bench.length} waiting${v.books.filter((c) => c.arrival).length ? ` · ${v.books.filter((c) => c.arrival).length} coming` : ''}`,
+  );
 }
 function displayedView(): View {
   const v = current();
@@ -242,6 +266,8 @@ function render(force = false): void {
   if (!root.querySelector('.game')) shell(v);
   updateClock(v);
   updateInspection?.();
+  const basePanel = root.querySelector<HTMLElement>('[data-content]');
+  if (basePanel) basePanel.hidden = !!sheet;
   const signature = JSON.stringify([
     v.task,
     v.next,
@@ -302,7 +328,11 @@ function render(force = false): void {
     const c = v.bench.find((c) => c.id === seat.id);
     if (!c) continue;
     const b = button('', () => selectCandidate(c.id), 'seat-target');
-    if (seat.width * (root.querySelector<HTMLCanvasElement>('#office')?.clientWidth ?? 336) < 44) continue;
+    if (
+      seat.width * (root.querySelector<HTMLCanvasElement>('#office')?.clientWidth ?? 336) < 44 ||
+      (root.querySelector<HTMLCanvasElement>('#office')?.clientHeight ?? 0) < 100
+    )
+      continue;
     b.setAttribute('aria-label', `Select ${c.name} on the bench`);
     b.setAttribute('aria-pressed', String(selected === c.id));
     b.style.cssText = `left:${seat.x * 100}%;top:${(v.scene ? 0.24 : seat.y) * 100}%;width:${seat.width * 100}%;height:${(v.scene ? 0.65 : seat.height) * 100}%`;
@@ -341,7 +371,7 @@ function render(force = false): void {
     content.innerHTML = dayHtml(v);
     setScreen('office');
   } else {
-    content.innerHTML = `<nav class="tabs" aria-label="Agency books">${(['Bench', 'Families', 'Placed'] as const).map((t) => `<button type="button" data-tab="${t}" aria-pressed="${!city && tab === t}">${t}</button>`).join('')}<button type="button" data-action="city" aria-pressed="${city}">City</button></nav><section class="desk-content">${city ? cityHtml(v) : tab === 'Bench' ? benchHtml(v) : tab === 'Families' ? familiesHtml(v) : placedHtml(v)}</section>`;
+    content.innerHTML = `<nav class="tabs lk-sheet-head" aria-label="Agency books">${(['Bench', 'Families', 'Placed'] as const).map((t) => `<button type="button" data-tab="${t}" aria-pressed="${!city && tab === t}">${t}</button>`).join('')}<button type="button" data-action="city" aria-pressed="${city}">City</button></nav><section class="desk-content lk-sheet-body"><p class="status" role="status" data-status></p>${city ? cityHtml(v) : tab === 'Bench' ? benchHtml(v) : tab === 'Families' ? familiesHtml(v) : placedHtml(v)}</section>`;
     if (city) updateCity(v);
     setScreen(sheet ? 'menu' : city ? 'city' : 'office');
   }
@@ -360,8 +390,10 @@ function render(force = false): void {
     replacement?.focus({ preventScroll: true });
   }
   showNotice();
+  stage?.refresh();
 }
 function selectCandidate(id: string): void {
+  closeSheet(false);
   selected = id;
   tab = 'Bench';
   city = false;
@@ -376,12 +408,14 @@ function benchHtml(v: View): string {
     return `<div class="empty-card"><h1>Nermin’s desk</h1><p>Choose someone on the bench to open her card.</p>${v.books.length ? `<div class="book-list">${v.books.map((c) => `<button type="button" data-candidate="${h(c.id)}">${h(c.name)} · ${h(c.busy ?? c.status)}</button>`).join('')}</div>` : ''}</div>`;
   const unavailable =
     candidateAvailability(c) ?? (!v.open ? 'The office is closed. Sleep to open tomorrow.' : undefined);
-  const interviewLimit = c.interviewAfter
-    ? `Call ${c.name} back after ${clockLabels(c.interviewAfter).dateLabel}, ${clockLabels(c.interviewAfter).timeLabel}.`
-    : undefined;
+  const interviewLimit =
+    c.interviewUnavailable ??
+    (c.interviewAfter
+      ? `Call ${c.name} back after ${clockLabels(c.interviewAfter).dateLabel}, ${clockLabels(c.interviewAfter).timeLabel}.`
+      : undefined);
   const reason =
     unavailable || interviewLimit ? `<p class="reason">${h(unavailable ?? interviewLimit!)}</p>` : '';
-  return `<article class="candidate-card"><div class="card-heading"><h2>${h(c.name)}</h2><span>${h(c.roles.join(' / '))}</span></div><p class="look">${h(c.look)}</p><div class="candidate-actions">${action('Interview', 'interview', unavailable ?? interviewLimit, 'About 30 minutes')}${action('Call a reference', 'references', unavailable, 'About 15 minutes')}${action('Send for a trial', 'trial', unavailable, 'Her next morning away')}${action('Place', 'place', unavailable, 'Choose what to vouch for')}${c.status === 'bench' ? action('Take her number', 'take-number', unavailable, '2 minutes · she goes home; stays on the books') : ''}</div>${reason}${c.wants ? `<p class="candidate-wants handwritten">Needs: ${h(c.wants)}</p>` : ''}<details class="notes-details" open><summary>Nermin’s notes · ${c.wage === null ? 'Wage not yet asked' : `${money(c.wage)} a month`}</summary><div class="card-notes">${QUALITIES.map(
+  const card = `<article class="candidate-card"><div class="card-heading"><h2>${h(c.name)}</h2><span>${h(c.roles.join(' / '))}</span></div><p class="look">${h(c.look)}</p>${c.arrival ? `<p>${h(c.name)} is coming · ${h(c.arrival.dateLabel)}</p>` : ''}${state?.version !== 3 ? '<p class="reason">This month uses earlier rules. Start a new month for office visits and negotiated placements.</p>' : ''}<div class="candidate-actions">${action('Interview', 'interview', unavailable ?? interviewLimit, 'About 30 minutes')}${state?.version === 3 && c.presence === 'home' ? action('Call in to the office', 'call-in', unavailable, 'Ask them to come; travel takes time') : ''}${action(state?.version === 3 ? 'Negotiate placement' : 'Place', 'place', unavailable, state?.version === 3 ? 'Agree the terms with both sides' : 'Choose what to vouch for')}${c.status === 'bench' ? action('Take her number', 'take-number', unavailable, '2 min · goes home; keep contact') : ''}${action('Other actions', 'candidate-actions', undefined, 'References and trial mornings')}</div>${reason}${c.wants ? `<p class="candidate-wants handwritten">Needs: ${h(c.wants)}</p>` : ''}<details class="notes-details"><summary>Nermin’s notes · ${c.wage === null ? 'Wage not yet asked' : `${money(c.wage)} a month`}</summary><div class="card-notes">${QUALITIES.map(
     (q) => {
       const notes = c.notes.filter((n) => n.quality === q);
       const read = notes.findLast((n) => !n.crossedOut) ?? notes.at(-1);
@@ -390,6 +424,9 @@ function benchHtml(v: View): string {
   ).join(
     '',
   )}</div><h3>Experience</h3>${c.experience.length ? c.experience.map((e) => `<p>${h(e)}</p>`).join('') : '<p>She has not told you yet.</p>'}<h3>Referees</h3>${c.referees.map((r) => `<p>${h(r.name)} · ${r.reachable ? 'reachable' : h(r.why ?? 'Not reachable now; try later')}${r.called ? ' · already called' : ''}</p>`).join('') || '<p>No referee yet. Ask in the interview.</p>'}</details><button type="button" data-action="all-cards">Your books</button></article>`;
+  const extra = card.indexOf('<p class="candidate-wants');
+  const notes = extra >= 0 ? extra : card.indexOf('<details class="notes-details');
+  return `${card.slice(0, notes)}<button type="button" data-action="candidate-notes">Notes, needs and your books</button></article>`;
 }
 function action(label: string, key: string, disabled?: string, hint?: string): string {
   return `<button type="button" data-action="${key}" ${disabled ? 'disabled' : ''}><span>${h(label)}</span>${hint ? `<small>${h(hint)}</small>` : ''}</button>`;
@@ -420,44 +457,42 @@ function placedHtml(v: View): string {
       .join('') || '<p>No one placed yet. Your word will go with them.</p>'
   );
 }
+function choiceHtml(c: NonNullable<View['scene']>['choices'][number], hint = true): string {
+  return `<div class="choice"><button type="button" data-testid="scene-choice" data-choice="${h(c.id)}" ${c.disabled ? 'disabled' : ''}>${h(c.label)}${c.hint && hint ? `<small>${h(c.hint)}</small>` : ''}</button>${c.disabled ? `<p class="reason">${h(c.disabled)}</p>` : ''}</div>`;
+}
 function sceneHtml(v: View): string {
   const s = v.scene;
   if (!s) return '';
-  const held = v.heldScene?.title
-    .replace(/^Interview:\s*/, 'Interview with ')
-    .replace(/^Reference:\s*/, 'Reference call for ');
-  const finish = s.canLeave
-    ? s.choices.find((c) => (c.id === 'finish' || /^Finish/.test(c.label)) && !c.disabled)
-    : undefined;
-  const endings =
-    s.kind === 'interview' ? s.choices.filter((c) => c.id === 'wait-bench' || c.id === 'send-home') : [];
-  const available = s.choices.filter((c) => c !== finish && !endings.includes(c));
-  const questions = s.kind === 'interview' ? available.filter((c) => c.id !== 'coach') : [];
-  const sharedHint =
-    !s.interviewPace && questions.length && questions.every((c) => c.hint === questions[0]?.hint)
-      ? questions[0]?.hint
-      : undefined;
-  const details = s.choices.filter((c) => c.hint && (s.kind === 'two-sides' || c.id === 'coach'));
-  const choices = available;
-  return `<section class="scene-sheet ${s.kind === 'interview' ? 'interview-sheet' : ''}" data-testid="scene" data-scene-id="${h(s.id)}" aria-label="${h(s.title)}"><div class="sheet-heading"><h2>${h(s.title)}</h2>${finish ? `<button type="button" data-choice="${h(finish.id)}">${h(finish.label)}</button>` : s.canLeave && s.kind !== 'interview' ? '<button type="button" data-action="leave-scene">Finish</button>' : ''}</div>${held ? `<p class="held-scene" role="status">${h(held)} is waiting.</p>` : ''}${finish?.hint ? `<p class="question-limit">${h(finish.hint)}</p>` : ''}<div class="exchange" role="region" aria-label="Conversation transcript" tabindex="0">${
-    details.length
-      ? `<details class="response-details"><summary>Response details</summary>${details
-          .map((c) => `<p><strong>${h(c.label)}:</strong> ${h(c.hint ?? '')}</p>`)
-          .join('')}</details>`
-      : ''
-  }${s.lines.map((l) => `<p data-scene-line ${l.side ? `data-scene-side="${l.side}"` : ''} class="${l.kind === 'speech' ? 'speech' : l.kind === 'notice' ? 'notice-line' : ''} ${l.side ? `side-${l.side}` : ''}">${l.speaker ? `<strong>${h(l.speaker)}:</strong> ` : l.side ? `<strong>${l.side === 'worker' ? 'Worker' : 'Family'}:</strong> ` : ''}${h(l.text)}</p>`).join('')}</div>${
+  const endings = s.choices.filter((c) => ['wait-bench', 'send-home', 'finish', 'cancel'].includes(c.id));
+  const choices = s.choices.filter((c) => !endings.includes(c));
+  const lastSpeech = s.lines.findLast((l) => l.kind === 'speech');
+  const latest =
+    s.kind === 'negotiation' || s.kind === 'two-sides'
+      ? s.lines.filter((l) => l.kind === 'speech').slice(-2)
+      : lastSpeech
+        ? [lastSpeech]
+        : s.lines.slice(-1);
+  const visibleChoices = s.kind === 'negotiation' || s.kind === 'two-sides' ? 1 : 2;
+  const line = (l: (typeof s.lines)[number]) =>
+    `<p data-scene-line ${l.side ? `data-scene-side="${l.side}"` : ''} class="${l.kind === 'speech' ? 'speech' : l.kind === 'notice' ? 'notice-line' : ''} ${l.side ? `side-${l.side}` : ''}">${l.speaker ? `<strong>${h(l.speaker)}:</strong> ` : ''}${h(l.text)}</p>`;
+  return `<section class="scene-sheet ${s.kind === 'interview' ? 'interview-sheet' : ''}" data-testid="scene" data-scene-id="${h(s.id)}" aria-label="${h(s.title)}"><header class="sheet-heading lk-sheet-head"><h2>${h(s.title)}</h2><button type="button" data-action="conversation">Conversation</button></header><div class="lk-sheet-body scene-reading"><div class="exchange" role="region" aria-label="Latest words">${latest.map(line).join('')}</div>${s.kind === 'negotiation' && s.negotiation ? `<p class="terms-summary">${h(termsLine(s.negotiation.terms))}</p>` : ''}${v.heldScene ? `<p class="held-scene">${h(v.heldScene.title)} is waiting.</p>` : ''}${
     s.added?.length
       ? `<p class="added" role="status">Added to her card: ${s.added
           .filter((n) => !n.crossedOut)
-          .map((n) => `${h(n.quality)} · ${n.source}`)
-          .join('; ')}</p>`
+          .map((n) => h(n.quality))
+          .join(', ')}</p>`
       : ''
-  }${s.interviewPace || sharedHint ? `<p class="question-cost">${s.interviewPace ? h(s.interviewPace) : `${h(sharedHint!)} per question.`}</p>` : ''}<div class="scene-choices" ${s.kind === 'interview' ? 'role="region" aria-label="Remaining interview questions" tabindex="0"' : ''}>${choices.map((c) => `<div class="choice"><button type="button" data-testid="scene-choice" data-choice="${h(c.id)}" ${c.disabled ? 'disabled' : ''}>${h(c.label)}${c.hint && s.kind !== 'two-sides' && c.id !== 'coach' && !(sharedHint && questions.includes(c)) ? `<small>${h(c.hint)}</small>` : ''}</button>${c.disabled ? `<p class="reason">${h(c.disabled)}</p>` : ''}</div>`).join('')}</div>${endings.length ? `<div class="interview-finish" aria-label="Finish the interview">${endings.map((c) => `<button type="button" data-testid="scene-choice" data-choice="${h(c.id)}" ${c.disabled ? 'disabled' : ''}>${h(c.label)}${c.hint ? `<small>${h(c.hint)}</small>` : ''}</button>`).join('')}</div>` : ''}</section>`;
+  }${s.interviewPace ? `<p class="question-cost">Each question takes 8–12 minutes. ${h(s.interviewPace)}</p>` : ''}</div><div class="lk-commit"><div class="scene-choices">${choices
+    .slice(0, visibleChoices)
+    .map((c) => choiceHtml(c, false))
+    .join(
+      '',
+    )}</div>${choices.length > visibleChoices ? `<button type="button" data-action="more-choices">${s.kind === 'interview' ? 'More questions' : 'More choices'} · ${choices.length - visibleChoices}</button>` : ''}${s.kind === 'negotiation' && s.negotiation ? '<button type="button" data-action="edit-terms">Edit the offer</button>' : ''}${endings.length ? `<div class="interview-finish">${endings.map((c) => choiceHtml(c, false)).join('')}</div>` : s.canLeave ? '<button type="button" data-action="leave-scene">Finish</button>' : ''}</div></section>`;
 }
 function dayHtml(v: View): string {
   const d = v.dayCard;
   if (!d) return '';
-  return `<section class="day-card"><h2>${h(d.dateLabel)} · Office closed</h2>${d.lines.map((l) => `<p>${h(l)}</p>`).join('')}<p class="tomorrow">${h(d.tomorrow)}</p><button type="button" data-action="sleep">Sleep</button></section>`;
+  return `<section class="day-card lk-sheet-body"><h2>${h(d.dateLabel)} · Office closed</h2>${d.lines.map((l) => `<p>${h(l)}</p>`).join('')}<p class="tomorrow">${h(d.tomorrow)}</p><button type="button" data-action="sleep">Sleep</button></section>`;
 }
 function cityHtml(v: View): string {
   return `<h2>The city</h2><p data-city-person role="status"></p><div class="city-map"><canvas id="city" role="img" aria-label="Izmir across the bay: people at home, at work and travelling; dots carry talk"></canvas><div class="city-targets"></div></div><p class="map-key">Posture shows mood. Dots carry talk; trails remain.</p><details class="city-people"><summary>People in the city</summary>${v.city.figures.map((f) => `<button type="button" data-city-figure="${h(f.id)}" aria-pressed="${cityPerson === f.id}">${h(f.name)} · ${h(f.place ?? 'in the city')}</button>`).join('')}</details>${v.city.threads
@@ -594,43 +629,67 @@ function closeSheet(restore = true): void {
   updateInspection = null;
   old.close();
   old.remove();
+  const origin = restore ? sheetOrigins.pop() : undefined;
+  if (origin) {
+    sheet = origin.node;
+    modal = origin.kind;
+    updateInspection = origin.inspection;
+    root.querySelector('.game')?.append(sheet);
+    sheet.show();
+  } else {
+    for (const previous of sheetOrigins.splice(0)) previous.node.remove();
+  }
+  const panel = root.querySelector<HTMLElement>('[data-content]');
+  if (panel) panel.hidden = !!sheet;
   last = performance.now();
-  if (restore && playing) render(true);
+  if (restore && playing && !sheet) render(true);
+  stage?.refresh();
 }
 function openSheet(title: string, content: string, kind = 'inspect'): HTMLDialogElement {
   const origin = document.activeElement instanceof HTMLElement ? document.activeElement : null;
   const originLabel = origin?.getAttribute('aria-label') ?? origin?.textContent;
-  const originAction = origin?.dataset.action;
-  const originGroups = origin?.dataset.cityGroup;
-  closeSheet(false);
+  if (sheet) {
+    sheetOrigins.push({ node: sheet, kind: modal, inspection: updateInspection });
+    sheet.close();
+    sheet.remove();
+  }
   const d = document.createElement('dialog');
-  d.className = 'sheet';
+  const game = root.querySelector<HTMLElement>('.game');
+  d.className = game ? 'sheet lk-sheet' : 'sheet';
   d.setAttribute('aria-label', title);
-  d.innerHTML = `<div class="sheet-heading"><h2>${h(title)}</h2><button type="button" data-close>Back</button></div><div class="sheet-content">${content}</div><p class="sheet-status" role="status"></p>`;
+  d.innerHTML = `<div class="sheet-heading lk-sheet-head"><h2>${h(title)}</h2><button type="button" data-close>Back</button></div><div class="sheet-content lk-sheet-body">${content}</div><p class="sheet-status" role="status"></p>`;
   sheet = d;
   modal = kind;
-  document.body.append(d);
+  updateInspection = null;
+  if (game) {
+    game.append(d);
+    const panel = root.querySelector<HTMLElement>('[data-content]');
+    if (panel) panel.hidden = true;
+  } else document.body.append(d);
   d.querySelector('[data-close]')?.addEventListener('click', () => closeSheet());
   d.addEventListener('cancel', (event) => {
     event.preventDefault();
     closeSheet();
   });
-  d.addEventListener('close', () => {
-    if (origin?.isConnected) origin.focus();
-    else {
-      const replacement = [...root.querySelectorAll<HTMLElement>('button')].find((b) =>
-        originGroups
-          ? b.dataset.cityGroup?.split(',').some((id) => originGroups.split(',').includes(id))
-          : originAction
-            ? b.dataset.action === originAction
-            : (b.getAttribute('aria-label') ?? b.textContent) === originLabel,
-      );
-      replacement?.focus({ preventScroll: true });
+  d.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      closeSheet();
     }
   });
-  d.addEventListener('click', handleClick);
-  d.showModal();
+  d.addEventListener('close', () => {
+    if (origin?.isConnected) origin.focus({ preventScroll: true });
+    else
+      [...root.querySelectorAll<HTMLElement>('button')]
+        .find((b) => (b.getAttribute('aria-label') ?? b.textContent) === originLabel)
+        ?.focus({ preventScroll: true });
+  });
+  if (!game) d.addEventListener('click', handleClick);
+  if (game) d.show();
+  else d.showModal();
   gloss(d);
+  stage?.refresh();
+  d.querySelector<HTMLElement>('[data-close]')?.focus({ preventScroll: true });
   if (kind === 'menu') setScreen('menu');
   return d;
 }
@@ -676,6 +735,94 @@ function referenceSheet(): void {
     }
   };
 }
+const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+function termsLine(t: EmploymentTerms): string {
+  const clock = (hour: number) =>
+    `${String(Math.floor(hour)).padStart(2, '0')}:${String(Math.round((hour % 1) * 60)).padStart(2, '0')}`;
+  return `${money(t.wage)} a month · ${clock(t.startHour)}–${clock(t.endHour)} · ${DAYS[t.dayOff]} off · ${t.trialDays}-day trial · fee ${money(t.fee)}`;
+}
+function editTerms(): void {
+  const scene = current().scene;
+  if (scene?.kind !== 'negotiation' || !scene.negotiation) return;
+  const t = scene.negotiation.terms;
+  const labels = {
+    wage: 'Monthly wage',
+    startHour: 'Start hour',
+    endHour: 'Finish hour',
+    trialDays: 'Trial days',
+    fee: 'Agency fee',
+  } as const;
+  const d = openSheet(
+    'Edit the offer',
+    `<p>The worker and family must both accept. Changing the offer asks both again.</p>${Object.entries(
+      labels,
+    )
+      .map(
+        ([key, label]) =>
+          `<label>${label}<input type="number" data-term="${key}" value="${t[key as keyof typeof labels]}" min="${key === 'trialDays' ? 1 : 0}" max="${key === 'endHour' ? 24 : key === 'startHour' ? 23 : key === 'trialDays' ? 14 : 100000}"></label>`,
+      )
+      .join(
+        '',
+      )}<label>Day off<select data-term="dayOff">${DAYS.map((day, i) => `<option value="${i}" ${t.dayOff === i ? 'selected' : ''}>${day}</option>`).join('')}</select></label>`,
+  );
+  const commit = document.createElement('div');
+  commit.className = 'lk-commit';
+  const propose = button('Say these terms to both sides', () => {
+    const terms = { ...t };
+    for (const input of d.querySelectorAll<HTMLInputElement | HTMLSelectElement>('[data-term]'))
+      terms[input.dataset.term as keyof EmploymentTerms] = Number(input.value);
+    const valid = validTerms(terms);
+    if (!valid) {
+      const reason = d.querySelector('.sheet-status');
+      if (reason)
+        reason.textContent =
+          'Use a positive wage and a fee up to ₺1,000,000. Use whole-minute hours, finish after start (00:00–24:00), and a trial of 1–14 whole days.';
+      return;
+    }
+    closeSheet(false);
+    send({ type: 'propose-terms', scene: scene.id, terms });
+  });
+  commit.append(propose);
+  d.append(commit);
+}
+function householdPhone(familyId: string): void {
+  const family = current().families.find((f) => f.id === familyId);
+  if (!family) return;
+  const d = openSheet(
+    `Phone ${family.name}`,
+    `<p>Choose whom to ask. Each person speaks from what they know.</p>${family.household.map((member) => `<div class="household-person"><h3>${h(member.name)} · ${h(member.who)}</h3>${member.phoneUnavailable ? `<p class="reason">${h(member.phoneUnavailable)}</p>` : ''}<button type="button" data-call-member="${h(member.id ?? '')}" ${!member.id || member.phoneUnavailable ? 'disabled' : ''}>Speak to ${h(member.name)}</button></div>`).join('')}`,
+  );
+  for (const b of d.querySelectorAll<HTMLButtonElement>('[data-call-member]'))
+    b.onclick = () => {
+      const member = family.household.find((m) => m.id === b.dataset.callMember);
+      if (!member?.id) return;
+      openSheet(
+        `Speak to ${member.name}`,
+        `<p>What will you say?</p>${(
+          [
+            ['progress', 'How is the household managing?'],
+            ['complaint', 'Tell me what is wrong.'],
+            ['smooth', 'Let us settle this calmly.'],
+            ['worker', 'How is the worker being treated?'],
+          ] as const
+        )
+          .map(([topic, label]) => `<button type="button" data-call-topic="${topic}">${label}</button>`)
+          .join('')}`,
+      )
+        .querySelectorAll<HTMLButtonElement>('[data-call-topic]')
+        .forEach((control) => {
+          control.onclick = () => {
+            closeSheet(false);
+            send({
+              type: 'call-household',
+              family: familyId,
+              member: member.id!,
+              topic: control.dataset.callTopic as HouseholdTopic,
+            });
+          };
+        });
+    };
+}
 function familySheet(id: string): void {
   const v = current(),
     f = v.families.find((f) => f.id === id);
@@ -685,7 +832,9 @@ function familySheet(id: string): void {
     `<p>${h(f.district)} · ${h(f.trust)}</p>${f.household.map((p) => `<p>${h(p.name)} · ${h(p.who)}</p>`).join('')}${f.line ? `<p class="speech">“${h(f.line)}”</p>` : ''}${v.requests
       .filter((r) => r.family === id)
       .map((r) => `<p>“${h(r.wants)}”</p><p>${money(r.wage)} a month · by ${h(r.byLabel)} · ${r.status}</p>`)
-      .join('')}<button type="button" data-action="choose-worker">Choose a worker from the bench</button>`,
+      .join(
+        '',
+      )}${state?.version === 3 ? `<button type="button" data-phone-family="${h(id)}">Phone the household</button>` : ''}<button type="button" data-action="choose-worker">Choose a worker from the bench</button>`,
   );
 }
 function matchSheet(kind: 'trial' | 'place'): void {
@@ -694,20 +843,28 @@ function matchSheet(kind: 'trial' | 'place'): void {
   if (!c) return;
   const requests = v.requests.filter((r) => r.status === 'open');
   const d = openSheet(
-    kind === 'trial' ? 'Send for a trial morning' : `Vouch for ${c.name}`,
-    `<p ${kind === 'place' ? 'data-fee-terms' : ''}>${kind === 'trial' ? 'She will spend the next morning with the family. Their word comes back later.' : 'The family pays one week’s wage as a deposit now; the rest of the fee after the trial week if they keep her. They will remember what you vouch for.'}</p><label>Family <select aria-label="Family" data-match-family>${requests.map((r) => `<option value="${h(r.family)}">${h(person(v, r.family))} · ${h(r.role)}</option>`).join('')}</select></label>${!requests.length ? '<p>No open request. Answer a family’s call first.</p>' : ''}${kind === 'place' ? `<fieldset><legend>What will you put your word behind?</legend><div class="vouch-controls">${QUALITIES.map((q) => `<button type="button" class="vouch" data-vouch="${q}" aria-pressed="false">${h(vouchLabel(c, q))}</button>`).join('')}</div><details class="vouch-evidence"><summary>Read the evidence</summary>${QUALITIES.map((q) => `<p><strong>${q}</strong> — ${h(evidence(c, q))}</p>`).join('')}</details></fieldset>` : ''}<p id="match-reason" data-match-reason class="reason"></p><button type="button" data-confirm-match aria-describedby="match-reason" ${!requests.length ? 'disabled' : ''}>${kind === 'trial' ? 'Send for a trial' : 'Place with this family'}</button>`,
+    kind === 'trial' ? 'Send for a trial morning' : `Negotiate for ${c.name}`,
+    `<p ${kind === 'place' ? 'data-fee-terms' : ''}>${kind === 'trial' ? 'She will spend the next morning with the family. Their word comes back later.' : 'The family pays one week’s wage as a deposit now; the rest of the fee after the trial week if they keep her. They will remember what you vouch for.'}</p><label>Family <select aria-label="Family" data-match-family>${requests.map((r) => `<option value="${h(r.family)}">${h(person(v, r.family))} · ${h(r.role)}</option>`).join('')}</select></label>${!requests.length ? '<p>No open request. Answer a family’s call first.</p>' : ''}${kind === 'place' ? `<fieldset><legend>What will you put your word behind?</legend><div class="vouch-controls">${QUALITIES.map((q) => `<button type="button" class="vouch" data-vouch="${q}" aria-pressed="false">${h(vouchLabel(c, q))}</button>`).join('')}</div><details class="vouch-evidence"><summary>Read the evidence</summary>${QUALITIES.map((q) => `<p><strong>${q}</strong> — ${h(evidence(c, q))}</p>`).join('')}</details></fieldset>` : ''}<p id="match-reason" data-match-reason class="reason"></p><button type="button" data-confirm-match aria-describedby="match-reason" ${!requests.length ? 'disabled' : ''}>${kind === 'trial' ? 'Send for a trial' : state?.version === 3 ? 'Propose to this family' : 'Place with this family'}</button>`,
   );
+  const commit = document.createElement('div');
+  commit.className = 'lk-commit';
+  for (const element of d.querySelectorAll('[data-match-reason], [data-confirm-match]'))
+    commit.append(element);
+  d.append(commit);
   const select = d.querySelector<HTMLSelectElement>('[data-match-family]'),
     confirm = d.querySelector<HTMLButtonElement>('[data-confirm-match]');
   const update = () => {
     const live = current();
     const request = live.requests.find((r) => r.status === 'open' && r.family === select?.value);
     const liveCandidate = candidates(live).find((p) => p.id === c.id) ?? c;
-    const reason = matchingReason(liveCandidate, request);
+    const reason = matchingReason(liveCandidate, request, kind, state?.version);
     const line = d.querySelector('[data-match-reason]');
     if (line) line.textContent = reason ?? '';
     const terms = d.querySelector('[data-fee-terms]');
-    if (terms)
+    if (terms && state?.version === 3)
+      terms.textContent =
+        'Agree the wage, hours, trial and fee before any payment. Half the agreed fee is paid on placement; the rest after the agreed trial if the family keeps the worker.';
+    else if (terms)
       terms.textContent = `${live.placements.some((p) => p.family === select?.value) ? 'The earlier deposit covers this replacement.' : 'The family pays one week’s wage as a deposit now.'} The rest of the fee follows the trial week if they keep her. They will remember what you vouch for.`;
     if (confirm) confirm.disabled = !request || !!reason;
   };
@@ -739,7 +896,7 @@ function placementSheet(id: string): void {
   if (!p) return;
   const d = openSheet(
     `${person(v, p.candidate)} at ${person(v, p.family)}`,
-    `<p>${h(p.lastWord ?? 'No word yet.')}</p>${p.arrangement ? `<p>${h(p.arrangement)}</p>` : ''}${p.pending ? `<p>${h(p.pending.dateLabel)}: ${h(p.pending.text)}</p>` : ''}<p data-check-reason class="reason"></p><button type="button" data-check="phone" data-placement-id="${h(id)}">Phone the family<small>About 15 minutes</small></button><button type="button" data-check="visit" data-placement-id="${h(id)}">Visit the house<small>An hour, plus the ferry or road</small></button><button type="button" data-check="drop-by" data-placement-id="${h(id)}">Ask the worker to drop by<small>After work</small></button><details><summary>Bring her back</summary><p>She will leave this house and return to your books. The family loses its worker.</p><button type="button" data-withdraw="${h(id)}">Withdraw this worker</button></details>`,
+    `<p>${h(p.lastWord ?? 'No word yet.')}</p>${p.terms ? `<p>${h(termsLine(p.terms))}</p>` : ''}${state?.version === 3 ? `<button type="button" data-phone-family="${h(p.family)}">Phone someone in the household</button>` : ''}${p.arrangement ? `<p>${h(p.arrangement)}</p>` : ''}${p.pending ? `<p>${h(p.pending.dateLabel)}: ${h(p.pending.text)}</p>` : ''}<p data-check-reason class="reason"></p><button type="button" data-check="phone" data-placement-id="${h(id)}">Phone the family<small>About 15 minutes</small></button><button type="button" data-check="visit" data-placement-id="${h(id)}">Visit the house<small>An hour, plus the ferry or road</small></button><button type="button" data-check="drop-by" data-placement-id="${h(id)}">Ask the worker to drop by<small>After work</small></button><details><summary>Bring her back</summary><p>She will leave this house and return to your books. The family loses its worker.</p><button type="button" data-withdraw="${h(id)}">Withdraw this worker</button></details>`,
   );
   updateInspection = () => {
     const live = current();
@@ -821,6 +978,10 @@ function handleClick(event: Event): void {
     familySheet(b.dataset.family);
     return;
   }
+  if (b.dataset.phoneFamily) {
+    householdPhone(b.dataset.phoneFamily);
+    return;
+  }
   if (b.dataset.placement) {
     placementSheet(b.dataset.placement);
     return;
@@ -833,6 +994,7 @@ function handleClick(event: Event): void {
     return;
   }
   if (b.dataset.choice && v?.scene) {
+    closeSheet(false);
     send({ type: 'choose', scene: v.scene.id, choice: b.dataset.choice });
     return;
   }
@@ -856,7 +1018,70 @@ function handleClick(event: Event): void {
     return;
   }
   switch (b.dataset.action) {
+    case 'candidate-actions': {
+      const c = v && candidate(v);
+      if (c) {
+        const reason = candidateAvailability(c);
+        openSheet(
+          `${c.name}: other actions`,
+          `${action('Call a reference', 'references', reason, 'About 15 minutes')}${action('Send for a trial', 'trial', reason, 'Her next morning away')}`,
+        );
+      }
+      break;
+    }
+    case 'candidate-notes': {
+      const c = v && candidate(v);
+      if (c) {
+        const content = `<p class="candidate-wants handwritten">${h(c.wants ?? 'No needs discussed yet.')}</p>${QUALITIES.map(
+          (q) =>
+            `<section class="quality-note"><h3>${q}</h3><p>${h(evidence(c, q))}</p>${c.notes
+              .filter((n) => n.quality === q)
+              .map((n) => `<p class="${n.crossedOut ? 'crossed-out' : ''}">${h(noteText(n))}</p>`)
+              .join('')}</section>`,
+        ).join(
+          '',
+        )}<h3>Experience</h3>${c.experience.map((e) => `<p>${h(e)}</p>`).join('') || '<p>Not asked yet.</p>'}<button type="button" data-action="all-cards">Your books</button>`;
+        openSheet(`${c.name}: Nermin’s notes`, content);
+      }
+      break;
+    }
+    case 'edit-terms':
+      editTerms();
+      break;
+    case 'time':
+      if (v)
+        openSheet(
+          'Clock speed',
+          `<p>${h(speedLabel(v))}</p><div class="speed-control">${SPEED_NAMES.map((name, i) => `<button type="button" data-speed-choice="${i}" aria-pressed="${v.speed === i}">${name}</button>`).join('')}</div>${v.next ? `<button type="button" data-action="wait-for">Wait for ${h(v.next.label)} · ${h(v.next.dateLabel)}</button>` : ''}`,
+        );
+      break;
+    case 'conversation':
+      if (v?.scene)
+        openSheet(
+          'Conversation',
+          v.scene.lines
+            .map(
+              (l) =>
+                `<p class="${l.kind === 'speech' ? 'speech' : ''}">${l.speaker ? `<strong>${h(l.speaker)}:</strong> ` : ''}${h(l.text)}</p>`,
+            )
+            .join(''),
+        );
+      break;
+    case 'more-choices':
+      if (v?.scene)
+        openSheet(
+          v.scene.kind === 'interview' ? 'All interview questions' : 'All responses',
+          v.scene.choices
+            .filter((c) => !['wait-bench', 'send-home', 'finish', 'cancel'].includes(c.id))
+            .map((c) => choiceHtml(c))
+            .join(''),
+        );
+      break;
+    case 'call-in':
+      if (selected) send({ type: 'call-in', candidate: selected });
+      break;
     case 'wait-for':
+      closeSheet(false);
       send({ type: 'wait-for' });
       break;
     case 'menu':
