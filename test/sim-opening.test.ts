@@ -43,6 +43,8 @@ describe('the first morning', () => {
     advance(s, 120);
     expect(view(s).bench.some((c) => c.posture !== 'settled')).toBe(true);
     advance(s, 300);
+    expect(view(s).bench.some((c) => c.posture === 'leaving')).toBe(true);
+    advance(s, 300);
     expect(view(s).books.some((c) => c.status === 'gone')).toBe(true);
     expect(view(s).log.some((l) => l.text.includes('left'))).toBe(true);
   });
