@@ -21,9 +21,11 @@ describe('the first morning', () => {
     expect(scene.lines.some((l) => l.kind === 'speech')).toBe(true);
     expect(scene.choices.some((c) => c.label === 'Coach her')).toBe(false);
     expect(scene.choices.some((c) => c.id === 'q-patient')).toBe(false);
-    expect(view(s).books.find((c) => c.id === 'sevda')!.notes.length).toBeGreaterThan(0);
+    expect([...view(s).bench, ...view(s).books].find((c) => c.id === 'sevda')!.notes.length).toBeGreaterThan(
+      0,
+    );
     apply(s, { type: 'close-scene', scene: scene.id });
-    const ref = view(s).books.find((c) => c.id === 'sevda')!.referees[0]!;
+    const ref = [...view(s).bench, ...view(s).books].find((c) => c.id === 'sevda')!.referees[0]!;
     advance(s, 120);
     apply(s, { type: 'call-reference', candidate: 'sevda', referee: ref.id });
     expect(view(s).scene?.kind).toBe('reference');

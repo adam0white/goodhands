@@ -290,13 +290,13 @@ export function workerNeed(candidateId: string): { words: string; finishBy: numb
   return { words: voice.need, finishBy: voice.finishBy, reason: voice.reason };
 }
 
-export function workerDisagreement(candidateId: string, familyName: string): string {
+export function workerDisagreement(candidateId: string, familyName: string, toldNermin = false): string {
   const voice = VOICES[candidateId];
   if (!voice) return '';
   if (candidateId === 'sevda') {
-    return `${familyName === 'the Arslans' ? 'Saadet' : 'The family'} says I must finish the kitchen before I leave tonight. I need to leave at six for the 18:10 bus because my mother is alone, as I told you.`;
+    return `${familyName === 'the Arslans' ? 'Saadet' : 'The family'} wanted the windows done before I left. I left at six for my 18:10 bus${toldNermin ? ', as I told you I needed to' : ' because my mother is alone'}; ${familyName === 'the Arslans' ? 'she was' : 'they were'} not pleased.`;
   }
-  return `${familyName} want to change what we agreed; please settle it before it becomes a problem. I told you I need ${voice.reason}.`;
+  return `${familyName} asked me to change what we agreed today. ${toldNermin ? 'As I told you, I need' : 'I need'} ${voice.reason}; please settle that before my next shift.`;
 }
 
 const PATIENCE_LIMITS: Record<string, readonly [string, string]> = {

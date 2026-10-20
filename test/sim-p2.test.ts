@@ -30,7 +30,7 @@ test.each(['interview', 'reference'] as const)(
     }
     const before = view(s).scene;
     if (!before) throw new Error('Expected conversation');
-    const notes = view(s).books.find((c) => c.id === 'sevda')?.notes;
+    const notes = [...view(s).bench, ...view(s).books].find((c) => c.id === 'sevda')?.notes;
     apply(s, { type: 'answer-phone' });
     expect(view(s).scene?.kind).toBe('phone');
     expect(view(s).scene?.id).not.toBe(before.id);
@@ -41,11 +41,13 @@ test.each(['interview', 'reference'] as const)(
     expect(view(s).scene?.id).toBe(callId);
     expect(view(s).heldScene?.id).toBe(before.id);
     choose(s, 'look');
+    expect(view(s).scene?.lines.at(-1)?.speaker).not.toBe('Nermin');
+    choose(s, 'done');
     expect(view(s).scene?.id).toBe(before.id);
     expect(view(s).scene?.choices).toEqual(before.choices);
     expect(view(s).scene?.lines.slice(0, before.lines.length)).toEqual(before.lines);
     expect(view(s).scene?.lines.at(-1)?.text).toBe('Sorry. Where were we?');
-    expect(view(s).books.find((c) => c.id === 'sevda')?.notes).toEqual(notes);
+    expect([...view(s).bench, ...view(s).books].find((c) => c.id === 'sevda')?.notes).toEqual(notes);
     expect(view(s).heldScene).toBeNull();
     expect(view(s).slowed).toBe(true);
     close(s);
@@ -59,32 +61,34 @@ test('taking a number costs two minutes, adds no notes, and clears the departure
   until(s, 690);
   apply(s, { type: 'answer-phone' });
   choose(s, 'look');
+  choose(s, 'done');
   expect(view(s).task.text).toMatch(/will give up by about \d\d:\d\d\. Interview her or take her number/);
   const at = s.now;
   apply(s, { type: 'take-number', candidate: 'gul' });
   expect(s.now).toBe(at + 2);
-  const card = view(s).books.find((c) => c.id === 'gul');
+  const card = [...view(s).bench, ...view(s).books].find((c) => c.id === 'gul');
   expect(card?.status).toBe('books');
   expect(card?.notes).toEqual([]);
   expect(view(s).task.text).not.toContain('Gül');
   until(s, 1000);
-  expect(view(s).books.find((c) => c.id === 'gul')?.status).toBe('books');
-  expect(view(s).books.find((c) => c.id === 'pinar')?.status).toBe('gone');
+  expect([...view(s).bench, ...view(s).books].find((c) => c.id === 'gul')?.status).toBe('books');
+  expect([...view(s).bench, ...view(s).books].find((c) => c.id === 'pinar')?.status).toBe('gone');
   expect(
     view(s).log.some((l) => l.text.includes('Pınar') && l.text.includes('gone') && l.text.includes('number')),
   ).toBe(true);
   expect(fingerprint(replay(1, s.inputs, s.now))).toBe(fingerprint(s));
 });
 
-test('starting an interview puts the candidate on the books immediately', () => {
+test('starting an interview keeps the bench seat until an explicit ending choice', () => {
   const s = newGame(1);
   until(s, 690);
   apply(s, { type: 'interview', candidate: 'gul' });
-  expect(view(s).books.find((c) => c.id === 'gul')?.status).toBe('books');
-  close(s);
+  expect(view(s).bench.find((c) => c.id === 'gul')?.status).toBe('bench');
+  choose(s, 'send-home');
+  choose(s, 'done');
   expect(view(s).task.text).not.toContain('Gül');
   until(s, 1000);
-  expect(view(s).books.find((c) => c.id === 'gul')?.status).toBe('books');
+  expect([...view(s).bench, ...view(s).books].find((c) => c.id === 'gul')?.status).toBe('books');
 });
 
 test('Monday brings two further jobs with distinct deadlines', () => {

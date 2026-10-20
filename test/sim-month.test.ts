@@ -23,7 +23,7 @@ test('world uses seeded HF truth and authored households', () => {
 test('trial morning delivers seen evidence through a phone report', () => {
   const s = newGame(1);
   apply(s, { type: 'trial', candidate: 'sevda', family: 'arslans' });
-  expect(view(s).books.find((c) => c.id === 'sevda')?.status).toBe('trial');
+  expect([...view(s).bench, ...view(s).books].find((c) => c.id === 'sevda')?.status).toBe('trial');
   until(s, 1440 + 720);
   while (view(s).phoneRinging && !view(s).scene) {
     apply(s, { type: 'answer-phone' });
@@ -97,9 +97,9 @@ test('a view is a detached snapshot and first-answer evidence emits its mileston
   apply(s, { type: 'interview', candidate: 'gul' });
   const before = view(s);
   apply(s, { type: 'choose', scene: before.scene!.id, choice: 'q-honest' });
-  expect(before.books.find((c) => c.id === 'gul')!.notes).toHaveLength(0);
+  expect([...before.bench, ...before.books].find((c) => c.id === 'gul')!.notes).toHaveLength(0);
   expect(milestones(before, view(s))).toContain('first interview');
-  expect(view(s).books.find((c) => c.id === 'gul')!.notes[0]?.read).toBe('yes');
+  expect([...view(s).bench, ...view(s).books].find((c) => c.id === 'gul')!.notes[0]?.read).toBe('yes');
 });
 
 test('a delayed callback only delivers the household moments known when it rang', () => {
@@ -107,7 +107,7 @@ test('a delayed callback only delivers the household moments known when it rang'
   apply(s, { type: 'place', candidate: 'sevda', family: 'arslans', vouch: [] });
   until(s, 1100);
   const firstCount = (s.placements as { moments: unknown[] }[])[0]!.moments.length;
-  expect(view(s).books.find((c) => c.id === 'sevda')!.notes).toHaveLength(0);
+  expect([...view(s).bench, ...view(s).books].find((c) => c.id === 'sevda')!.notes).toHaveLength(0);
   until(s, 2 * 1440 + 720);
   expect((s.placements as { moments: unknown[] }[])[0]!.moments.length).toBeGreaterThan(firstCount);
   for (let i = 0; i < 20 && view(s).phoneRinging; i++) {
@@ -115,7 +115,7 @@ test('a delayed callback only delivers the household moments known when it rang'
     if (view(s).scene?.with === 'sevda') break;
     close(s);
   }
-  expect(view(s).books.find((c) => c.id === 'sevda')!.notes).toHaveLength(firstCount);
+  expect([...view(s).bench, ...view(s).books].find((c) => c.id === 'sevda')!.notes).toHaveLength(firstCount);
 });
 
 test('taking the envelope creates a later demand if no placement follows', () => {

@@ -27,12 +27,12 @@ test('questions leave the conversation, and wage and home are separate answers',
   apply(s, { type: 'interview', candidate: 'sevda' });
   choose(s, 'hours');
   expect(view(s).scene?.choices.some((c) => c.id === 'hours')).toBe(false);
-  const card = view(s).books.find((c) => c.id === 'sevda');
+  const card = [...view(s).bench, ...view(s).books].find((c) => c.id === 'sevda');
   expect(card?.wants).toContain('18:10');
   expect(card?.wage).toBeNull();
   expect(card?.experience).toEqual([]);
   choose(s, 'wage');
-  expect(view(s).books.find((c) => c.id === 'sevda')?.wage).toBe(8000);
+  expect([...view(s).bench, ...view(s).books].find((c) => c.id === 'sevda')?.wage).toBe(8000);
 });
 
 test('every placement opens a two-sided disagreement and tests a negotiated finish on its named day', () => {
@@ -96,8 +96,8 @@ test('four questions require an answer and callback before more questions', () =
   const s = newGame(1);
   apply(s, { type: 'interview', candidate: 'sevda' });
   for (const q of ['hours', 'wage', 'last-family', 'q-patient']) choose(s, q);
-  expect(view(s).scene?.choices.map((c) => c.id)).toEqual(['finish']);
-  expect(view(s).scene?.choices[0]?.hint).toContain('Call again');
+  expect(view(s).scene?.choices.map((c) => c.id)).toEqual(['wait-bench', 'send-home']);
+  expect(view(s).scene?.choices[1]?.hint).toContain('Call again');
   close(s);
   apply(s, { type: 'interview', candidate: 'sevda' });
   expect(view(s).scene).toBeNull();
@@ -141,7 +141,7 @@ test('support after a replacement changes only the current placement', () => {
   apply(s, { type: 'place', candidate: 'gul', family: 'arslans', vouch: [] });
   apply(s, { type: 'withdraw', placement: 'placement-1' });
   apply(s, { type: 'place', candidate: 'pinar', family: 'arslans', vouch: [] });
-  until(s, 1440 + 720);
+  until(s, 1440 + 1100);
   for (let i = 0; i < 20 && view(s).phoneRinging; i++) {
     apply(s, { type: 'answer-phone' });
     if (view(s).scene?.with === 'pinar') break;

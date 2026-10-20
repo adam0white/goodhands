@@ -49,7 +49,7 @@ describe('authored worker conversations', () => {
     expect(personalAnswer('sevda', 'need')).toMatch(/mother is alone/);
     expect(personalAnswer('sevda', 'why-left')).toMatch(/wages/);
     const account = workerDisagreement('sevda', 'the Arslans');
-    expect(account).toMatch(/kitchen/);
+    expect(account).toMatch(/windows/);
     expect(account).toMatch(/Saadet/);
     expect(account).toMatch(/18:10/);
     expect(sentences(account)).toBeLessThanOrEqual(2);

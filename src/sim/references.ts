@@ -659,6 +659,521 @@ export function referenceReply(
   return { text, quality: claim.quality, value, ...(claim.wageDispute ? { wageDispute: true } : {}) };
 }
 
+type FollowUpTopic = 'patient' | 'honest' | 'reliable' | 'leaving';
+interface WorkerReferenceAccount {
+  opening: string;
+  patient: [good: string, bad: string];
+  honest: [good: string, bad: string];
+  reliable: [good: string, bad: string];
+  leaving: [good: string, bad: string];
+}
+
+// These are the worker's account of the same event, not findings of fact.
+// They depend on what the referee said, never on the worker's hidden traits.
+const workerReferenceAccounts: Record<string, WorkerReferenceAccount> = {
+  gul: {
+    opening:
+      'I put the keys where she would find them. We still disagreed about how many hours I had worked.',
+    patient: [
+      'I sat between the twins. The red cup could wait until they had both had a turn.',
+      'I put the cup down too hard. I should have settled the twins before touching it.',
+    ],
+    honest: [
+      'I kept both egg receipts. I wanted her to see the duplicate charge before giving me more money.',
+      'There were two slips for the eggs. I should have checked them with her instead of insisting.',
+    ],
+    reliable: [
+      'The bus stopped in Buca. I rang before breakfast and found another bus.',
+      'I thought I could still get there. By noon I had missed breakfast and left her without an explanation.',
+    ],
+    leaving: [
+      'I worked the notice. Leaving the keys did not mean I agreed with her account of my hours.',
+      'I left the keys after the argument. We had not settled a handover day; that part is true.',
+    ],
+  },
+  sevda: {
+    opening: 'I asked her to count the wages because they were late. Meals were never our agreement for pay.',
+    patient: [
+      'His boots pinched. I loosened the buckles and let him try again while I sat beside him.',
+      'His boots hurt. I took them off and sat beside him by the coat rack. He was crying; I waited. I did not leave him alone.',
+    ],
+    honest: [
+      'I marked every extra evening when I worked it. She had the same dates in her diary.',
+      'One calendar mark was for an evening she later cancelled. I should have crossed it out before we counted.',
+    ],
+    reliable: [
+      'During her marking I asked each morning when she would come back. I needed the time settled.',
+      'She had written a later handover in her diary. I had said I needed the 18:10 bus for my mother. We had not agreed those evenings.',
+    ],
+    leaving: [
+      'The wages were late. She counted meals against the last fortnight. I had agreed to wages, and I asked her to pay them.',
+      'The wages were late. She counted meals against the last fortnight. I had agreed to wages, and I asked her to pay them.',
+    ],
+  },
+  pinar: {
+    opening:
+      'The blue folder held my certificates. I asked the children to put it back so nothing would be lost.',
+    patient: [
+      'We used the dressing-gown cord because it was easier to hold than the concert ribbon.',
+      'I put the cord away before the child could tie it. Calling it easy did not help.',
+    ],
+    honest: [
+      'The seller had given us one ticket too many. I returned it at the hall.',
+      'I sold that spare ticket. I should have handed over the money when she asked.',
+    ],
+    reliable: [
+      'I found the sash and laid both costumes out before collection.',
+      'I misjudged the drying time. The costumes were damp when she arrived; I should have told her sooner.',
+    ],
+    leaving: [
+      'They cut my hours. I still stayed through concert week as we had agreed.',
+      'We argued about the reduced hours. I did not work the concert week I had promised.',
+    ],
+  },
+  fatma: {
+    opening:
+      'A sack of onions tells you little about the number of dinners. I asked how many mouths I would cook for.',
+    patient: [
+      'The soup upset his stomach. I made a fresh small pan once he told me what he could eat.',
+      'I tipped out the soup in temper. I should have asked why he could not eat it.',
+    ],
+    honest: [
+      'The meat was half a kilo short. I weighed it before paying the butcher.',
+      'The refund should have gone into the kitchen money. I did not give it back that day.',
+    ],
+    reliable: [
+      'The courtyard burner worked. I moved the pots there and served lunch at one.',
+      'I went home when the gas ran out. I should have told them there would be no lunch.',
+    ],
+    leaving: [
+      'The house closed for repairs. I labelled the freezer before my last shift finished.',
+      'I missed that final shift. The frozen meals were left without labels, and that was my responsibility.',
+    ],
+  },
+  cem: {
+    opening: 'I knew the route, but names and collection permissions still needed a written list.',
+    patient: [
+      'I pulled over first. The boy needed reassurance more than the seat needed cleaning.',
+      'I shouted about the seat. He was already sick; I made it worse.',
+    ],
+    honest: [
+      'The wallet was under the back seat. I returned it with the fare notes inside.',
+      'I returned the wallet. I cannot explain the missing fare money by calling it a lost wallet. We would need to count it together.',
+    ],
+    reliable: [
+      'I drove the roadworks detour the night before. I did not want to discover it with children waiting.',
+      'I had not checked the roadworks. The children waited at the closed gate because of that.',
+    ],
+    leaving: [
+      'The school contract ended on Friday. I handed the route book over that day.',
+      'I kept the route book too long. The next driver needed it, whatever else we disagreed about.',
+    ],
+  },
+  ayla: {
+    opening:
+      'The radio was beside his bed. I turned it down so he could hear me without my raising my voice.',
+    patient: [
+      'Those buttons troubled him. He chose another shirt and dressed at his own pace.',
+      'I rushed his arm into the sleeve. I should have let him choose another shirt.',
+    ],
+    honest: [
+      'The pharmacy gave a cheaper dressing. I brought back the difference with the packet.',
+      'The dressing cost less than the amount I charged. I should have returned the difference.',
+    ],
+    reliable: [
+      'I wrote the nurse’s new time down and stayed to open the door.',
+      'I forgot the changed nurse visit. A locked door was no use to either of them.',
+    ],
+    leaving: [
+      'He moved into care. I packed and labelled the shirts on the day we had set.',
+      'I missed the packing day. His shirts were not labelled for the move as we had agreed.',
+    ],
+  },
+  emine: {
+    opening:
+      'The ferry guests all needed breakfast at once. We had enough eggs; the marmalade ran out first.',
+    patient: [
+      'I asked how the guest liked his egg. Cooking another was quicker than arguing.',
+      'I banged his plate down. The whole breakfast room heard it; I should have kept my temper.',
+    ],
+    honest: [
+      'One tin was on the bill but absent from the delivery. I called the supplier before we paid.',
+      'I said the tin had arrived without checking the shelf. She paid for something we did not have.',
+    ],
+    reliable: [
+      'I soaked the beans overnight and opened at six for the ferry group.',
+      'I forgot the six o’clock start. The guests reached the kitchen before I did.',
+    ],
+    leaving: [
+      'Winter breakfasts ended. I finished the stock count before leaving.',
+      'I left before our stock count. Ending breakfasts did not cancel that arrangement.',
+    ],
+  },
+  murat: {
+    opening:
+      'I checked the lift entrance because a hospital appointment is hard enough without steps we cannot use.',
+    patient: [
+      'He stopped at the ramp. I waited and asked which rail felt safer.',
+      'I hurried him after he asked for a rest. I should have stopped on the ramp with him.',
+    ],
+    honest: [
+      'The machine gave an extra note. I took it to the attendant while they watched.',
+      'I put two parking payments against one visit. We should have checked the parking account together.',
+    ],
+    reliable: [
+      'I checked the clinic text the evening before. We went at the revised time.',
+      'They had forwarded the clinic message. I did not read it before taking them.',
+    ],
+    leaving: [
+      'The hospital trips ended. I returned the notebook at our last visit.',
+      'I missed the notebook handover. They still needed their appointment record after my work ended.',
+    ],
+  },
+  dilek: {
+    opening:
+      'Children need spare clothes before I need somewhere to hang my coat. I asked where they were kept.',
+    patient: [
+      'The paint had spread over three drawings. We found fresh paper and began again.',
+      'I scolded the child until the others stopped drawing. I should have cleaned the paint with them.',
+    ],
+    honest: [
+      'I broke the thermometer. I told her and wrote it in the accident book.',
+      'I hid the broken thermometer. Saying it was already missing was wrong.',
+    ],
+    reliable: [
+      'I checked every permission slip before the nursery coach arrived.',
+      'I had not collected all the slips. Finding that out at the coach door was too late.',
+    ],
+    leaving: [
+      'Term ended. I completed the children’s folders for the promised handover.',
+      'The folders were unfinished when I left. They had been part of my handover promise.',
+    ],
+  },
+  hatice: {
+    opening: 'Three flights meant carrying every bucket. I asked where I could empty them safely.',
+    patient: [
+      'The room order kept changing. I asked her to choose the next room before I moved everything.',
+      'I threw the cloth down after another room change. I should have asked for one settled order.',
+    ],
+    honest: [
+      'The note fell from a coat. I clipped it to the label so she would know where it came from.',
+      'I pocketed the note from the coat. I cannot call it mine because I found it in the laundry.',
+    ],
+    reliable: [
+      'I finished the top room before her sister’s train was due.',
+      'I changed the cleaning order without asking. Her sister arrived to a stripped bed.',
+    ],
+    leaving: [
+      'The house was sold. I met the buyers on the agreed day and showed them the cleaning cupboard.',
+      'I missed the buyers’ cupboard handover. The sale did not remove that appointment.',
+    ],
+  },
+  selim: {
+    opening:
+      'The umbrella stayed in the company car for passengers. I understood that the collection time mattered more.',
+    patient: [
+      'The meeting ran over. I waited and checked whether he wanted a different pickup time.',
+      'I complained at reception while his clients were there. I should have taken the delay up with him privately.',
+    ],
+    honest: [
+      'One fuel slip was cancelled. I kept it beside the replacement so the account showed what happened.',
+      'I submitted both fuel slips. The cancelled one was not a second purchase.',
+    ],
+    reliable: [
+      'I checked the flight delay and met the director at the revised gate.',
+      'I left before the delayed flight arrived. I had agreed to check its new time.',
+    ],
+    leaving: [
+      'The lease changed. I returned the car and mileage book together on Friday.',
+      'The car went back late and the mileage book was missing. I had not completed the return.',
+    ],
+  },
+  zehra: {
+    opening:
+      'I measured the chair space before shifting the furniture. Her wife needed to be able to choose where to sit.',
+    patient: [
+      'She directed each try over the sill. I waited until she asked me to move.',
+      'I pushed over the sill while she was asking me to stop. I should have listened to her.',
+    ],
+    honest: [
+      'The repairer reduced the price. I corrected the amount in the household envelope.',
+      'I gave the old quoted price after the repairer gave a discount. That difference belonged in their envelope.',
+    ],
+    reliable: [
+      'The lift notice meant we needed another entrance. I arranged it before the outing.',
+      'I did not check the lift notice. We could not get her out for the outing.',
+    ],
+    leaving: [
+      'They moved to an accessible flat. I came for the final wheelchair transfer as arranged.',
+      'I missed the agreed wheelchair transfer on moving day. They needed someone there.',
+    ],
+  },
+  leyla: {
+    opening: 'The fruit crate made a shelf low enough for the children to return their own library books.',
+    patient: [
+      'He lost his place. A paper marker helped, and I listened to the page again.',
+      'I shut his book and said he should know it. I should have helped him find his place.',
+    ],
+    honest: [
+      'I had forgotten a library return. I showed her the overdue fine and said so.',
+      'I called the fine a membership fee. The notice showed it was for books I had not returned.',
+    ],
+    reliable: [
+      'I wrote both gate times on the fridge and collected each child at the right school.',
+      'I mixed up the collection times even with them on the fridge. I should have read them before leaving.',
+    ],
+    leaving: [
+      'Full-day school ended the lunch job. I cooked the last week we had agreed.',
+      'I did not cook the last agreed week of lunches. School starting did not cancel that promise.',
+    ],
+  },
+  osman: {
+    opening:
+      'We played backgammon before anyone discussed paid hours. I still needed the hours made clear once it became work.',
+    patient: [
+      'He thought the board was crooked. I reset the pieces and let him choose the seat.',
+      'I swept the pieces away. I was frustrated, but I ended his game for him.',
+    ],
+    honest: [
+      'His pension envelope stayed sealed. I returned it when he went into hospital.',
+      'I had signed for the pension envelope. It came back open, and I should have explained that instead of denying it.',
+    ],
+    reliable: [
+      'Rain did not cancel my visit. I came and offered to sit indoors instead of walking.',
+      'I stopped coming in the rain without agreeing a change. They could not know whether to expect me.',
+    ],
+    leaving: [
+      'He moved to his daughter’s. I took the backgammon set there on the Sunday we chose.',
+      'I missed the Sunday return of his backgammon set. Moving did not mean he no longer wanted it.',
+    ],
+  },
+  esra: {
+    opening: 'The ledger showed which floor needed each set of sheets. I asked to read it before starting.',
+    patient: [
+      'I asked what support the guest needed and found a flatter pillow.',
+      'I told the guest to make do in front of the breakfast queue. I should have dealt with the pillow quietly.',
+    ],
+    honest: [
+      'The ring was caught in a pillowcase. I logged its room number so we could find the guest.',
+      'The ring was in my laundry bag. I should have checked the bag when its loss was reported instead of denying it.',
+    ],
+    reliable: [
+      'The extra linen was ready before the wedding party arrived.',
+      'I had not collected the wedding linen when they checked in. The order needed checking earlier.',
+    ],
+    leaving: [
+      'The owners changed. I counted the linen with the new manager on the agreed morning.',
+      'I missed the new manager’s linen count. That was still my handover to do.',
+    ],
+  },
+  safiye: {
+    opening: 'A meal chart says what is allowed. I also needed to know which of those foods he would eat.',
+    patient: [
+      'I offered the alternatives on his chart. Arguing over a mouthful would not help him eat.',
+      'I argued until he pushed the plate away. I should have offered another allowed meal.',
+    ],
+    honest: [
+      'The sweet sauce went into the wrong meal. I showed the packet before serving it.',
+      'I denied the sauce even though the packet was there. I should have told them before the meal was eaten.',
+    ],
+    reliable: [
+      'I labelled the boxes and had them ready before Friday’s delivery left.',
+      'The Friday delivery left before my boxes were ready. I had missed the agreed preparation time.',
+    ],
+    leaving: [
+      'He began a meal service. I shared the recipes on our handover day.',
+      'I missed the recipe handover when the service began. They still needed those instructions.',
+    ],
+  },
+  burak: {
+    opening: 'The bread bag was the paper I had. We copied the route into the dispatch book before using it.',
+    patient: [
+      'The customer took time to reach the intercom. I waited, then helped with the parcel.',
+      'I kicked the parcel and drove away. Waiting at an intercom did not justify either.',
+    ],
+    honest: [
+      'There was an extra cash payment. I went back and returned it.',
+      'The book recorded two payments and I handed over one. We needed to reconcile both, not deny the second.',
+    ],
+    reliable: [
+      'I checked when the bakery shut and delivered its flour before then.',
+      'I missed the bakery’s closing time. The flour was still in my van when the shutters went down.',
+    ],
+    leaving: [
+      'The round was sold. I returned the insulated bags at the final collection we arranged.',
+      'I missed the promised bag collection. The bags belonged with the round after the sale.',
+    ],
+  },
+  meltem: {
+    opening: 'I sat where her daughter could see my face. Speaking from behind her would have left her out.',
+    patient: [
+      'She wanted the signed page again. I slowed down and repeated it while she watched.',
+      'I turned away instead of repeating the signs. She was still watching me; I should have finished with her.',
+    ],
+    honest: [
+      'I lost the battery. I told her where the hearing aid had last worked so we could look there.',
+      'I used a battery from the used jar and called it new. I should have said which one it was.',
+    ],
+    reliable: [
+      'I learned the new speech-session time and had her ready at the door.',
+      'I forgot the revised speech-session time. Her daughter missed practice because of it.',
+    ],
+    leaving: [
+      'They moved near the specialist school. I worked the final week and handed over the signs notebook.',
+      'I left before the signs-notebook handover was complete. They needed it for the move.',
+    ],
+  },
+  huriye: {
+    opening: 'After fifteen years I knew the pantry by touch. That did not make its key mine to keep.',
+    patient: [
+      'I asked her to show me the final shelf height before moving the jars again.',
+      'I shoved the jars aside and stopped. I should have settled the shelf height with her first.',
+    ],
+    honest: [
+      'I found the emergency envelope behind the rice tin and took it straight to her.',
+      'The envelope was in my trolley. I should have returned it, not denied finding it.',
+    ],
+    reliable: [
+      'The water-cut notice was for the next morning. I filled the cooking pots the night before.',
+      'I forgot to fill the pots. The notice had given us time, and I did not use it.',
+    ],
+    leaving: [
+      'They downsized. I sorted the pantry on our last booked day.',
+      'I missed that final pantry day without calling. Fifteen years of work did not excuse leaving them waiting.',
+    ],
+  },
+  yusuf: {
+    opening:
+      'After his stroke I asked which side made conversation easier. I wanted to speak to him directly.',
+    patient: [
+      'I waited until he finished telling me which park path he wanted.',
+      'I chose the path before he finished speaking. I should have let him answer at his own pace.',
+    ],
+    honest: [
+      'The taxi voucher listed a cancelled trip. I corrected it before asking for a signature.',
+      'I put the cancelled journey on the voucher as completed. He should not have been asked to sign that.',
+    ],
+    reliable: [
+      'I kept the physiotherapy card in the car and checked it for each session.',
+      'I lost the booking card and guessed. I should have phoned the clinic before taking him.',
+    ],
+    leaving: [
+      'He could manage more himself. I completed the exercise handover before stopping the visits.',
+      'I missed the exercise handover. His improved mobility did not mean the instructions were unnecessary.',
+    ],
+  },
+  aysun: {
+    opening:
+      'Three school timetables meant three different sets of homework. I asked to see them before deciding the order.',
+    patient: [
+      'We found spare paper and rebuilt the torn homework sheet together.',
+      'I called the youngest careless and refused to help. The torn sheet needed fixing, not a scolding.',
+    ],
+    honest: [
+      'The payment envelope was still in the bag. I said I had not delivered it.',
+      'I said I had delivered the envelope. Finding it unopened in the bag proved I had not.',
+    ],
+    reliable: [
+      'I checked the chess rota so each sibling had the right bag at the right gate.',
+      'I had not checked the rota. The child at chess club was left waiting.',
+    ],
+    leaving: [
+      'The oldest took over collections. We rehearsed the route on the agreed afternoon.',
+      'I missed that route rehearsal. The oldest still needed me to show the collections.',
+    ],
+  },
+  nurten: {
+    opening: 'I knew when the street would fill, but we still needed a written menu before lunch.',
+    patient: [
+      'The customer could not read the menu. I described the dishes again, quietly.',
+      'I snapped when the customer asked again. I should have read the dishes without embarrassing them.',
+    ],
+    honest: [
+      'The extra till money came from a duplicate charge. I traced it to the customer.',
+      'I called the extra charge a tip. The customer had not agreed to leave it.',
+    ],
+    reliable: [
+      'The chickpeas had to start early for the factory lunch break. I put them on in time.',
+      'The chickpeas were still hard when the factory break ended. I started too late.',
+    ],
+    leaving: [
+      'The counter closed for renovation. I cleaned the griddle on my last paid shift.',
+      'I missed the last griddle-cleaning shift. It was still a paid shift we had agreed.',
+    ],
+  },
+  ergun: {
+    opening: 'I looked under the car because of the oil leak. I wanted to know what I would be driving.',
+    patient: [
+      'I adjusted the seat each time and asked his father whether it was comfortable.',
+      'I set off without making the last seat adjustment. I should have waited until his father was comfortable.',
+    ],
+    honest: [
+      'I showed the written garage estimate before agreeing to the repair.',
+      'The garage invoice was lower than the amount I charged. I should have passed on the actual cost.',
+    ],
+    reliable: [
+      'I booked the inspection before the date marked on the dashboard.',
+      'I forgot the marked inspection date. The car’s inspection expired before I booked it.',
+    ],
+    leaving: [
+      'They gave up the car. I took it to the buyer at the time in the sale agreement.',
+      'I missed the buyer’s collection slot. The agreed sale time was my responsibility to keep.',
+    ],
+  },
+  feride: {
+    opening:
+      'They both wanted the window chair. I brought another so neither had to stand while we sorted it out.',
+    patient: [
+      'I gave them separate puzzle pieces to sort together when the interruptions began.',
+      'I pushed the puzzle aside and told them to be quiet. That ended their activity instead of helping them share it.',
+    ],
+    honest: [
+      'The pocket-money total looked wrong. I asked them to count the envelope with me.',
+      'I took money from that envelope and called it an advance. Nobody had agreed to an advance.',
+    ],
+    reliable: [
+      'I planned her mother’s rest around the school return, as we had agreed.',
+      'I changed the school-return arrangement without calling. Her mother was left waiting alone.',
+    ],
+    leaving: [
+      'Her mother went to her sister’s. I completed the overlap with the after-school club.',
+      'I missed the promised club overlap. The change in care still needed a proper handover.',
+    ],
+  },
+};
+
+/** Follow up the event actually heard, including either version of a claim. */
+export function referenceFollowUp(
+  candidateId: string,
+  refName: string,
+  claim: string,
+  choiceId: string,
+): { label: string; reply: string } {
+  const account = accounts[candidateId];
+  const workerAccount = workerReferenceAccounts[candidateId];
+  const worker = CANDIDATES.find((candidate) => candidate.id === candidateId)?.name;
+  if (!account || !workerAccount || !worker)
+    throw new Error(`No authored reference follow-up for ${candidateId}`);
+  const topic: FollowUpTopic | 'opening' =
+    choiceId === 'ref-patient'
+      ? 'patient'
+      : choiceId === 'ref-honest'
+        ? 'honest'
+        : choiceId === 'ref-leaving'
+          ? 'leaving'
+          : choiceId === 'ref-opening'
+            ? 'opening'
+            : 'reliable';
+  const bad = topic !== 'opening' && claim.includes(account[topic].bad.replaceAll('{worker}', worker));
+  return {
+    label:
+      candidateId === 'sevda' && topic === 'patient' && bad
+        ? 'Mrs Uslu says you left the boy crying'
+        : `${refName} says: “${claim}”`,
+    reply: topic === 'opening' ? workerAccount.opening : workerAccount[topic][bad ? 1 : 0],
+  };
+}
+
 interface HouseholdAccount {
   moments: Record<Quality, [good: string, bad: string]>;
   disagreement: string;

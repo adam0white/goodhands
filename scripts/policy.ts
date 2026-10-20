@@ -135,7 +135,7 @@ export function runPolicy(seed: number, policy: Policy, until = MONTH_END): Stat
           choice =
             count < (policy === 'careful' ? 4 : 1) && question
               ? question
-              : choices.find((c) => c.id === 'finish');
+              : choices.find((c) => c.id === 'send-home' || c.id === 'done');
       } else if (sc.kind === 'reference') {
         const hostile = sc.lines.some((line) => /wage|pay|owed|ungrateful|left.*notice/i.test(line.text));
         choice =
@@ -181,7 +181,10 @@ export function runPolicy(seed: number, policy: Policy, until = MONTH_END): Stat
           ) ?? choice;
       }
       if (choice) {
-        if (sc.kind === 'interview' && !['finish', 'coach'].includes(choice.id))
+        if (
+          sc.kind === 'interview' &&
+          !['finish', 'coach', 'send-home', 'wait-bench', 'done'].includes(choice.id)
+        )
           interviewQuestions.get(sc.with)?.add(choice.id);
         act({ type: 'choose', scene: sc.id, choice: choice.id });
       } else if (sc.canLeave) act({ type: 'close-scene', scene: sc.id });
