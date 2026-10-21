@@ -88,20 +88,19 @@ try {
   await tap('[data-action="city"]');
   await fits('city');
   await tap('[data-tab="Bench"]');
-  await tap('[data-action="time"]');
+  await tap('[data-action="menu"]');
   const inspectingClock = await page.locator('[data-time]').innerText();
   await page.waitForTimeout(1600);
-  assert.equal(await page.locator('[data-time]').innerText(), inspectingClock, 'Clock options pause time');
+  assert.equal(await page.locator('[data-time]').innerText(), inspectingClock, 'Game menu pauses time');
   await tap('[data-close]');
   await page.getByRole('button', { name: 'Gül', exact: true }).click();
   await fits('candidate');
   await tap('[data-action="interview"]');
   await fits('interview');
-  assert.match(
-    (await page.locator('[data-speed]').getAttribute('aria-label')) ?? '',
-    /held slow/,
-    'Consequential interview holds the chosen speed slow',
-  );
+  assert.equal(await page.locator('[data-pace]').innerText(), 'Time held');
+  const interviewClock = await page.locator('[data-time]').innerText();
+  await page.waitForTimeout(1600);
+  assert.equal(await page.locator('[data-time]').innerText(), interviewClock, 'Interview holds time');
   await visible(page.locator('.lk-commit button'));
   await tap('[data-action="more-choices"]');
   await fits('all-questions');
@@ -203,14 +202,9 @@ try {
     await fits('interview-return');
   } else throw new Error('Phone fixture must ring during the interview');
   await tap('[data-action="menu"]');
-  const tally = page.locator('[data-month-tally-toggle]');
-  assert.equal(await tally.isChecked(), false);
-  await tally.check();
+  assert.equal(await page.locator('[data-month-tally-toggle]').count(), 0);
   await tap('[data-close]');
   assert.equal(await page.locator('[data-month-tally]').count(), 0, 'No mid-month tally');
-  await tap('[data-action="menu"]');
-  assert.equal(await tally.isChecked(), true, 'Menu retains the page-session setting');
-  await tap('[data-close]');
   await page.setViewportSize({ width: 1200, height: 800 });
   const dock = await page
     .locator('.lk-scene, [data-content]')
@@ -220,19 +214,13 @@ try {
   fixture = runPolicy(1, 'careful');
   assert.equal(view(fixture).ended, true, 'Terminal fixture');
   await load();
-  assert.match(await page.locator('[data-month-tally]').innerText(), /TOTAL:/);
-  await tap('[data-action="menu"]');
-  await tally.uncheck();
-  assert.equal(await page.locator('[data-month-tally]').count(), 0, 'Immediate end toggle off');
-  await tally.check();
-  assert.equal(await page.locator('[data-month-tally]').count(), 1, 'Immediate end toggle on');
-  await tap('[data-close]');
-  await tap('[data-action="menu"]');
-  assert.equal(await tally.isChecked(), true);
-  await tap('[data-close]');
+  const tally = page.locator('[data-month-tally]');
+  assert.equal(await tally.getAttribute('open'), null, 'End tally starts closed');
+  await page.getByText('See tally', { exact: true }).click();
+  assert.match(await tally.innerText(), /TOTAL:/);
   await page.reload();
   await page.getByRole('button', { name: 'Continue', exact: true }).click();
-  assert.equal(await page.locator('[data-month-tally]').count(), 0, 'Reload resets preference');
+  assert.equal(await tally.getAttribute('open'), null, 'Reload keeps optional end tally closed');
   assert.deepEqual(errors, []);
   writeFileSync(`${out}/summary.json`, JSON.stringify({ results, errors }, null, 2));
   console.log('Phone stage acceptance passed');

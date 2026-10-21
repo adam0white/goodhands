@@ -21,17 +21,20 @@ afterAll(async () => {
   await server?.close();
 });
 
-it('holds options and Game menu time, then resumes without adding an input', async () => {
+it('holds Game menu time and native help, then resumes without adding an input', async () => {
   const clock = page.locator('[data-time]');
-  const before = await clock.innerText();
-  await page.locator('[data-action="time"]').click();
-  await page.clock.runFor(6000);
-  expect(await clock.innerText()).toBe(before);
-  await page.keyboard.press('Escape');
-  await page.clock.runFor(1000);
-  expect(await clock.innerText()).not.toBe(before);
   await page.getByRole('button', { name: 'Game menu', exact: true }).click();
   const held = await clock.innerText();
+  await page.clock.runFor(6000);
+  expect(await clock.innerText()).toBe(held);
+  expect(await page.locator('[data-speed-choice], [data-month-tally-toggle]').count()).toBe(0);
+  const help = page.getByRole('button', { name: 'Setting words', exact: true });
+  await help.focus();
+  await page.keyboard.press('Enter');
+  expect(await page.locator('#setting-words').evaluate((e) => e.matches(':popover-open'))).toBe(true);
+  await page.keyboard.press('Escape');
+  expect(await help.evaluate((e) => e === document.activeElement)).toBe(true);
+  expect(await page.getByRole('dialog', { name: 'Game menu', exact: true }).isVisible()).toBe(true);
   await page.clock.runFor(6000);
   expect(await clock.innerText()).toBe(held);
   const pending = page.waitForEvent('download');

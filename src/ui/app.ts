@@ -18,8 +18,6 @@ import {
   type LoggedInput,
   QUALITIES,
   type Quality,
-  SPEEDS,
-  type Speed,
   type State,
   type View,
 } from '../sim/types.ts';
@@ -28,7 +26,9 @@ import { lab, notebookRunOptions } from './lab.ts';
 import { cityFigurePositions, drawCity, MAP_HEIGHT, MAP_WIDTH } from './map.ts';
 import { drawOffice, officeSeats } from './office.ts';
 import {
+  automaticPace,
   candidateAvailability,
+  canWait,
   clockLabels,
   evidence,
   escapeHtml as h,
@@ -42,8 +42,6 @@ import {
   referenceReason,
   requestGroups,
   resumeLine,
-  SPEED_NAMES,
-  speedLabel,
   vouchLabel,
 } from './render.ts';
 import { get, put, putNow } from './store.ts';
@@ -72,8 +70,6 @@ let notice = '';
 let waitAnimation: { before: View; start: number; end: number; label: string } | null = null;
 let transcriptKey = '';
 let saveReady = false;
-// A page-session preference. Never part of a save, input log or simulation state.
-let tallyEnabled = false;
 const ALL_GAMES = 'https://human.adamwhite.work/games/';
 const TERMS = {
   Hanım: 'a respectful title for a woman',
@@ -215,7 +211,7 @@ function begin(next: State | null, history: LoggedInput[]): void {
 }
 function shell(v: View): void {
   stage?.destroy();
-  root.innerHTML = `<main class="game lk-stage" data-sheet="fit" data-testid="office"><header class="lk-strip"><div class="topbar"><a class="hub" href="${ALL_GAMES}" aria-label="human framework games">◇ human framework</a><button type="button" data-action="menu">Game menu</button></div><div class="lk-chips"><span class="lk-chip clock"><span data-date></span> <strong data-time></strong></span><button type="button" data-action="time" data-speed class="speed-summary"></button><span class="lk-chip" data-money></span><span class="lk-chip" data-waiting></span></div><button class="task now" type="button" aria-label="Task" data-testid="task" data-action="task"><strong>Task</strong><span></span></button></header><section class="office-front lk-scene" aria-label="The office"><div class="room"><canvas id="office" role="img" aria-label="Nermin’s desk, telephone, window and the waiting bench"></canvas><div class="seat-targets"></div></div><div class="phone-strip" hidden><button class="phone-control" type="button" data-action="phone"></button><p id="phone-reason" class="phone-reason reason"></p></div><nav class="bench-strip" aria-label="Waiting bench" data-testid="bench"></nav></section><section class="desk-sheet lk-sheet" data-content aria-label="Nermin’s desk"></section></main>`;
+  root.innerHTML = `<main class="game lk-stage" data-sheet="fit" data-testid="office"><header class="lk-strip"><div class="topbar"><a class="hub" href="${ALL_GAMES}" aria-label="human framework games">◇ human framework</a><button type="button" data-action="menu">Game menu</button></div><div class="lk-chips"><span class="lk-chip clock"><span data-date></span> <strong data-time></strong></span><span data-pace class="lk-chip"></span><button type="button" data-action="wait-for" class="until-event">Until next event</button><span class="lk-chip" data-money></span><span class="lk-chip" data-waiting></span></div><button class="task now" type="button" aria-label="Task" data-testid="task" data-action="task"><strong>Task</strong><span></span></button></header><section class="office-front lk-scene" aria-label="The office"><div class="room"><canvas id="office" role="img" aria-label="Nermin’s desk, telephone, window and the waiting bench"></canvas><div class="seat-targets"></div></div><div class="phone-strip" hidden><button class="phone-control" type="button" data-action="phone"></button><p id="phone-reason" class="phone-reason reason"></p></div><nav class="bench-strip" aria-label="Waiting bench" data-testid="bench"></nav></section><section class="desk-sheet lk-sheet" data-content aria-label="Nermin’s desk"></section></main>`;
   stage = phoneStage(root.querySelector<HTMLElement>('.lk-stage')!, {
     observeOnly: true,
     onSceneRect: () => {
@@ -232,18 +228,14 @@ function updateClock(v: View): void {
   };
   text('[data-date]', v.dateLabel);
   text('[data-time]', v.timeLabel);
-  text('[data-speed]', waitAnimation ? 'Waiting fast' : v.slowed ? 'Slow ↓' : SPEED_NAMES[v.speed]);
-  root.querySelector('[data-speed]')?.setAttribute('aria-label', `${speedLabel(v)}. Change clock speed`);
+  text('[data-pace]', waitAnimation ? 'Waiting' : automaticPace(v) === 0 ? 'Time held' : 'Time passing');
   root.querySelector('.game')?.setAttribute('aria-busy', String(!!waitAnimation));
   const wait = root.querySelector<HTMLButtonElement>('[data-action="wait-for"]');
   if (wait) {
-    wait.disabled = !!waitAnimation;
-    wait.hidden = !v.next || v.slowed || !!v.scene || !!v.phoneRinging || !!v.dayCard;
-    wait.textContent = v.next ? `Wait for ${v.next.label} · ${v.next.dateLabel}` : '';
-  }
-  for (const speed of root.querySelectorAll<HTMLButtonElement>('[data-speed-choice]')) {
-    speed.disabled = !!waitAnimation;
-    speed.setAttribute('aria-pressed', String(Number(speed.dataset.speedChoice) === v.speed));
+    wait.disabled = !!waitAnimation || !canWait(v);
+    wait.hidden = !canWait(v);
+    wait.textContent = 'Until next event';
+    wait.title = v.next ? `${v.next.label} · ${v.next.dateLabel}` : '';
   }
   text('[data-money]', `${money(v.cash)} · Rent ${money(v.rent.amount)} ${v.rent.label}`);
   text(
@@ -605,7 +597,7 @@ function review(v: View): void {
   setScreen('review');
   const r = v.review;
   if (!r) return;
-  root.innerHTML = `<main class="review"><header><a href="${ALL_GAMES}">◇ human framework</a><button type="button" data-action="menu">Game menu</button></header><p class="eyebrow">${h(v.dateLabel)}</p><h1>A month in Good Hands</h1><p>${money(r.cash)} left. ${h(r.trustedBy.length ? `${r.trustedBy.map((id) => person(v, id)).join(', ')} trust Nermin.` : 'Her word has travelled through the city.')}</p>${monthTally(v, tallyEnabled)}<h2>Her notes beside the truth</h2>${r.people
+  root.innerHTML = `<main class="review"><header><a href="${ALL_GAMES}">◇ human framework</a><button type="button" data-action="menu">Game menu</button></header><p class="eyebrow">${h(v.dateLabel)}</p><h1>A month in Good Hands</h1><p>${money(r.cash)} left. ${h(r.trustedBy.length ? `${r.trustedBy.map((id) => person(v, id)).join(', ')} trust Nermin.` : 'Her word has travelled through the city.')}</p>${monthTally(v)}<h2>Her notes beside the truth</h2>${r.people
     .map(
       (p) =>
         `<details><summary>${h(p.name)}</summary><table><thead><tr><th>Quality</th><th>Nermin’s notes</th><th>Truth</th></tr></thead><tbody>${QUALITIES.map(
@@ -673,11 +665,16 @@ function openSheet(title: string, content: string, kind = 'inspect'): HTMLDialog
   } else document.body.append(d);
   d.querySelector('[data-close]')?.addEventListener('click', () => closeSheet());
   d.addEventListener('cancel', (event) => {
+    if (d.querySelector(':popover-open')) {
+      event.preventDefault();
+      return;
+    }
     event.preventDefault();
     closeSheet();
   });
   d.addEventListener('keydown', (event) => {
     if (event.key === 'Escape') {
+      if (d.querySelector(':popover-open')) return;
       event.preventDefault();
       closeSheet();
     }
@@ -701,19 +698,10 @@ function openSheet(title: string, content: string, kind = 'inspect'): HTMLDialog
 function menu(): void {
   const d = openSheet(
     'Game menu',
-    `${state ? '<button type="button" data-action="save">Save</button><button type="button" data-action="download">Download this run</button><button type="button" data-action="send-run">Send this run to the notebook</button>' : ''}<button type="button" data-action="import">Import a run</button><label><input type="checkbox" data-month-tally-toggle ${tallyEnabled ? 'checked' : ''}> Nermin’s closing tally</label><p>Show the game’s agency reckoning only when the month ends.</p><label>Page theme <select data-theme aria-label="Page theme"><option value="system">Follow system</option><option value="light">Light</option><option value="dark">Dark</option></select></label><details data-glossary><summary>Setting words</summary></details><a href="${ALL_GAMES}">All games</a><a href="https://human.adamwhite.work/lab/privacy/" target="_blank" rel="noreferrer">Lab privacy</a>`,
+    `${state ? '<button type="button" data-action="save">Save</button><button type="button" data-action="download">Download this run</button><button type="button" data-action="send-run">Send this run to the notebook</button>' : ''}<button type="button" data-action="import">Import a run</button><label>Page theme <select data-theme aria-label="Page theme"><option value="system">Follow system</option><option value="light">Light</option><option value="dark">Dark</option></select></label><button type="button" class="help-info" popovertarget="setting-words" aria-label="Setting words">i</button><div id="setting-words" class="help-popover" popover="auto"><h2>Setting words</h2></div><a href="${ALL_GAMES}">All games</a><a href="https://human.adamwhite.work/lab/privacy/" target="_blank" rel="noreferrer">Lab privacy</a>`,
     'menu',
   );
-  const tallyToggle = d.querySelector<HTMLInputElement>('[data-month-tally-toggle]');
-  tallyToggle?.addEventListener('change', () => {
-    tallyEnabled = tallyToggle.checked;
-    if (state && current().ended) {
-      const previous = root.querySelector('[data-month-tally]');
-      previous?.remove();
-      root.querySelector('.review h1')?.insertAdjacentHTML('afterend', monthTally(current(), tallyEnabled));
-    }
-  });
-  d.querySelector('[data-glossary]')?.append(glossaryPanel());
+  d.querySelector('#setting-words')?.append(glossaryPanel());
   const select = d.querySelector<HTMLSelectElement>('[data-theme]');
   if (select) {
     select.value = document.documentElement.dataset.theme ?? 'system';
@@ -973,10 +961,6 @@ function handleClick(event: Event): void {
   const b = (event.target as HTMLElement).closest<HTMLButtonElement>('button');
   if (!b || b.disabled || waitAnimation) return;
   const v = state ? current() : null;
-  if (b.dataset.speedChoice) {
-    send({ type: 'speed', speed: Number(b.dataset.speedChoice) as Speed });
-    return;
-  }
   if (b.dataset.cityFigure) {
     cityPerson = b.dataset.cityFigure;
     closeSheet(false);
@@ -1062,14 +1046,6 @@ function handleClick(event: Event): void {
     case 'edit-terms':
       editTerms();
       break;
-    case 'time':
-      if (v)
-        openSheet(
-          'Clock speed',
-          `<p>Time is paused while these options are open.</p><div class="speed-control">${SPEED_NAMES.map((name, i) => `<button type="button" data-speed-choice="${i}" aria-pressed="${v.speed === i}">${name}</button>`).join('')}</div>${v.next ? `<button type="button" data-action="wait-for">Wait for ${h(v.next.label)} · ${h(v.next.dateLabel)}</button>` : ''}`,
-          'menu',
-        );
-      break;
     case 'conversation':
       if (v?.scene)
         openSheet(
@@ -1096,6 +1072,7 @@ function handleClick(event: Event): void {
       if (selected) send({ type: 'call-in', candidate: selected });
       break;
     case 'wait-for':
+      if (!v || !canWait(v)) break;
       closeSheet(false);
       send({ type: 'wait-for' });
       break;
@@ -1225,7 +1202,7 @@ function frame(now: number): void {
       } else render();
     } else if (!v.ended && !v.dayCard) {
       const previous = structuredClone(v);
-      state = sim.advance(state, (SPEEDS[v.slowed ? 0 : v.speed] ?? 2) * dt);
+      state = sim.advance(state, automaticPace(v) * dt);
       changed(previous, current());
       const hour = Math.floor(current().now / 60);
       if (hour !== lastHour) {

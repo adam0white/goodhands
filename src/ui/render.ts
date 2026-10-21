@@ -1,6 +1,5 @@
 import type { CandidateView, Note, PlacementView, Quality, RequestView, View } from '../sim/types.ts';
 
-export const SPEED_NAMES = ['Slow', 'Walk', 'Trot', 'Gallop'] as const;
 export const INTRO =
   'You run Good Hands, a small placement agency. The Arslans need a nanny by Tuesday 08:00. Three women are waiting on your bench. Rent is due Friday.';
 
@@ -65,10 +64,14 @@ export function resumeLine(v: View): string {
   return `${v.dateLabel}, ${v.timeLabel} · ${where}`;
 }
 
-export function speedLabel(v: View): string {
-  return v.slowed
-    ? `Slow · held slow (chosen: ${SPEED_NAMES[v.speed]})`
-    : `${SPEED_NAMES[v.speed]} · clock moving`;
+/** Wall-clock presentation only. Historical saved speeds still replay in the simulation. */
+export function automaticPace(v: View): number {
+  if (v.ended || v.slowed || v.scene || v.heldScene || v.phoneRinging || v.dayCard) return 0;
+  return v.bench.length ? 2 : 30;
+}
+
+export function canWait(v: View): boolean {
+  return !!v.next && automaticPace(v) > 0;
 }
 
 /** Calendar labels for a public game minute, independent of the machine timezone. */
@@ -125,10 +128,10 @@ export function requestGroups(requests: RequestView[]): { open: RequestView[]; l
 }
 
 /** An optional game reckoning, using only outcomes already present in the public view. */
-export function monthTally(v: View, enabled = false): string {
-  if (!enabled || !v.ended || !v.review) return '';
+export function monthTally(v: View): string {
+  if (!v.ended || !v.review) return '';
   const kept = v.placements.filter((p) => p.status === 'kept').length;
   const ended = v.placements.filter((p) => ['returned', 'quit', 'dismissed'].includes(p.status)).length;
   const trust = v.review.trustedBy.length;
-  return `<section data-month-tally><h2>Nermin’s closing tally</h2><p>The game’s own reckoning of agency outcomes, not a measure of people.</p><p>TOTAL: ${kept + trust - ended} = kept placements (${kept}) + households that trust Nermin (${trust}) − returned, quit or dismissed placements (${ended}). Each placement record counts once; trials and withdrawals do not count.</p></section>`;
+  return `<details data-month-tally><summary>See tally</summary><h2>Nermin’s closing tally</h2><p>The game’s own reckoning of agency outcomes, not a measure of people.</p><p>TOTAL: ${kept + trust - ended} = kept placements (${kept}) + households that trust Nermin (${trust}) − returned, quit or dismissed placements (${ended}). Each placement record counts once; trials and withdrawals do not count.</p></details>`;
 }

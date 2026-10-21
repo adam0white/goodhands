@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import type { CandidateView, Note, View } from '../src/sim/types.ts';
 import {
+  automaticPace,
   candidateAvailability,
+  canWait,
   clockLabels,
   escapeHtml,
   evidence,
@@ -13,7 +15,6 @@ import {
   referenceReason,
   requestGroups,
   resumeLine,
-  speedLabel,
   vouchLabel,
 } from '../src/ui/render.ts';
 
@@ -79,8 +80,25 @@ describe('player-facing render helpers', () => {
       } as View),
     ).toContain('Finish');
   });
-  it('distinguishes chosen speed from a held slow clock', () => {
-    expect(speedLabel({ speed: 3, slowed: true } as View)).toBe('Slow · held slow (chosen: Gallop)');
+  it('paces empty stretches briskly and holds decisions independently of saved speed', () => {
+    const quiet = { bench: [], speed: 3, next: { at: 600 } } as unknown as View;
+    expect(automaticPace(quiet)).toBe(30);
+    expect(automaticPace({ ...quiet, speed: 0 })).toBe(30);
+    expect(automaticPace({ ...quiet, bench: [candidate] })).toBe(2);
+    for (const held of [
+      { slowed: true },
+      { scene: {} },
+      { heldScene: {} },
+      { phoneRinging: {} },
+      { dayCard: {} },
+      { ended: true },
+    ]) {
+      const v = { ...quiet, ...held } as View;
+      expect(automaticPace(v)).toBe(0);
+      expect(canWait(v)).toBe(false);
+    }
+    expect(canWait(quiet)).toBe(true);
+    expect(canWait({ ...quiet, next: null })).toBe(false);
   });
   it('resumes at the visible scene rather than claiming time passed away', () => {
     expect(
@@ -170,14 +188,14 @@ it('keeps the optional agency tally off until a finished review and explains its
     review: { trustedBy: ['arslans', 'kaya'] },
     placements: ['kept', 'kept', 'quit', 'trial', 'withdrawn'].map((status) => ({ status })),
   } as View;
-  expect(monthTally(view)).toBe('');
-  expect(monthTally({ ...view, ended: false }, true)).toBe('');
-  expect(monthTally({ ...view, review: null }, true)).toBe('');
+  expect(monthTally(view)).toContain('<summary>See tally</summary>');
+  expect(monthTally(view)).not.toContain(' open');
+  expect(monthTally({ ...view, ended: false })).toBe('');
+  expect(monthTally({ ...view, review: null })).toBe('');
   const before = JSON.stringify(view);
-  expect(monthTally(view, true)).toContain('TOTAL: 3 = kept placements (2)');
-  expect(monthTally(view, true)).toContain('households that trust Nermin (2)');
-  expect(monthTally(view, true)).toContain('dismissed placements (1)');
-  expect(monthTally(view, true)).toContain('not a measure of people');
-  expect(monthTally(view, false)).toBe('');
+  expect(monthTally(view)).toContain('TOTAL: 3 = kept placements (2)');
+  expect(monthTally(view)).toContain('households that trust Nermin (2)');
+  expect(monthTally(view)).toContain('dismissed placements (1)');
+  expect(monthTally(view)).toContain('not a measure of people');
   expect(JSON.stringify(view)).toBe(before);
 });
