@@ -123,3 +123,12 @@ export function requestGroups(requests: RequestView[]): { open: RequestView[]; l
     lost: requests.filter((request) => request.status === 'lost'),
   };
 }
+
+/** An optional game reckoning, using only outcomes already present in the public view. */
+export function monthTally(v: View, enabled = false): string {
+  if (!enabled || !v.ended || !v.review) return '';
+  const kept = v.placements.filter((p) => p.status === 'kept').length;
+  const ended = v.placements.filter((p) => ['returned', 'quit', 'dismissed'].includes(p.status)).length;
+  const trust = v.review.trustedBy.length;
+  return `<section data-month-tally><h2>Nermin’s closing tally</h2><p>The game’s own reckoning of agency outcomes, not a measure of people.</p><p>TOTAL: ${kept + trust - ended} = kept placements (${kept}) + households that trust Nermin (${trust}) − returned, quit or dismissed placements (${ended}). Each placement record counts once; trials and withdrawals do not count.</p></section>`;
+}

@@ -8,12 +8,13 @@ import { chromium, type Locator } from 'playwright-core';
 import { preview } from 'vite';
 import { apply, type Input, newGame, view } from '../src/sim/index.ts';
 import { compactRun, exportRun, verifyImport } from '../src/ui/export.ts';
+import { runPolicy } from './policy.ts';
 
 const port = Number(process.argv[2] ?? 4492);
 execFileSync(process.execPath, ['node_modules/vite/bin/vite.js', 'build'], { stdio: 'inherit' });
 const server = await preview({ preview: { host: '127.0.0.1', port, strictPort: true } });
 const browser = await chromium.launch({ channel: 'chromium-headless-shell' });
-const out = join(homedir(), 'code/scratch-intake2/goodhands-stage');
+const out = join(homedir(), 'code/.lab-scratch/codex/goodhands-framing-stage');
 mkdirSync(out, { recursive: true });
 const results: object[] = [];
 try {
@@ -201,12 +202,37 @@ try {
     assert.equal(await page.locator('[data-scene-id]').getAttribute('data-scene-id'), sceneId);
     await fits('interview-return');
   } else throw new Error('Phone fixture must ring during the interview');
+  await tap('[data-action="menu"]');
+  const tally = page.locator('[data-month-tally-toggle]');
+  assert.equal(await tally.isChecked(), false);
+  await tally.check();
+  await tap('[data-close]');
+  assert.equal(await page.locator('[data-month-tally]').count(), 0, 'No mid-month tally');
+  await tap('[data-action="menu"]');
+  assert.equal(await tally.isChecked(), true, 'Menu retains the page-session setting');
+  await tap('[data-close]');
   await page.setViewportSize({ width: 1200, height: 800 });
   const dock = await page
     .locator('.lk-scene, [data-content]')
     .evaluateAll((es) => es.map((e) => e.getBoundingClientRect().toJSON()));
   assert.ok(dock[0]!.right <= dock[1]!.x, 'Desktop sheet docks beside scene');
   await page.screenshot({ path: `${out}/desktop.png` });
+  fixture = runPolicy(1, 'careful');
+  assert.equal(view(fixture).ended, true, 'Terminal fixture');
+  await load();
+  assert.match(await page.locator('[data-month-tally]').innerText(), /TOTAL:/);
+  await tap('[data-action="menu"]');
+  await tally.uncheck();
+  assert.equal(await page.locator('[data-month-tally]').count(), 0, 'Immediate end toggle off');
+  await tally.check();
+  assert.equal(await page.locator('[data-month-tally]').count(), 1, 'Immediate end toggle on');
+  await tap('[data-close]');
+  await tap('[data-action="menu"]');
+  assert.equal(await tally.isChecked(), true);
+  await tap('[data-close]');
+  await page.reload();
+  await page.getByRole('button', { name: 'Continue', exact: true }).click();
+  assert.equal(await page.locator('[data-month-tally]').count(), 0, 'Reload resets preference');
   assert.deepEqual(errors, []);
   writeFileSync(`${out}/summary.json`, JSON.stringify({ results, errors }, null, 2));
   console.log('Phone stage acceptance passed');

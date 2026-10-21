@@ -7,6 +7,7 @@ import {
   evidence,
   INTRO,
   matchingReason,
+  monthTally,
   noteText,
   phoneAvailability,
   referenceReason,
@@ -161,4 +162,22 @@ it('allows wage negotiation while preserving the trial wage reason', () => {
   expect(matchingReason(worker, request, 'trial')).toBe('Wage too low');
   expect(matchingReason(worker, request, 'place')).toBeUndefined();
   expect(matchingReason(worker, request, 'place', 2)).toBe('Wage too low');
+});
+
+it('keeps the optional agency tally off until a finished review and explains its components', () => {
+  const view = {
+    ended: true,
+    review: { trustedBy: ['arslans', 'kaya'] },
+    placements: ['kept', 'kept', 'quit', 'trial', 'withdrawn'].map((status) => ({ status })),
+  } as View;
+  expect(monthTally(view)).toBe('');
+  expect(monthTally({ ...view, ended: false }, true)).toBe('');
+  expect(monthTally({ ...view, review: null }, true)).toBe('');
+  const before = JSON.stringify(view);
+  expect(monthTally(view, true)).toContain('TOTAL: 3 = kept placements (2)');
+  expect(monthTally(view, true)).toContain('households that trust Nermin (2)');
+  expect(monthTally(view, true)).toContain('dismissed placements (1)');
+  expect(monthTally(view, true)).toContain('not a measure of people');
+  expect(monthTally(view, false)).toBe('');
+  expect(JSON.stringify(view)).toBe(before);
 });

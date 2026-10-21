@@ -35,6 +35,7 @@ import {
   INTRO,
   matchingReason,
   money,
+  monthTally,
   noteText,
   phoneAvailability,
   placementLabel,
@@ -71,6 +72,8 @@ let notice = '';
 let waitAnimation: { before: View; start: number; end: number; label: string } | null = null;
 let transcriptKey = '';
 let saveReady = false;
+// A page-session preference. Never part of a save, input log or simulation state.
+let tallyEnabled = false;
 const ALL_GAMES = 'https://human.adamwhite.work/games/';
 const TERMS = {
   Hanım: 'a respectful title for a woman',
@@ -596,11 +599,13 @@ function updateCity(v: View): void {
 
 function review(v: View): void {
   closeSheet(false);
+  stage?.destroy();
+  stage = null;
   shown = 'review';
   setScreen('review');
   const r = v.review;
   if (!r) return;
-  root.innerHTML = `<main class="review"><header><a href="${ALL_GAMES}">◇ human framework</a><button type="button" data-action="menu">Game menu</button></header><p class="eyebrow">${h(v.dateLabel)}</p><h1>A month in Good Hands</h1><p>${money(r.cash)} left. ${h(r.trustedBy.length ? `${r.trustedBy.map((id) => person(v, id)).join(', ')} trust Nermin.` : 'Her word has travelled through the city.')}</p><h2>Her notes beside the truth</h2>${r.people
+  root.innerHTML = `<main class="review"><header><a href="${ALL_GAMES}">◇ human framework</a><button type="button" data-action="menu">Game menu</button></header><p class="eyebrow">${h(v.dateLabel)}</p><h1>A month in Good Hands</h1><p>${money(r.cash)} left. ${h(r.trustedBy.length ? `${r.trustedBy.map((id) => person(v, id)).join(', ')} trust Nermin.` : 'Her word has travelled through the city.')}</p>${monthTally(v, tallyEnabled)}<h2>Her notes beside the truth</h2>${r.people
     .map(
       (p) =>
         `<details><summary>${h(p.name)}</summary><table><thead><tr><th>Quality</th><th>Nermin’s notes</th><th>Truth</th></tr></thead><tbody>${QUALITIES.map(
@@ -696,9 +701,18 @@ function openSheet(title: string, content: string, kind = 'inspect'): HTMLDialog
 function menu(): void {
   const d = openSheet(
     'Game menu',
-    `${state ? '<button type="button" data-action="save">Save</button><button type="button" data-action="download">Download this run</button><button type="button" data-action="send-run">Send this run to the notebook</button>' : ''}<button type="button" data-action="import">Import a run</button><label>Page theme <select data-theme aria-label="Page theme"><option value="system">Follow system</option><option value="light">Light</option><option value="dark">Dark</option></select></label><details data-glossary><summary>Setting words</summary></details><a href="${ALL_GAMES}">All games</a><a href="https://human.adamwhite.work/lab/privacy/" target="_blank" rel="noreferrer">Lab privacy</a>`,
+    `${state ? '<button type="button" data-action="save">Save</button><button type="button" data-action="download">Download this run</button><button type="button" data-action="send-run">Send this run to the notebook</button>' : ''}<button type="button" data-action="import">Import a run</button><label><input type="checkbox" data-month-tally-toggle ${tallyEnabled ? 'checked' : ''}> Nermin’s closing tally</label><p>Show the game’s agency reckoning only when the month ends.</p><label>Page theme <select data-theme aria-label="Page theme"><option value="system">Follow system</option><option value="light">Light</option><option value="dark">Dark</option></select></label><details data-glossary><summary>Setting words</summary></details><a href="${ALL_GAMES}">All games</a><a href="https://human.adamwhite.work/lab/privacy/" target="_blank" rel="noreferrer">Lab privacy</a>`,
     'menu',
   );
+  const tallyToggle = d.querySelector<HTMLInputElement>('[data-month-tally-toggle]');
+  tallyToggle?.addEventListener('change', () => {
+    tallyEnabled = tallyToggle.checked;
+    if (state && current().ended) {
+      const previous = root.querySelector('[data-month-tally]');
+      previous?.remove();
+      root.querySelector('.review h1')?.insertAdjacentHTML('afterend', monthTally(current(), tallyEnabled));
+    }
+  });
   d.querySelector('[data-glossary]')?.append(glossaryPanel());
   const select = d.querySelector<HTMLSelectElement>('[data-theme]');
   if (select) {
