@@ -90,11 +90,7 @@ try {
   await tap('[data-action="time"]');
   const inspectingClock = await page.locator('[data-time]').innerText();
   await page.waitForTimeout(1600);
-  assert.notEqual(
-    await page.locator('[data-time]').innerText(),
-    inspectingClock,
-    'Inspection leaves clock moving',
-  );
+  assert.equal(await page.locator('[data-time]').innerText(), inspectingClock, 'Clock options pause time');
   await tap('[data-close]');
   await page.getByRole('button', { name: 'Gül', exact: true }).click();
   await fits('candidate');

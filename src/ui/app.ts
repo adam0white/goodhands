@@ -1052,7 +1052,8 @@ function handleClick(event: Event): void {
       if (v)
         openSheet(
           'Clock speed',
-          `<p>${h(speedLabel(v))}</p><div class="speed-control">${SPEED_NAMES.map((name, i) => `<button type="button" data-speed-choice="${i}" aria-pressed="${v.speed === i}">${name}</button>`).join('')}</div>${v.next ? `<button type="button" data-action="wait-for">Wait for ${h(v.next.label)} · ${h(v.next.dateLabel)}</button>` : ''}`,
+          `<p>Time is paused while these options are open.</p><div class="speed-control">${SPEED_NAMES.map((name, i) => `<button type="button" data-speed-choice="${i}" aria-pressed="${v.speed === i}">${name}</button>`).join('')}</div>${v.next ? `<button type="button" data-action="wait-for">Wait for ${h(v.next.label)} · ${h(v.next.dateLabel)}</button>` : ''}`,
+          'menu',
         );
       break;
     case 'conversation':
@@ -1194,7 +1195,14 @@ root.addEventListener('click', handleClick);
 function frame(now: number): void {
   const dt = Math.min(Math.max((now - last) / 1000, 0), 0.5);
   last = now;
-  if (playing && state && !document.hidden && modal !== 'menu') {
+  if (
+    playing &&
+    state &&
+    !document.hidden &&
+    modal !== 'menu' &&
+    !sheetOrigins.some((origin) => origin.kind === 'menu') &&
+    !document.querySelector('.hflab-veil')
+  ) {
     const v = current();
     if (waitAnimation) {
       if (now >= waitAnimation.end) {
