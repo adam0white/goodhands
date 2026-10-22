@@ -6,6 +6,8 @@ import {
   introCard,
   type PhoneStage,
   phoneStage,
+  telemetryNotice,
+  telemetryToggle,
   term,
 } from '@adam0white/lab-kit';
 import * as sim from '../sim/index.ts';
@@ -51,6 +53,13 @@ import { get, put, putNow } from './store.ts';
 const host = document.querySelector<HTMLDivElement>('#app');
 if (!host) throw new Error('Good Hands needs an app element.');
 const root = host;
+const recordingNotice = telemetryNotice();
+let recordingNoticeDone = false;
+recordingNotice?.querySelector('button')?.addEventListener('click', () => {
+  recordingNoticeDone = true;
+});
+if (recordingNotice)
+  Object.assign(recordingNotice.style, { position: 'static', transform: 'none', margin: '0 auto' });
 let state: State | null = null;
 let inputs: LoggedInput[] = [];
 let saved: ReturnType<typeof verifyImport> | null = null;
@@ -72,6 +81,27 @@ let notice = '';
 let waitAnimation: { before: View; start: number; end: number; label: string } | null = null;
 let transcriptKey = '';
 let saveReady = false;
+lab.trackRun(
+  async () => {
+    const currentState = state;
+    if (currentState) {
+      const stored = await get<RunExport>('run');
+      if (state === currentState && stored?.value.seed === sim.view(currentState).seed)
+        lab.captureSave({ key: 'run', value: stored.value });
+    }
+    return state ? exportRun(state, inputs) : null;
+  },
+  {
+    runKey: () => (state ? sim.view(state).seed : 'title'),
+    getLogs: () =>
+      state
+        ? sim
+            .view(state)
+            .log.slice(-40)
+            .map((line) => line.text)
+        : [],
+  },
+);
 const ALL_GAMES = 'https://human.adamwhite.work/games/';
 const TERMS = {
   Hanım: 'a respectful title for a woman',
@@ -161,6 +191,11 @@ function title(): void {
   shown = '';
   setScreen('title');
   root.innerHTML = `<main class="title-page"><a class="hub" href="${ALL_GAMES}">◇ human framework</a><p class="eyebrow">Izmir · November 2026</p><div class="agency-mark" aria-hidden="true">G H<span>placement agency</span></div><h1>Good Hands</h1><p class="subtitle">A month at Nermin’s desk.</p><div class="title-actions"></div><p class="title-status" role="status">${saveReady ? '' : 'Looking for a saved month…'}</p><button type="button" data-action="menu">Game menu</button><a class="all-games" href="${ALL_GAMES}">All games</a></main>`;
+  if (recordingNotice && !recordingNoticeDone) {
+    const slot = document.createElement('div');
+    slot.append(recordingNotice);
+    root.querySelector('main')?.prepend(slot);
+  }
   const actions = root.querySelector('.title-actions');
   if (saved) {
     actions?.append(button('Continue', () => begin(saved?.state ?? null, saved?.inputs ?? [])));
@@ -199,6 +234,7 @@ function newMonth(): void {
 }
 function begin(next: State | null, history: LoggedInput[]): void {
   if (!next) return;
+  recordingNoticeDone = true;
   state = next;
   inputs = structuredClone(history);
   selected = null;
@@ -704,6 +740,7 @@ function menu(): void {
     `${state ? '<button type="button" data-action="save">Save</button><button type="button" data-action="download">Download this run</button><button type="button" data-action="send-run">Send this run to the notebook</button>' : ''}<button type="button" data-action="import">Import a run</button><label>Page theme <select data-theme aria-label="Page theme"><option value="system">Follow system</option><option value="light">Light</option><option value="dark">Dark</option></select></label><button type="button" class="help-info" popovertarget="setting-words" aria-label="Setting words">i</button><div id="setting-words" class="help-popover" popover="auto"><h2>Setting words</h2></div><a href="${ALL_GAMES}">All games</a><a href="https://human.adamwhite.work/lab/privacy/" target="_blank" rel="noreferrer">Lab privacy</a>`,
     'menu',
   );
+  d.querySelector('.sheet-content')?.append(telemetryToggle(lab));
   d.querySelector('#setting-words')?.append(glossaryPanel());
   const select = d.querySelector<HTMLSelectElement>('[data-theme]');
   if (select) {

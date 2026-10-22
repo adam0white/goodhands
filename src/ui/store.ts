@@ -2,6 +2,14 @@
  * Saves live in IndexedDB as gzip (state and replay history can exceed localStorage limits).
  * Every access is wrapped: a private window or blocked storage gives "no save", never a broken page.
  */
+import { lab } from './lab';
+
+function captureStored(key: string, text: string): void {
+  try {
+    lab.captureSave({ key, value: JSON.parse(text) });
+  } catch {}
+}
+
 const DB = 'goodhands';
 const STORE = 'pages';
 let connection: IDBDatabase | null = null;
@@ -48,7 +56,8 @@ export async function put(key: string, value: unknown): Promise<boolean> {
   try {
     const revision = (revisions.get(key) ?? 0) + 1;
     revisions.set(key, revision);
-    const blob = await gzip(JSON.stringify(value));
+    const text = JSON.stringify(value);
+    const blob = await gzip(text);
     if (revisions.get(key) !== revision) return true;
     const db = await open();
     if (revisions.get(key) !== revision) return true;
@@ -59,6 +68,7 @@ export async function put(key: string, value: unknown): Promise<boolean> {
       tx.onerror = () => rej(tx.error);
       tx.onabort = () => rej(tx.error);
     });
+    captureStored(key, text);
     return true;
   } catch {
     return false;
@@ -106,6 +116,7 @@ export function putNow(key: string, value: unknown): boolean {
     revisions.set(key, (revisions.get(key) ?? 0) + 1);
     const tx = connection.transaction(STORE, 'readwrite');
     tx.objectStore(STORE).put({ plain, at: Date.now() }, key);
+    tx.oncomplete = () => captureStored(key, plain);
     return true;
   } catch {
     return false;
