@@ -1523,3 +1523,14 @@ progress.rent-meter.short {
 .title-page > .topbar {
   min-width: 0;
 }
+
+/* Short button hints remain available to assistive technology on phones. */
+.candidate-actions > button:nth-child(n + 3):disabled small {
+  display: block;
+}
+.city-person {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}

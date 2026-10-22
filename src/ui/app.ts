@@ -492,7 +492,7 @@ function benchHtml(v: View): string {
   );
 }
 function action(label: string, key: string, disabled?: string, hint?: string): string {
-  return `<button type="button" data-action="${key}" ${disabled ? 'disabled' : ''}><span>${h(label)}</span>${disabled || hint ? `<small>${h(disabled ?? hint ?? '')}</small>` : ''}</button>`;
+  return `<button type="button" data-action="${key}"${disabled || hint ? ` aria-description="${h(disabled ?? hint ?? '')}"` : ''} ${disabled ? 'disabled' : ''}><span>${h(label)}</span>${disabled || hint ? `<small>${h(disabled ?? hint ?? '')}</small>` : ''}</button>`;
 }
 function familiesHtml(v: View): string {
   const { open, lost } = requestGroups(v.requests);

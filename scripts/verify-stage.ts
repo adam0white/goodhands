@@ -65,6 +65,10 @@ try {
     await page.getByRole('button', { name: 'Gül', exact: true }).click();
     await fits('candidate');
     assert.equal(await page.locator('.candidate-actions button').count(), 5);
+    assert.equal(
+      await page.locator('[data-action="references"]').getAttribute('aria-description'),
+      'About 15 minutes',
+    );
     await page.locator('[data-action="interview"]').click();
     await fits('interview');
     const held = await page.locator('[data-time]').innerText();
