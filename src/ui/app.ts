@@ -18,6 +18,7 @@ import {
   type LoggedInput,
   QUALITIES,
   type Quality,
+  type Speed,
   type State,
   type View,
 } from '../sim/types.ts';
@@ -42,6 +43,7 @@ import {
   referenceReason,
   requestGroups,
   resumeLine,
+  SPEED_NAMES,
   vouchLabel,
 } from './render.ts';
 import { get, put, putNow } from './store.ts';
@@ -211,7 +213,7 @@ function begin(next: State | null, history: LoggedInput[]): void {
 }
 function shell(v: View): void {
   stage?.destroy();
-  root.innerHTML = `<main class="game lk-stage" data-sheet="fit" data-testid="office"><header class="lk-strip"><div class="topbar"><a class="hub" href="${ALL_GAMES}" aria-label="human framework games">◇ human framework</a><button type="button" data-action="menu">Game menu</button></div><div class="lk-chips"><span class="lk-chip clock"><span data-date></span> <strong data-time></strong></span><span data-pace class="lk-chip"></span><button type="button" data-action="wait-for" class="until-event">Until next event</button><span class="lk-chip" data-money></span><span class="lk-chip" data-waiting></span></div><button class="task now" type="button" aria-label="Task" data-testid="task" data-action="task"><strong>Task</strong><span></span></button></header><section class="office-front lk-scene" aria-label="The office"><div class="room"><canvas id="office" role="img" aria-label="Nermin’s desk, telephone, window and the waiting bench"></canvas><div class="seat-targets"></div></div><div class="phone-strip" hidden><button class="phone-control" type="button" data-action="phone"></button><p id="phone-reason" class="phone-reason reason"></p></div><nav class="bench-strip" aria-label="Waiting bench" data-testid="bench"></nav></section><section class="desk-sheet lk-sheet" data-content aria-label="Nermin’s desk"></section></main>`;
+  root.innerHTML = `<main class="game lk-stage" data-sheet="fit" data-testid="office"><header class="lk-strip"><div class="topbar"><a class="hub" href="${ALL_GAMES}" aria-label="human framework games">◇ human framework</a><button type="button" data-action="menu">Game menu</button></div><div class="lk-chips"><span class="lk-chip clock"><span data-date></span> <strong data-time></strong></span><button type="button" data-action="time" data-speed class="speed-summary"></button><span data-pace class="lk-chip"></span><button type="button" data-action="wait-for" class="until-event">Until next event</button><span class="lk-chip" data-money></span><span class="lk-chip" data-waiting></span></div><button class="task now" type="button" aria-label="Task" data-testid="task" data-action="task"><strong>Task</strong><span></span></button></header><section class="office-front lk-scene" aria-label="The office"><div class="room"><canvas id="office" role="img" aria-label="Nermin’s desk, telephone, window and the waiting bench"></canvas><div class="seat-targets"></div></div><div class="phone-strip" hidden><button class="phone-control" type="button" data-action="phone"></button><p id="phone-reason" class="phone-reason reason"></p></div><nav class="bench-strip" aria-label="Waiting bench" data-testid="bench"></nav></section><section class="desk-sheet lk-sheet" data-content aria-label="Nermin’s desk"></section></main>`;
   stage = phoneStage(root.querySelector<HTMLElement>('.lk-stage')!, {
     observeOnly: true,
     onSceneRect: () => {
@@ -228,6 +230,7 @@ function updateClock(v: View): void {
   };
   text('[data-date]', v.dateLabel);
   text('[data-time]', v.timeLabel);
+  text('[data-speed]', SPEED_NAMES[v.speed]);
   text('[data-pace]', waitAnimation ? 'Waiting' : automaticPace(v) === 0 ? 'Time held' : 'Time passing');
   root.querySelector('.game')?.setAttribute('aria-busy', String(!!waitAnimation));
   const wait = root.querySelector<HTMLButtonElement>('[data-action="wait-for"]');
@@ -961,6 +964,11 @@ function handleClick(event: Event): void {
   const b = (event.target as HTMLElement).closest<HTMLButtonElement>('button');
   if (!b || b.disabled || waitAnimation) return;
   const v = state ? current() : null;
+  if (b.dataset.speedChoice) {
+    send({ type: 'speed', speed: Number(b.dataset.speedChoice) as Speed });
+    closeSheet();
+    return;
+  }
   if (b.dataset.cityFigure) {
     cityPerson = b.dataset.cityFigure;
     closeSheet(false);
@@ -1045,6 +1053,14 @@ function handleClick(event: Event): void {
     }
     case 'edit-terms':
       editTerms();
+      break;
+    case 'time':
+      if (v)
+        openSheet(
+          'Clock speed',
+          `<p>Time is paused while these options are open.</p><div class="speed-control">${SPEED_NAMES.map((name, i) => `<button type="button" data-speed-choice="${i}" aria-pressed="${v.speed === i}">${name}</button>`).join('')}</div>`,
+          'menu',
+        );
       break;
     case 'conversation':
       if (v?.scene)

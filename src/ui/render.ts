@@ -1,5 +1,7 @@
 import type { CandidateView, Note, PlacementView, Quality, RequestView, View } from '../sim/types.ts';
+import { SPEEDS } from '../sim/types.ts';
 
+export const SPEED_NAMES = ['Slow', 'Walk', 'Trot', 'Gallop'] as const;
 export const INTRO =
   'You run Good Hands, a small placement agency. The Arslans need a nanny by Tuesday 08:00. Three women are waiting on your bench. Rent is due Friday.';
 
@@ -67,7 +69,7 @@ export function resumeLine(v: View): string {
 /** Wall-clock presentation only. Historical saved speeds still replay in the simulation. */
 export function automaticPace(v: View): number {
   if (v.ended || v.slowed || v.scene || v.heldScene || v.phoneRinging || v.dayCard) return 0;
-  return v.bench.length ? 2 : 30;
+  return SPEEDS[v.speed] ?? 2;
 }
 
 export function canWait(v: View): boolean {

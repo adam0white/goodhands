@@ -9,7 +9,7 @@ beforeAll(async () => {
   server = await createServer({ server: { host: '127.0.0.1', port: 0, hmr: false, watch: null } });
   await server.listen();
   browser = await chromium.launch();
-  page = await browser.newPage();
+  page = await browser.newPage({ viewport: { width: 360, height: 690 } });
   await page.clock.install();
   await page.clock.pauseAt(new Date());
   await page.goto(server.resolvedUrls?.local[0] ?? '');
@@ -47,4 +47,11 @@ it('holds Game menu time and native help, then resumes without adding an input',
   await page.keyboard.press('Escape');
   await page.clock.runFor(1000);
   expect(await clock.innerText()).not.toBe(held);
+});
+
+it('changes the clock speed on a phone and records a replayable speed input', async () => {
+  await page.locator('[data-speed]').click();
+  await page.getByRole('button', { name: 'Gallop', exact: true }).click();
+  expect(await page.locator('[data-speed]').innerText()).toBe('Gallop');
+  expect(await page.evaluate(() => document.documentElement.scrollHeight <= innerHeight)).toBe(true);
 });
