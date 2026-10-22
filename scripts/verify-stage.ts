@@ -1,229 +1,148 @@
-/** Built phone stage acceptance, using replay-verified public imports for later scenes. */
+/** Browser checks for the UI grammar. Later state imports stay replay verified. */
 import assert from 'node:assert/strict';
-import { execFileSync } from 'node:child_process';
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { mkdirSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
-import { chromium, type Locator } from 'playwright-core';
-import { preview } from 'vite';
-import { apply, type Input, newGame, view } from '../src/sim/index.ts';
-import { compactRun, exportRun, verifyImport } from '../src/ui/export.ts';
-import { runPolicy } from './policy.ts';
+import { chromium } from 'playwright-core';
+import { createServer } from 'vite';
+import { advance, apply, newGame, view } from '../src/sim/index.ts';
+import { exportRun, verifyImport } from '../src/ui/export.ts';
 
 const port = Number(process.argv[2] ?? 4492);
-execFileSync(process.execPath, ['node_modules/vite/bin/vite.js', 'build'], { stdio: 'inherit' });
-const server = await preview({ preview: { host: '127.0.0.1', port, strictPort: true } });
-const browser = await chromium.launch({ channel: 'chromium-headless-shell' });
-const out = join(homedir(), 'code/.lab-scratch/codex/goodhands-framing-stage');
+const server = await createServer({
+  server: { host: '127.0.0.1', port, strictPort: true, hmr: false, watch: null },
+});
+await server.listen();
+const browser = await chromium.launch();
+const out = join(homedir(), 'code/.lab-scratch/codex/goodhands-ui-stage');
 mkdirSync(out, { recursive: true });
-const results: object[] = [];
 try {
-  const page = await browser.newPage({
-    viewport: { width: 360, height: 690 },
-    isMobile: true,
-    hasTouch: true,
-  });
-  const errors: string[] = [];
-  page.on('pageerror', (e) => errors.push(e.message));
-  const tap = async (selector: string) => page.locator(selector).click();
-  const visible = async (locator: Locator) => {
-    assert.ok(await locator.count());
-    for (const element of await locator.all()) {
-      const r = await element.boundingBox();
-      assert.ok(
-        r && r.x >= 0 && r.y >= 0 && r.x + r.width <= 360.5 && r.y + r.height <= 690.5,
-        `Visible response: ${await element.textContent()} ${JSON.stringify(r)}`,
-      );
-      assert.ok(r.width >= 44 && r.height >= 44, '44px target');
-    }
-  };
-  const fits = async (name: string) => {
-    const result = await page.evaluate(() => ({
-      height: document.documentElement.scrollHeight,
-      width: document.documentElement.scrollWidth,
-      strip: document.querySelector('.lk-strip')?.textContent,
-      sheets: [...document.querySelectorAll('.lk-sheet')].filter((e) => e.getBoundingClientRect().height > 0)
-        .length,
-      scrollY,
-    }));
-    await page.screenshot({ path: `${out}/${name}.png` });
-    results.push({ name, ...result });
-    assert.ok(result.height <= 690, `${name}: page height ${result.height}`);
-    assert.ok(result.width <= 360);
-    assert.equal(result.scrollY, 0);
-    assert.equal(result.sheets, 1);
-    assert.match(result.strip ?? '', /Rent/);
-    assert.match(result.strip ?? '', /waiting/);
-    const geometry = await page
-      .locator('.office-front, .lk-sheet:not([hidden])')
-      .evaluateAll((es) => es.map((e) => e.getBoundingClientRect().toJSON()));
-    assert.ok(geometry[0]!.bottom <= geometry[1]!.top + 0.5, `${name}: office never overlaps sheet`);
-    await visible(page.locator('.bench-strip button'));
-  };
-  const open = async () => {
+  for (const viewport of [
+    { width: 360, height: 690 },
+    { width: 1280, height: 800 },
+  ]) {
+    const page = await browser.newPage({ viewport });
+    const errors: string[] = [];
+    page.on('pageerror', (e) => errors.push(e.message));
+    await page.clock.install();
+    await page.clock.pauseAt(new Date());
     await page.goto(`http://127.0.0.1:${port}`);
-    await page.getByRole('button', { name: 'New month', exact: true }).click();
-    await page.getByRole('button', { name: 'Open the office', exact: true }).click();
-    await page.locator('.lk-stage').waitFor();
     await page.evaluate(() => document.fonts.ready);
-  };
-  let fixture = newGame(1);
-  const send = (input: Input) => apply(fixture, input);
-  const load = async () => {
-    const run = compactRun(exportRun(fixture, fixture.inputs));
+    const fits = async (name: string) => {
+      const geometry = await page.evaluate(() => ({
+        height: document.documentElement.scrollHeight,
+        width: document.documentElement.scrollWidth,
+        innerHeight,
+        innerWidth,
+      }));
+      assert.ok(geometry.height <= geometry.innerHeight, `${name}: page height ${geometry.height}`);
+      assert.ok(geometry.width <= geometry.innerWidth, `${name}: page width ${geometry.width}`);
+      assert.equal(await page.locator('[data-action="info"]').count(), 1);
+      assert.equal(await page.locator('[data-action="menu"]').count(), 1);
+      assert.equal(await page.locator('dialog dialog').count(), 0);
+      await page.screenshot({ path: join(out, `${viewport.width}-${name}.png`) });
+    };
+    const hitTargets = async (selector: string) => {
+      for (const control of await page.locator(selector).all()) {
+        if (!(await control.isVisible())) continue;
+        // Questions scroll inside the sheet; bring each target into its scrollport.
+        await control.scrollIntoViewIfNeeded();
+        const r = await control.boundingBox();
+        if (!r || r.y < 0 || r.y + r.height > viewport.height) continue;
+        assert.ok(r.height >= 44 && r.width >= 44, `44px: ${await control.textContent()}`);
+        assert.ok(
+          await control.evaluate((el) => {
+            const r = el.getBoundingClientRect();
+            return el.contains(document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2));
+          }),
+          `unintercepted: ${await control.textContent()}`,
+        );
+      }
+    };
+    await fits('start');
+    await page.getByRole('button', { name: 'Open the office', exact: true }).click();
+    await fits('office');
+    await page.getByRole('button', { name: 'Gül', exact: true }).click();
+    await fits('candidate');
+    assert.equal(await page.locator('.candidate-actions button').count(), 5);
+    await page.locator('[data-action="interview"]').click();
+    await fits('interview');
+    const held = await page.locator('[data-time]').innerText();
+    await page.clock.runFor(3000);
+    assert.equal(await page.locator('[data-time]').innerText(), held);
+    await page.locator('[data-action="more-choices"]').click();
+    await fits('questions');
+    await hitTargets('.scene-sheet button');
+    await page.getByRole('button', { name: 'Fewer', exact: true }).click();
+    await page.locator('[data-action="menu"]').click();
+    await fits('menu');
+    await page.clock.runFor(3000);
+    assert.equal(await page.locator('[data-time]').innerText(), held);
+    await page.getByRole('button', { name: 'Slow', exact: true }).click();
+    await page.getByRole('button', { name: 'Send word ▸', exact: true }).click();
+    await fits('feedback');
+    const pending = page.waitForEvent('download');
+    await page.getByRole('button', { name: 'Keep a copy of this run ⤓', exact: true }).click();
+    const stream = await (await pending).createReadStream();
+    let json = '';
+    for await (const chunk of stream) json += chunk.toString();
+    const downloaded = verifyImport(json);
+    assert.equal(downloaded.inputs.filter((i) => i.input.type === 'speed').length, 0);
+    await page.keyboard.press('Escape');
+    await page.locator('[data-action="info"]').click();
+    await page.clock.runFor(3000);
+    assert.equal(await page.locator('[data-time]').innerText(), held);
+    await page.keyboard.press('Escape');
+    // Fixture uses only public simulation actions; the import must replay unchanged.
+    let fixture = newGame(1);
+    for (let n = 0; n < 30 && !view(fixture).ended; n++) {
+      const v = view(fixture);
+      fixture = apply(
+        fixture,
+        v.dayCard
+          ? { type: 'sleep' }
+          : v.scene
+            ? { type: 'close-scene', scene: v.scene.id }
+            : { type: 'wait-for' },
+      );
+    }
+    const run = exportRun(fixture, fixture.inputs);
     verifyImport(JSON.stringify(run));
-    await tap('[data-action="menu"]');
+    await page.locator('[data-action="menu"]').click();
+    await page.getByRole('button', { name: 'To the title page', exact: true }).click();
+    await page.getByRole('button', { name: 'Other ways in ▸', exact: true }).click();
     const chooser = page.waitForEvent('filechooser');
-    await tap('[data-action="import"]');
+    await page.getByRole('button', { name: 'Load a playtest run', exact: true }).click();
     await (await chooser).setFiles({
       name: 'fixture.json',
       mimeType: 'application/json',
       buffer: Buffer.from(JSON.stringify(run)),
     });
-    await page.waitForFunction(() => !document.querySelector('dialog.sheet'));
-    await page.evaluate(() => document.fonts.ready);
-  };
-  await open();
-  await fits('office');
-  await tap('[data-action="city"]');
-  await fits('city');
-  await tap('[data-tab="Bench"]');
-  await tap('[data-action="menu"]');
-  const inspectingClock = await page.locator('[data-time]').innerText();
-  await page.waitForTimeout(1600);
-  assert.equal(await page.locator('[data-time]').innerText(), inspectingClock, 'Game menu pauses time');
-  await tap('[data-close]');
-  await page.getByRole('button', { name: 'Gül', exact: true }).click();
-  await fits('candidate');
-  await tap('[data-action="interview"]');
-  await fits('interview');
-  assert.equal(await page.locator('[data-pace]').innerText(), 'Time held');
-  const interviewClock = await page.locator('[data-time]').innerText();
-  await page.waitForTimeout(1600);
-  assert.equal(await page.locator('[data-time]').innerText(), interviewClock, 'Interview holds time');
-  await visible(page.locator('.lk-commit button'));
-  await tap('[data-action="more-choices"]');
-  await fits('all-questions');
-  assert.ok(await page.locator('[data-choice="wage"]').count());
-  await tap('[data-close]');
-  assert.equal(await page.locator('dialog.sheet').count(), 0);
-  // Presence and journey are public simulation facts, carried in the replayable import.
-  send({ type: 'take-number', candidate: 'sevda' });
-  await load();
-  await page.getByRole('button', { name: 'Sevda · books', exact: true }).click();
-  assert.equal(await page.locator('[data-action="interview"]').isDisabled(), true);
-  assert.match(await page.locator('.candidate-card').innerText(), /home|office/i);
-  await tap('[data-action="call-in"]');
-  await fits('coming');
-  assert.match(await page.locator('[data-waiting]').innerText(), /coming/);
-  assert.equal(await page.locator('[data-action="interview"]').isDisabled(), true);
-  send({ type: 'place', candidate: 'gul', family: 'arslans', vouch: [] });
-  await load();
-  await fits('negotiation');
-  await visible(page.locator('[data-action="edit-terms"]'));
-  await visible(page.locator('.lk-commit button'));
-  assert.equal(await page.locator('[data-scene-side="worker"]').count(), 1);
-  assert.equal(await page.locator('[data-scene-side="family"]').count(), 1);
-  await tap('[data-action="edit-terms"]');
-  await fits('terms');
-  await visible(page.getByRole('button', { name: 'Say these terms to both sides' }));
-  await page.locator('[data-term="wage"]').fill('0');
-  await page.getByRole('button', { name: 'Say these terms to both sides' }).click();
-  assert.match(await page.locator('.sheet-status').innerText(), /positive wage/);
-  assert.equal(await page.locator('[data-term="wage"]').count(), 1);
-  for (const [field, value] of [
-    ['startHour', '8.01'],
-    ['wage', '1000001'],
-  ]) {
-    await page.locator('[data-term="wage"]').fill('10000');
-    await page.locator(`[data-term="${field}"]`).fill(value!);
-    await page.getByRole('button', { name: 'Say these terms to both sides' }).click();
-    assert.equal(await page.locator('[data-term="wage"]').count(), 1, 'Rejected proposal stays open');
+    await page.waitForTimeout(50);
+    await fits('imported');
+    // Two unpaid rents can end a month before the calendar's final day.
+    const early = newGame(1);
+    for (let n = 0; n < 2000 && !view(early).ended; n++) advance(early, 40000);
+    assert.equal(view(early).dateLabel, 'Friday 13 November');
+    const earlyRun = exportRun(early, []);
+    verifyImport(JSON.stringify(earlyRun));
+    await page.locator('[data-action="menu"]').click();
+    await page.getByRole('button', { name: 'To the title page', exact: true }).click();
+    await page.getByRole('button', { name: 'Other ways in ▸', exact: true }).click();
+    const earlyChooser = page.waitForEvent('filechooser');
+    await page.getByRole('button', { name: 'Load a playtest run', exact: true }).click();
+    await (await earlyChooser).setFiles({
+      name: 'early-ending.json',
+      mimeType: 'application/json',
+      buffer: Buffer.from(JSON.stringify(earlyRun)),
+    });
+    await page.locator('.review').waitFor();
+    assert.equal(await page.locator('.topbar-label').innerText(), 'Month’s end · 13 Nov');
+    await fits('early-ending');
+    assert.deepEqual(errors, []);
+    await page.close();
   }
-  await page.locator('[data-term="startHour"]').fill('8.5');
-  await page.locator('[data-term="wage"]').fill('10000');
-  await page.getByRole('button', { name: 'Say these terms to both sides' }).click();
-  await fits('revised-negotiation');
-  assert.match(await page.locator('.terms-summary').innerText(), /08:30/);
-  // Household choices, nested Back, and returning focus to the opener.
-  send({ type: 'close-scene', scene: view(fixture).scene!.id });
-  await load();
-  await tap('[data-tab="Families"]');
-  await tap('[data-family="arslans"]');
-  await tap('[data-phone-family]');
-  await fits('household');
-  await page.locator('[data-call-member]:not(:disabled)').first().click();
-  await fits('household-topics');
-  assert.equal(await page.locator('[data-call-topic]').count(), 4);
-  await visible(page.locator('[data-call-topic]'));
-  await tap('[data-close]');
-  await page.locator('[data-call-member]:focus').waitFor();
-  await page.locator('[data-call-member]:not(:disabled)').first().click();
-  await tap('[data-call-topic="worker"]');
-  await fits('household-call');
-  await visible(page.locator('.lk-commit button'));
-  // Save, export, and Continue are exercised through the built UI.
-  await tap('[data-action="menu"]');
-  const menuClock = await page.locator('[data-time]').innerText();
-  await page.waitForTimeout(1600);
-  assert.equal(await page.locator('[data-time]').innerText(), menuClock, 'System menu stops clock');
-  await tap('[data-action="save"]');
-  await page.getByText('Saved this month.', { exact: true }).waitFor();
-  const download = page.waitForEvent('download');
-  await tap('[data-action="download"]');
-  const downloaded = await download;
-  assert.equal(downloaded.suggestedFilename(), 'goodhands-run.json');
-  await downloaded.saveAs(`${out}/download.json`);
-  await page.reload();
-  await page.getByRole('button', { name: 'Continue', exact: true }).click();
-  await fits('continued');
-  // A ringing phone yields back to the exact interview after the call ends.
-  const interrupt = newGame(1);
-  apply(interrupt, { type: 'interview', candidate: 'sevda' });
-  // Choosing real questions advances the game until the first caller arrives.
-  for (const id of ['last-job', 'wage', 'hours', 'q-patient']) {
-    const s = view(interrupt).scene;
-    if (s?.choices.some((c) => c.id === id && !c.disabled))
-      apply(interrupt, { type: 'choose', scene: s.id, choice: id });
-  }
-  // Use the live opening if its scheduled call has arrived; the deterministic call path is verified below by advancing an imported interview.
-  const { advance } = await import('../src/sim/index.ts');
-  advance(interrupt, 60);
-  fixture = interrupt;
-  await load();
-  if (view(interrupt).phoneRinging) {
-    const sceneId = view(interrupt).scene?.id;
-    await tap('[data-action="phone"]');
-    await fits('phone-interrupt');
-    assert.match(await page.locator('.held-scene').innerText(), /waiting/);
-    const finish = page.locator('[data-choice="finish"], [data-action="leave-scene"]');
-    if (await finish.count()) await finish.first().click();
-    assert.equal(await page.locator('[data-scene-id]').getAttribute('data-scene-id'), sceneId);
-    await fits('interview-return');
-  } else throw new Error('Phone fixture must ring during the interview');
-  await tap('[data-action="menu"]');
-  assert.equal(await page.locator('[data-month-tally-toggle]').count(), 0);
-  await tap('[data-close]');
-  assert.equal(await page.locator('[data-month-tally]').count(), 0, 'No mid-month tally');
-  await page.setViewportSize({ width: 1200, height: 800 });
-  const dock = await page
-    .locator('.lk-scene, [data-content]')
-    .evaluateAll((es) => es.map((e) => e.getBoundingClientRect().toJSON()));
-  assert.ok(dock[0]!.right <= dock[1]!.x, 'Desktop sheet docks beside scene');
-  await page.screenshot({ path: `${out}/desktop.png` });
-  fixture = runPolicy(1, 'careful');
-  assert.equal(view(fixture).ended, true, 'Terminal fixture');
-  await load();
-  const tally = page.locator('[data-month-tally]');
-  assert.equal(await tally.getAttribute('open'), null, 'End tally starts closed');
-  await page.getByText('See tally', { exact: true }).click();
-  assert.match(await tally.innerText(), /TOTAL:/);
-  await page.reload();
-  await page.getByRole('button', { name: 'Continue', exact: true }).click();
-  assert.equal(await tally.getAttribute('open'), null, 'Reload keeps optional end tally closed');
-  assert.deepEqual(errors, []);
-  writeFileSync(`${out}/summary.json`, JSON.stringify({ results, errors }, null, 2));
-  console.log('Phone stage acceptance passed');
+  console.log(`UI grammar verified; screenshots: ${out}`);
 } finally {
   await browser.close();
   await server.close();

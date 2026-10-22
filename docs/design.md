@@ -2,6 +2,14 @@
 
 **What done means.** For this first increment: a public, playable build at https://goodhands.adamwhite.work with a playtest export that replays, HF-character playtester runs and source-unread LLM playtester runs recorded verbatim in `docs/playtests/`, polish rounds from them (up to four, or until a fresh persona says they would return tomorrow), and an entry on https://human.adamwhite.work/games/ and the lab dashboard. Adam (owner) accepts it by playing it. Later work goes in the Deferred list below, each item with a date.
 
+## Approved UI rebuild (2026-10-22)
+
+The owner approved the UI sweep: "All good decisions, proceed." The approved layout and its addenda are the current UI authority. Delivery means the complete rebuilt UI on the public site, replay and legacy-save compatibility retained, one independent Codex review with concrete findings fixed, green CI on the deployed commit, and all acceptance items checked in a browser at 360×690 and 1280×800. Adam accepts the result by playing it.
+
+The top bar holds the date, one information control and the menu. The rent bar sits above the office or city scene. The Bench, Families and Placed sheet holds the current context; inspections and decisions replace that sheet. Candidate notes and conversation transcripts are visible there. Candidate verbs and conversation endings stay at its foot. The ringing phone stays on the scene across tabs and inspections. The title holds resume, restart confirmation and playtest import; the menu holds notes, page chips, pacing, feedback and recording controls. Send word includes a remembered optional name and keeps export available.
+
+Pacing is presentation only. Automatic is the default: held for conversations, calls and the day card; slow for departures and reading with a waiting bench; steady with people waiting; fast with an empty bench. Menu choices Automatic / Slow / Steady / Fast never emit simulation speed inputs. Skip ⏩ names the next event on its second line. Historical speed inputs and earlier placement rules remain replayable. This section supersedes the older interface and pacing descriptions below; simulation rules are unchanged.
+
 ## The idea
 
 Izmir, November. You are **Nermin**, who runs **Good Hands**, a one-room placement agency above a pharmacy in Alsancak. Families phone you when they need a nanny, a cook, a carer for an old father or a driver. Women and men climb your stairs and sit on the bench outside your door, hoping you will place them.

@@ -12,5 +12,5 @@ it('accepts the phone stage, presence, negotiation, household calls, saves and d
       timeout: 300000,
     },
   );
-  expect(output).toContain('Phone stage acceptance passed');
+  expect(output).toContain('UI grammar verified');
 }, 305000);

@@ -13,45 +13,47 @@ beforeAll(async () => {
   await page.clock.install();
   await page.clock.pauseAt(new Date());
   await page.goto(server.resolvedUrls?.local[0] ?? '');
-  await page.getByRole('button', { name: 'New month', exact: true }).click();
   await page.getByRole('button', { name: 'Open the office', exact: true }).click();
 });
 afterAll(async () => {
   await browser?.close();
   await server?.close();
 });
-
-it('holds Game menu time and native help, then resumes without adding an input', async () => {
+it('holds the menu and information, then resumes without speed inputs', async () => {
   const clock = page.locator('[data-time]');
   await page.getByRole('button', { name: 'Game menu', exact: true }).click();
   const held = await clock.innerText();
   await page.clock.runFor(6000);
   expect(await clock.innerText()).toBe(held);
-  expect(await page.locator('[data-speed-choice], [data-month-tally-toggle]').count()).toBe(0);
-  const help = page.getByRole('button', { name: 'Setting words', exact: true });
-  await help.focus();
-  await page.keyboard.press('Enter');
-  expect(await page.locator('#setting-words').evaluate((e) => e.matches(':popover-open'))).toBe(true);
-  await page.keyboard.press('Escape');
-  expect(await help.evaluate((e) => e === document.activeElement)).toBe(true);
-  expect(await page.getByRole('dialog', { name: 'Game menu', exact: true }).isVisible()).toBe(true);
-  await page.clock.runFor(6000);
+  await page.getByRole('button', { name: 'Fast', exact: true }).click();
+  await page.getByRole('button', { name: 'Back to the desk', exact: true }).click();
+  await page.getByRole('button', { name: 'Information', exact: true }).click();
+  await page.clock.runFor(3000);
   expect(await clock.innerText()).toBe(held);
-  const pending = page.waitForEvent('download');
-  await page.getByRole('button', { name: 'Download this run', exact: true }).click();
-  const stream = await (await pending).createReadStream();
-  let json = '';
-  for await (const chunk of stream) json += chunk.toString();
-  const run = JSON.parse(json);
-  expect(run.inputs).toEqual([]);
   await page.keyboard.press('Escape');
   await page.clock.runFor(1000);
   expect(await clock.innerText()).not.toBe(held);
+  await page.getByRole('button', { name: 'Game menu', exact: true }).click();
+  await page.getByRole('button', { name: 'Send word ▸', exact: true }).click();
+  const pending = page.waitForEvent('download');
+  await page.getByRole('button', { name: 'Keep a copy of this run ⤓', exact: true }).click();
+  const stream = await (await pending).createReadStream();
+  let json = '';
+  for await (const chunk of stream) json += chunk.toString();
+  expect(JSON.parse(json).inputs).toEqual([]);
 });
-
-it('changes the clock speed on a phone and records a replayable speed input', async () => {
-  await page.locator('[data-speed]').click();
-  await page.getByRole('button', { name: 'Gallop', exact: true }).click();
-  expect(await page.locator('[data-speed]').innerText()).toBe('Gallop');
-  expect(await page.evaluate(() => document.documentElement.scrollHeight <= innerHeight)).toBe(true);
+it('expands interview questions inside the sheet and keeps the transcript', async () => {
+  await page.keyboard.press('Escape');
+  await page.getByRole('button', { name: 'Gül', exact: true }).click();
+  await page.locator('[data-action="interview"]').click();
+  await page.locator('[data-action="more-choices"]').click();
+  expect(await page.locator('dialog').count()).toBe(0);
+  expect(await page.getByRole('button', { name: 'Fewer', exact: true }).isVisible()).toBe(true);
+  await page.locator('[data-choice="wage"]').click();
+  expect(await page.locator('[data-action="fewer-choices"]').count()).toBe(0);
+  expect(await page.locator('.exchange [data-scene-line]').count()).toBeGreaterThan(1);
+  const held = await page.locator('[data-time]').innerText();
+  await page.clock.runFor(3000);
+  expect(await page.locator('[data-time]').innerText()).toBe(held);
+  expect(await page.locator('[data-pace]').innerText()).toContain('Gül is talking');
 });

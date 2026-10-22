@@ -80,13 +80,15 @@ describe('player-facing render helpers', () => {
       } as View),
     ).toContain('Finish');
   });
-  it('uses the selected clock speed and holds decisions', () => {
+  it('uses automatic clock pace and holds decisions', () => {
     const quiet = { bench: [], speed: 3, next: { at: 600 } } as unknown as View;
     expect(automaticPace(quiet)).toBe(20);
-    expect(automaticPace({ ...quiet, speed: 0 })).toBe(0.5);
-    expect(automaticPace({ ...quiet, bench: [candidate] })).toBe(20);
+    expect(automaticPace({ ...quiet, speed: 0 })).toBe(20);
+    expect(automaticPace({ ...quiet, bench: [candidate] })).toBe(2);
+    expect(automaticPace({ ...quiet, bench: [candidate] }, true)).toBe(0.5);
+    expect(automaticPace({ ...quiet, slowed: true })).toBe(0.5);
+    expect(canWait({ ...quiet, slowed: true })).toBe(false);
     for (const held of [
-      { slowed: true },
       { scene: {} },
       { heldScene: {} },
       { phoneRinging: {} },
