@@ -13,7 +13,7 @@ import {
   socialEvent,
   tick,
   trustOf,
-} from '@adam0white/human-framework';
+} from '@adam0white/human-framework-legacy';
 import { arrangementSpec } from './arrangements.ts';
 import {
   familyDisagreementWords,

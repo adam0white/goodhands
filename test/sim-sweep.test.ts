@@ -24,7 +24,7 @@ test('all existing candidates have specific recollections through the existing p
     expect(personalAnswer(c.id, 'last-family')).toContain(candidateMemories[c.id]!.last);
     expect(personalAnswer(c.id, 'why-left')).toContain(candidateMemories[c.id]!.leaving);
   }
-  const s = newGame(1);
+  const s = newGame(1, 4);
   apply(s, { type: 'interview', candidate: 'sevda' });
   apply(s, { type: 'choose', scene: view(s).scene!.id, choice: 'last-family' });
   expect(view(s).scene!.lines.some((l) => l.text.includes('one boot under my chair'))).toBe(true);
@@ -39,7 +39,7 @@ test('families reveal individual concerns in calls and consequences through exis
     expect(familyMoment(f.id, memory.quality, true, 'Worker')).toContain(memory.good);
     expect(familyMoment(f.id, memory.quality, false, 'Worker')).toContain(memory.bad);
   }
-  const s = newGame(1);
+  const s = newGame(1, 4);
   expect(JSON.stringify(view(s))).not.toContain('ironed my work blouse');
   apply(s, { type: 'call-household', family: 'arslans', member: 'arslans-0', topic: 'progress' });
   expect(view(s).scene!.lines[0]!.text).toContain('ironed my work blouse');
@@ -51,7 +51,7 @@ test('families reveal individual concerns in calls and consequences through exis
 
 test('new agreements collect a week of wages capped at the total fee', () => {
   for (const fee of [3000, 1000, 0]) {
-    const s = newGame(1);
+    const s = newGame(1, 4);
     const cash = view(s).cash;
     agree(s, 10000, fee);
     expect(view(s).placements).toHaveLength(1);
@@ -82,7 +82,7 @@ test('version three saves continue and replay with the exact frozen state and vi
 });
 
 test('replacement words and final balance use the deposit already paid', () => {
-  const s = newGame(1);
+  const s = newGame(1, 4);
   agree(s, 10000, 3000);
   apply(s, { type: 'close-scene', scene: view(s).scene!.id });
   apply(s, { type: 'withdraw', placement: view(s).placements[0]!.id });

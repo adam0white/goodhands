@@ -1,4 +1,4 @@
-import { estimate, type Person } from '@adam0white/human-framework';
+import { estimate, type Person } from '@adam0white/human-framework-legacy';
 import type { Quality, SceneChoice } from './types.ts';
 import { CANDIDATES, QUALITY_MAP, type Referee } from './world.ts';
 

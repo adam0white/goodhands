@@ -1,4 +1,4 @@
-import { type Person, trustOf } from '@adam0white/human-framework';
+import { type Person, trustOf } from '@adam0white/human-framework-legacy';
 import type { EmploymentTerms, NegotiationView, SceneChoice } from './types.ts';
 import { workerNeed } from './voices.ts';
 import type { Candidate, Family } from './world.ts';

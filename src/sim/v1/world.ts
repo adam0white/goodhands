@@ -1,5 +1,5 @@
 /** Authored Izmir households and public presentations. Hidden truth lives only in HF Persons. */
-import { acquaint, createPerson, hear, type Person, skillLevel } from '@adam0white/human-framework';
+import { acquaint, createPerson, hear, type Person, skillLevel } from '@adam0white/human-framework-legacy';
 import type { Quality, Role } from './types.ts';
 
 export interface Candidate {

@@ -2,6 +2,12 @@
 
 **What done means.** For this first increment: a public, playable build at https://goodhands.adamwhite.work with a playtest export that replays, HF-character playtester runs and source-unread LLM playtester runs recorded verbatim in `docs/playtests/`, polish rounds from them (up to four, or until a fresh persona says they would return tomorrow), and an entry on https://human.adamwhite.work/games/ and the lab dashboard. Adam (owner) accepts it by playing it. Later work goes in the Deferred list below, each item with a date.
 
+## One cast (2026-10-23)
+
+New months use edition5 with HF2.15.0. Editions1–4 keep their exact HF2.9.0 runtime through the legacy alias. The dedicated adult Pass guest Zeynep prepares a daytime cold supper within reach of her sons; only her actual cold-food skill enters this trial. Her daily21:30–22:10 family promise recurs. The Taş daughter and all existing candidates remain distinct. Selin makes an after-work telephone enquiry about practical help for her father; no move, care placement, health change or consent is invented. Both guests arrive after the ordinary opening.
+
+Continuity is a separate browser-global opt-in. New months may admit approved projections after the checked shelf bootstrap; loaded months keep their pinned initial people. An atomic target claim advances the selected source revision before loading. Saves and exports retain their own last accepted envelope. Stale continuations require an explicit fork. The source keeps its complete checkpoint and world; the shared shelf receives only approved projection, bounded history, source digest and mapping stamps. Return chapters require a local source departure prefix. File imports stay local without recording until explicit historical-linkage approval, and a missing association remains missing after reload. Same-epoch shared histories use the central association. DNT, GPC and recording off retain ordinary play. Full live journey receipts and owner play remain separate from adapter tests.
+
 ## Approved UI rebuild (2026-10-22)
 
 The owner approved the UI sweep: "All good decisions, proceed." The approved layout and its addenda are the current UI authority. Delivery means the complete rebuilt UI on the public site, replay and legacy-save compatibility retained, one independent Codex review with concrete findings fixed, green CI on the deployed commit, and all acceptance items checked in a browser at 360×690 and 1280×800. Adam accepts the result by playing it.

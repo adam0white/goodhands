@@ -3,7 +3,7 @@
  * and sends only `Input` (through `apply`). The sim owns `State`. Fields may be added; never remove or rename one.
  * Design authority: docs/design.md.
  */
-import type { Person } from '@adam0white/human-framework';
+import type { Person } from '@adam0white/human-framework-legacy';
 
 /** Game minutes since 00:00 Monday 2 November 2026. Day d (0-based) starts at d * 1440. */
 export type Minute = number;

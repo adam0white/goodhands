@@ -28,6 +28,7 @@ export type Speed = 0 | 1 | 2 | 3; // slow, walk, trot, gallop
 export const SPEEDS: readonly number[] = [0.5, 2, 6, 20];
 
 export type Input =
+  | { type: 'guest-action'; guest: import('./guests.ts').GuestId; action: import('./guests.ts').GuestAction }
   | { type: 'call-in'; candidate: string }
   | { type: 'propose-terms'; scene: string; terms: EmploymentTerms }
   | { type: 'call-household'; family: string; member: string; topic: HouseholdTopic }
@@ -229,6 +230,7 @@ export interface DayCard {
 }
 
 export interface View {
+  guests?: import('./guests.ts').GuestView[];
   simulation?: number;
   next: { label: string; at: Minute; dateLabel: string } | null;
   seed: number;
@@ -286,7 +288,7 @@ export interface Review {
 
 /** The sim's state: plain JSON. People are HF Persons, keyed by id. */
 export interface State {
-  version: 1 | 2 | 3 | 4;
+  version: 1 | 2 | 3 | 4 | 5;
   seed: number;
   rng: number; // seeded RNG state
   now: Minute;

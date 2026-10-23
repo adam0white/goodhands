@@ -1,4 +1,4 @@
-import { outwardSigns, type Person, selfReport } from '@adam0white/human-framework';
+import { outwardSigns, type Person, selfReport } from '@adam0white/human-framework-legacy';
 import { authoredTraitAnswer } from './dialogue.ts';
 import { QUALITIES, type Quality, type Role } from './types.ts';
 import { quality, ROLE_SKILL } from './world.ts';

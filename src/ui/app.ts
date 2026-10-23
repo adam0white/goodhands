@@ -1,8 +1,24 @@
+import {
+  canonicalPersona,
+  createPersona,
+  personaChannel,
+  validatePersona,
+  watchPersonaCheckpoint,
+} from '@adam0white/lab-client';
+import { exportGuest, type GuestAction, type GuestId, prepareGuest } from '../sim/guests.ts';
+import {
+  type ContinuityBook,
+  ContinuitySession,
+  castIds,
+  continuityRow,
+  emptyContinuity,
+} from './continuity.ts';
 import '@adam0white/lab-kit/stage.css';
 import {
   defineTerms,
   downloadJson,
   glossaryPanel,
+  personaControls,
   telemetryNotice,
   telemetryToggle,
   term,
@@ -20,7 +36,7 @@ import {
   type State,
   type View,
 } from '../sim/types.ts';
-import { exportRun, type RunExport, verifyImport } from './export.ts';
+import { exportRun, type RunExport, validateContinuity, verifyImport } from './export.ts';
 import { lab, notebookRunOptions } from './lab.ts';
 import { cityFigurePositions, drawCity, MAP_HEIGHT, MAP_WIDTH } from './map.ts';
 import { drawOffice, officeSeats } from './office.ts';
@@ -80,17 +96,23 @@ let moreChoices = false;
 let paceChoice: 'automatic' | 'slow' | 'steady' | 'fast' = 'automatic';
 let overlay: HTMLElement | null = null;
 let noticeUntil = 0;
-lab.trackRun(
-  async () => {
-    const currentState = state;
-    if (currentState) {
-      const stored = await get<RunExport>('run');
-      if (state === currentState && stored?.value.seed === sim.view(currentState).seed)
-        lab.captureSave({ key: 'run', value: stored.value });
-    }
-    return state ? exportRun(state, inputs) : null;
-  },
-  {
+const shelf = personaChannel();
+const continuitySession = new ContinuitySession(shelf, lab, () => lab.build().c || 'development');
+let continuity: ContinuityBook = emptyContinuity();
+let stopTracking: (() => void) | undefined;
+let checkpointQueue: Promise<void> = Promise.resolve();
+let continuityStatus = '';
+let pendingFork: unknown;
+let generation = 0;
+let openingMonth = false;
+function runExport(): RunExport {
+  if (!state) throw new Error('Open a month first.');
+  return exportRun(state, inputs, continuity);
+}
+function attachRecording(): void {
+  lab.setPersonaRecording(continuitySession.recordingKey);
+  stopTracking?.();
+  stopTracking = lab.trackRun(() => (state ? runExport() : null), {
     runKey: () => (state ? sim.view(state).seed : 'title'),
     getLogs: () =>
       state
@@ -99,8 +121,8 @@ lab.trackRun(
             .log.slice(-40)
             .map((line) => line.text)
         : [],
-  },
-);
+  });
+}
 const ALL_GAMES = 'https://human.adamwhite.work/games/';
 const TERMS = {
   Hanım: 'a respectful title for a woman',
@@ -141,7 +163,9 @@ function candidate(v: View): CandidateView | undefined {
 }
 function save(): void {
   if (!state) return;
-  const run = exportRun(state, inputs);
+  const run = runExport();
+  lab.setPersonaRecording(continuitySession.recordingKey);
+  lab.captureSave({ key: 'run', value: run });
   void put('run', run).then((ok) => {
     if (!ok) {
       notice = 'This browser could not save. Keep a copy from Send word.';
@@ -157,6 +181,12 @@ function showNotice(): void {
 function changed(previous: View, next: View): void {
   // Views are copied before a tick because the simulation may mutate its state.
   for (const name of sim.milestones(previous, next)) lab.milestone(name);
+  for (const guest of next.guests ?? []) {
+    const before = previous.guests?.find((g) => g.id === guest.id);
+    if (!before)
+      lab.milestone(guest.id === 'zeynep-pass' ? 'onecast zeynep encounter' : 'onecast selin encounter');
+    if (before?.status !== 'complete' && guest.status === 'complete') void checkpoint();
+  }
 }
 function send(input: Input): void {
   if (!state || waitAnimation) return;
@@ -186,6 +216,7 @@ function send(input: Input): void {
     )
     ?.focus({ preventScroll: true });
   save();
+  if (input.type === 'guest-action' || input.type === 'sleep') void checkpoint();
 }
 
 function topbar(label: string): string {
@@ -193,7 +224,7 @@ function topbar(label: string): string {
 }
 function title(): void {
   closeSheet(false);
-  if (state) saved = verifyImport(JSON.stringify(exportRun(state, inputs)));
+  if (state) saved = verifyImport(JSON.stringify(runExport()));
   playing = false;
   shown = '';
   setScreen('title');
@@ -203,7 +234,13 @@ function title(): void {
   const actions = root.querySelector('.title-actions');
   if (saved) {
     actions?.append(
-      button('Back to the desk', () => begin(saved?.state ?? null, saved?.inputs ?? []), 'primary'),
+      button(
+        'Back to the desk',
+        () => {
+          if (saved) void begin(saved.state, saved.inputs, saved.continuity);
+        },
+        'primary',
+      ),
     );
     const p = document.createElement('p');
     p.className = 'continue-line';
@@ -215,26 +252,106 @@ function title(): void {
         confirm.className = 'restart-confirm';
         confirm.innerHTML = '<p>This month’s save is replaced.</p>';
         confirm.append(
-          button('Yes, start over', newMonth),
+          button('Yes, start over', () => {
+            void newMonth();
+          }),
           button('No', () => confirm.remove()),
         );
         actions?.querySelector('.restart-confirm')?.remove();
         actions?.append(confirm);
       }),
     );
-  } else actions?.append(button('Open the office', newMonth, 'primary'));
+  } else
+    actions?.append(
+      button(
+        'Open the office',
+        () => {
+          void newMonth();
+        },
+        'primary',
+      ),
+    );
   const credit = document.createElement('p');
   credit.className = 'credit';
   credit.textContent = 'People by the Human Framework';
   actions?.append(credit);
 }
-function newMonth(): void {
-  closeSheet(false);
-  begin(sim.newGame(crypto.getRandomValues(new Uint32Array(1))[0] ?? 20261102), []);
-  lab.milestone('run started');
+async function newMonth(fresh = false, file?: unknown): Promise<void> {
+  if (openingMonth) return;
+  openingMonth = true;
+  try {
+    const admissions = [];
+    const seed = crypto.getRandomValues(new Uint32Array(1))[0] ?? 20261102;
+    const book = emptyContinuity();
+    const messages: string[] = [];
+    await shelf.ready;
+    const candidates: { source: unknown; scope: 'shared' | 'file' }[] = [];
+    if (file) candidates.push({ source: file, scope: 'file' });
+    else if (!fresh && shelf.enabled) {
+      for (const castId of castIds) {
+        try {
+          const source = await shelf.request<import('@adam0white/lab-client').PersonaEnvelope | null>({
+            action: 'get',
+            castId,
+          });
+          if (source && ['pass', 'voice'].includes(source.source.game))
+            candidates.push({ source, scope: 'shared' });
+        } catch (e) {
+          messages.push(errorText(e));
+          lab.milestone('onecast bridgefail');
+        }
+      }
+    }
+    for (const candidate of candidates) {
+      try {
+        const source = await validatePersona(candidate.source);
+        const initial = await prepareGuest(source);
+        sim.newGame(seed, 5, [...admissions, initial]); // Complete target preflight before claiming the head.
+        const claim = await continuitySession.claim(source, candidate.scope);
+        admissions.push(initial);
+        book.arrivals.push({ source, claim, initial, scope: candidate.scope });
+        book.heads.push(claim);
+        book.rows.push(continuityRow(claim, 'admitted', candidate.scope, initial.arm));
+      } catch (e) {
+        pendingFork = candidate.source;
+        messages.push(errorText(e));
+        if (file) {
+          continuityStatus = messages.join(' ');
+          peoplePanel();
+          return;
+        }
+      }
+    }
+    closeSheet(false);
+    await begin(sim.newGame(seed, 5, admissions), [], book, !!file);
+    continuityStatus = messages.join(' ');
+    if (continuityStatus) {
+      notice = continuityStatus;
+      noticeUntil = Infinity;
+      showNotice();
+    }
+    lab.milestone('run started');
+  } finally {
+    openingMonth = false;
+  }
 }
-function begin(next: State | null, history: LoggedInput[]): void {
+function errorText(e: unknown): string {
+  return e instanceof Error
+    ? e.message
+    : 'Continuity unavailable. Fresh play and local files remain available.';
+}
+async function begin(
+  next: State | null,
+  history: LoggedInput[],
+  book = emptyContinuity(),
+  fromFile = false,
+): Promise<void> {
   if (!next) return;
+  await validateContinuity(book, next, history);
+  stopTracking?.();
+  await continuitySession.recording(book, fromFile);
+  generation++;
+  continuity = structuredClone(book);
   recordingNoticeDone = true;
   state = next;
   inputs = structuredClone(history);
@@ -245,8 +362,145 @@ function begin(next: State | null, history: LoggedInput[]): void {
   last = performance.now();
   lastHour = Math.floor(current().now / 60);
   notice = '';
+  attachRecording();
   render(true);
   save();
+}
+function checkpoint(fork = false): Promise<void> {
+  const activeGeneration = generation;
+  const pinned = state ? structuredClone(state) : null;
+  checkpointQueue = checkpointQueue
+    .catch(() => {})
+    .then(async () => {
+      await shelf.ready;
+      if (!shelf.enabled || !pinned || activeGeneration !== generation) return;
+      if (!continuity.heads.length) {
+        continuityStatus =
+          'This month has fresh authored guests. A saved source departure is required for a continuation return. Fresh source play remains available.';
+        return;
+      }
+      for (const head of [...continuity.heads]) {
+        const id: GuestId = head.castId === castIds[0] ? 'zeynep-pass' : 'selin-voice';
+        const guest = sim.view(pinned).guests?.find((g) => g.id === id);
+        if (guest?.status !== 'complete') continue;
+        try {
+          const projected = await exportGuest(pinned, id);
+          if (activeGeneration !== generation) return;
+          const origin = continuity.arrivals.find((a) => a.source.castId === head.castId)?.source;
+          const transfer = {
+            person: projected.projection,
+            history: projected.history,
+            checkpoint: projected.checkpoint,
+            admission: {
+              adapter: 'goodhands/1',
+              sourceRevision: origin?.revision ?? head.revision,
+              sourceCheckpointDigest:
+                (origin?.transfer.checkpoint as { checkpointDigest?: string } | undefined)
+                  ?.checkpointDigest ?? '',
+              mapping: projected.projection.mappingVersion,
+              opening: projected.projection.source.now,
+            },
+          };
+          // Avoid consuming a revision for an unchanged checkpoint.
+          if (canonicalPersona(head.transfer) === canonicalPersona(transfer) && !fork) continue;
+          await continuitySession.publish(continuity, head.castId, transfer, fork);
+          continuityStatus =
+            'Checkpoint accepted. Return in a fresh source chapter; a local source departure save is required.';
+          lab.milestone(id === 'zeynep-pass' ? 'onecast zeynep completion' : 'onecast selin completion');
+          save();
+        } catch (e) {
+          continuityStatus = errorText(e);
+        }
+      }
+    });
+  return checkpointQueue;
+}
+watchPersonaCheckpoint(() => checkpoint());
+function peoplePanel(): void {
+  const d = openSheet(
+    'People between games',
+    '<p data-continuity-status role="status"></p><div data-persona-controls></div><p>Loaded months keep their original people. Arrivals are considered only for a new month. Browser storage may be lost; keep a file backup.</p><button type="button" data-persona-file>Load a person file into a new month</button><button type="button" data-persona-fresh>Start a fresh month without history</button><button type="button" data-persona-export>Download accepted people</button><button type="button" data-persona-checkpoint>Save an eligible return checkpoint</button><button type="button" data-persona-fork>Fork this competing history explicitly</button><p><a href="https://pass.adamwhite.work/">Return to The Pass</a> · <a href="https://human.adamwhite.work/voice/">Return to Voice</a>. A continuation return needs the source departure saved in this browser; otherwise start fresh there.</p>',
+  );
+  const carry = document.createElement('p');
+  carry.textContent =
+    'Zeynep carries cold-food preparation, one attended work account and her family promise. Other kitchen skills, wages, equipment and Chef trust stay in The Pass. Selin brings an enquiry and her office schedule; the call grants no medical knowledge, placement or consent. Downloaded person files include the full omission report.';
+  d.querySelector('[data-persona-controls]')?.after(carry);
+  const update = () => {
+    const el = d.querySelector('[data-continuity-status]');
+    if (el) el.textContent = continuityStatus;
+  };
+  update();
+  void shelf.ready.then(() => {
+    d.querySelector('[data-persona-controls]')?.append(
+      personaControls({
+        enabled: shelf.enabled,
+        setEnabled(value) {
+          shelf.setEnabled(value);
+          continuityStatus = value
+            ? 'Continuity enabled for later fresh months.'
+            : 'Continuity off. Ordinary play continues.';
+          update();
+        },
+        recordingAllowed: !continuity.heads.length || lab.personaRecordingAllowed,
+        allowRecording(value) {
+          void continuitySession
+            .allow(continuity, value)
+            .then(() => {
+              save();
+              update();
+            })
+            .catch((e) => {
+              continuityStatus = errorText(e);
+              update();
+            });
+        },
+      }),
+    );
+  });
+  d.querySelector<HTMLButtonElement>('[data-persona-file]')!.onclick = () => {
+    const file = document.createElement('input');
+    file.type = 'file';
+    file.accept = '.json,application/json';
+    file.onchange = async () => {
+      try {
+        const f = file.files?.[0];
+        if (!f) return;
+        if (f.size > 256 * 1024) throw new Error('A person file must be below 256 KiB.');
+        await newMonth(false, JSON.parse(await f.text()));
+      } catch (e) {
+        continuityStatus = errorText(e);
+        update();
+      }
+    };
+    file.click();
+  };
+  d.querySelector<HTMLButtonElement>('[data-persona-fresh]')!.onclick = () => {
+    void newMonth(true);
+  };
+  d.querySelector<HTMLButtonElement>('[data-persona-export]')!.onclick = () => {
+    for (const head of continuity.heads) downloadJson(`${head.castId}.json`, head);
+  };
+  d.querySelector<HTMLButtonElement>('[data-persona-checkpoint]')!.onclick = () => {
+    void checkpoint().then(update);
+  };
+  d.querySelector<HTMLButtonElement>('[data-persona-fork]')!.onclick = () => {
+    void (async () => {
+      try {
+        if (pendingFork) {
+          const original = await validatePersona(pendingFork);
+          await prepareGuest(original);
+          const { revision: _revision, ...body } = original;
+          const fork = await createPersona({ ...body, branchId: crypto.randomUUID(), parentRevision: null });
+          await shelf.request({ action: 'put', envelope: fork, fork: true });
+          pendingFork = undefined;
+          await newMonth(false, fork);
+        } else await checkpoint(true);
+      } catch (e) {
+        continuityStatus = errorText(e);
+        update();
+      }
+    })();
+  };
 }
 function shell(v: View): void {
   root.innerHTML = `<main class="game" data-testid="office">${topbar('<span data-date></span> · <strong data-time></strong>')}<div class="state-strip"><span data-money></span><progress class="rent-meter" max="${v.rent.amount}" value="${Math.max(0, v.cash)}" aria-label="Cash towards rent"></progress><span data-rent-due></span><span data-pace></span></div><section class="office-front" aria-label="The office"><div class="room"><canvas id="office" role="img" aria-label="Nermin’s desk, telephone, window and the waiting bench"></canvas><div class="seat-targets"></div><div class="city-map" hidden><canvas id="city" role="img" aria-label="Izmir across the bay"></canvas><div class="city-targets"></div></div></div><p class="scene-status" data-status role="status"></p><p data-city-person class="city-person"></p><div class="phone-strip" hidden><button class="phone-control" type="button" data-action="phone"></button><p id="phone-reason" class="phone-reason reason"></p></div><button class="city-toggle" type="button" data-action="city">City</button></section><div class="caption-row"><button class="task now" type="button" aria-label="Task" data-testid="task" data-action="task"><span></span></button><button type="button" data-action="wait-for" aria-label="Skip to the next event" class="until-event"></button></div><section class="desk-sheet" data-content aria-label="Nermin’s desk"></section></main>`;
@@ -337,6 +591,7 @@ function render(force = false): void {
     v.requests,
     v.families,
     v.placements,
+    v.guests,
     v.scene,
     v.heldScene,
     v.dayCard,
@@ -429,7 +684,7 @@ function render(force = false): void {
     content.innerHTML = dayHtml(v);
     setScreen('office');
   } else {
-    content.innerHTML = `<nav class="tabs lk-sheet-head" aria-label="Agency books">${(['Bench', 'Families', 'Placed'] as const).map((t) => `<button type="button" data-tab="${t}" aria-pressed="${tab === t}">${t}</button>`).join('')}</nav><section class="desk-content lk-sheet-body">${city && tab === 'Bench' ? cityHtml(v) : tab === 'Bench' ? benchHtml(v) : tab === 'Families' ? familiesHtml(v) : placedHtml(v)}</section>`;
+    content.innerHTML = `<nav class="tabs lk-sheet-head" aria-label="Agency books">${(['Bench', 'Families', 'Placed'] as const).map((t) => `<button type="button" data-tab="${t}" aria-pressed="${tab === t}">${t}</button>`).join('')}</nav><section class="desk-content lk-sheet-body">${city && tab === 'Bench' ? cityHtml(v) : tab === 'Bench' ? benchHtml(v) + guestsHtml(v) : tab === 'Families' ? familiesHtml(v) : placedHtml(v)}</section>`;
     if (city) updateCity(v);
     setScreen(sheet ? 'menu' : city ? 'city' : 'office');
   }
@@ -559,7 +814,7 @@ function sceneHtml(v: View): string {
 function dayHtml(v: View): string {
   const d = v.dayCard;
   if (!d) return '';
-  return `<section class="day-card lk-sheet-body"><h2>${h(d.dateLabel)} · Office closed</h2>${d.lines.map((l) => `<p>${h(l)}</p>`).join('')}<p class="tomorrow">${h(d.tomorrow)}</p></section><div class="lk-commit"><button type="button" class="primary" data-action="sleep">Sleep · open ${h(d.tomorrow.match(/(?:Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)/)?.[0] ?? 'tomorrow')} 08:30</button></div>`;
+  return `<section class="day-card lk-sheet-body"><h2>${h(d.dateLabel)} · Office closed</h2>${d.lines.map((l) => `<p>${h(l)}</p>`).join('')}${guestsHtml(v)}<p class="tomorrow">${h(d.tomorrow)}</p></section><div class="lk-commit"><button type="button" class="primary" data-action="sleep">Sleep · open ${h(d.tomorrow.match(/(?:Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)/)?.[0] ?? 'tomorrow')} 08:30</button></div>`;
 }
 function cityHtml(v: View): string {
   return `<h2>In the city</h2>${v.city.figures.map((f) => `<button type="button" data-city-figure="${h(f.id)}" aria-pressed="${cityPerson === f.id}">${h(f.name)} · ${h(f.place ?? 'in the city')}</button>`).join('')}`;
@@ -739,7 +994,7 @@ function menu(): void {
   if (state) save();
   const d = openSheet(
     'Game menu',
-    `<p>The clock waits while this is open.</p>${state ? '<button type="button" data-action="day-notes">The day’s notes ▸</button>' : ''}<div class="page-setting">Page ${['System', 'Light', 'Dark'].map((theme) => `<button type="button" data-theme-choice="${theme.toLowerCase()}" aria-pressed="${(document.documentElement.dataset.theme ?? 'system') === theme.toLowerCase()}">${theme}</button>`).join('')}</div><div class="pace-setting"><span>Clock</span> ${['Automatic', 'Slow', 'Steady', 'Fast'].map((speed) => `<button type="button" data-pace-choice="${speed.toLowerCase()}" aria-pressed="${paceChoice === speed.toLowerCase()}">${speed}</button>`).join('')}</div><button type="button" data-action="send-run">Send word ▸</button><button type="button" data-action="fullscreen">Full screen</button><button type="button" data-action="title">To the title page</button><a href="${ALL_GAMES}">All games</a><div class="recording-footer"></div>`,
+    `<p>The clock waits while this is open.</p>${state ? '<button type="button" data-action="day-notes">The day’s notes ▸</button>' : ''}<div class="page-setting">Page ${['System', 'Light', 'Dark'].map((theme) => `<button type="button" data-theme-choice="${theme.toLowerCase()}" aria-pressed="${(document.documentElement.dataset.theme ?? 'system') === theme.toLowerCase()}">${theme}</button>`).join('')}</div><div class="pace-setting"><span>Clock</span> ${['Automatic', 'Slow', 'Steady', 'Fast'].map((speed) => `<button type="button" data-pace-choice="${speed.toLowerCase()}" aria-pressed="${paceChoice === speed.toLowerCase()}">${speed}</button>`).join('')}</div><button type="button" data-action="people">People between games</button><button type="button" data-action="send-run">Send word ▸</button><button type="button" data-action="fullscreen">Full screen</button><button type="button" data-action="title">To the title page</button><a href="${ALL_GAMES}">All games</a><div class="recording-footer"></div>`,
     'menu',
   );
   d.querySelector('.recording-footer')?.append(telemetryToggle(lab));
@@ -995,7 +1250,8 @@ function importFile(): void {
         throw new Error('This run is too large. Choose a JSON run below 20 MB.');
       const run = verifyImport(await chosen.text());
       closeSheet(false);
-      begin(run.state, run.inputs);
+      await validateContinuity(run.continuity, run.state, run.inputs);
+      await begin(run.state, run.inputs, run.continuity, true);
       notice = 'Imported this run. The clock resumes from its saved minute.';
       noticeUntil = performance.now() + 6000;
       showNotice();
@@ -1026,10 +1282,26 @@ function task(): void {
     familySheet(target.id);
   } else if (target.kind === 'placement') placementSheet(target.id);
 }
+function guestsHtml(v: View): string {
+  return (v.guests ?? [])
+    .map(
+      (g) =>
+        `<article class="guest-card"><h3>${h(g.name)} · ${g.id === 'zeynep-pass' ? 'guest cook' : 'telephone enquiry'}</h3><p>${h(g.text)}</p>${g.choices.map((c) => `<button type="button" data-guest="${h(g.id)}" data-guest-action="${h(c.action)}" ${c.disabled ? 'disabled' : ''}>${h(c.label)}${c.disabled ? `<small>${h(c.disabled)}</small>` : ''}</button>`).join('')}</article>`,
+    )
+    .join('');
+}
 function handleClick(event: Event): void {
   const b = (event.target as HTMLElement).closest<HTMLButtonElement>('button');
   if (!b || b.disabled || waitAnimation) return;
   const v = state ? current() : null;
+  if (b.dataset.guest && b.dataset.guestAction) {
+    send({
+      type: 'guest-action',
+      guest: b.dataset.guest as GuestId,
+      action: b.dataset.guestAction as GuestAction,
+    });
+    return;
+  }
   if (b.dataset.paceChoice) {
     paceChoice = b.dataset.paceChoice as typeof paceChoice;
     for (const control of root.querySelectorAll('[data-pace-choice]'))
@@ -1121,8 +1393,14 @@ function handleClick(event: Event): void {
     case 'info':
       info();
       break;
+    case 'people':
+      peoplePanel();
+      break;
     case 'other-ways':
-      openSheet('Other ways in', '<button type="button" data-action="import">Load a playtest run</button>');
+      openSheet(
+        'Other ways in',
+        '<button type="button" data-action="import">Load a playtest run</button><button type="button" data-action="people">People between games</button>',
+      );
       break;
     case 'day-notes':
       if (v)
@@ -1196,7 +1474,7 @@ function handleClick(event: Event): void {
       render(true);
       break;
     case 'download':
-      if (state) downloadJson('goodhands-run.json', exportRun(state, inputs));
+      if (state) downloadJson('goodhands-run.json', runExport());
       break;
     case 'send-run':
       feedback();
@@ -1297,7 +1575,7 @@ function feedback(): void {
     .map(([id, label]) => `<button type="button" data-verdict="${id}" aria-pressed="false">${label}</button>`)
     .join(
       '',
-    )}</div><div class="recording-off" hidden><p>Recording is off, so nothing is sent.</p><div data-feedback-toggle></div></div><label class="feedback-note"><span class="sr-only">Your note</span><textarea rows="4" placeholder="What happened at the desk, what you wanted, what got in the way"></textarea></label><details class="feedback-name"><summary>+ Add a name</summary><label>Your name or tester id (optional)<input data-feedback-name maxlength="60" value="${h(name)}" autocomplete="name"></label><p>It labels your earlier and later runs on this device.</p></details>${privacy ? '<label class="privacy-consent"><input type="checkbox" data-run-consent> Send this run with my note</label>' : ''}<details><summary>What is sent</summary><p>Your note and optional name label your pseudonymous player id. ${state ? 'Your run includes its seed, choices, clock, saved month and log.' : ''}</p><a href="https://human.adamwhite.work/lab/privacy/">Lab privacy</a></details>${state ? '<button type="button" data-action="download">Keep a copy of this run ⤓</button>' : ''}`;
+    )}</div><div class="recording-off" hidden><p>Recording is off or this history has no recording linkage approval. Nothing is sent. People between games contains the linkage choice.</p><div data-feedback-toggle></div></div><label class="feedback-note"><span class="sr-only">Your note</span><textarea rows="4" placeholder="What happened at the desk, what you wanted, what got in the way"></textarea></label><details class="feedback-name"><summary>+ Add a name</summary><label>Your name or tester id (optional)<input data-feedback-name maxlength="60" value="${h(name)}" autocomplete="name"></label><p>It labels your earlier and later runs on this device.</p></details>${privacy ? '<label class="privacy-consent"><input type="checkbox" data-run-consent> Send this run with my note</label>' : ''}<details><summary>What is sent</summary><p>Your note and optional name label your pseudonymous player id. ${state ? 'Your run includes its seed, choices, clock, saved month and log.' : ''}</p><a href="https://human.adamwhite.work/lab/privacy/">Lab privacy</a></details>${state ? '<button type="button" data-action="download">Keep a copy of this run ⤓</button>' : ''}`;
   body.querySelector('[data-feedback-toggle]')?.append(telemetryToggle(lab));
   let verdict = '';
   for (const chip of body.querySelectorAll<HTMLButtonElement>('[data-verdict]'))
@@ -1333,7 +1611,7 @@ function feedback(): void {
         try {
           if (privacy) {
             if (!state) throw new Error('Open a month before sending a run.');
-            const run = exportRun(state, inputs);
+            const run = runExport();
             try {
               await lab.sendRun(run, { note, name: who || undefined });
             } catch {
@@ -1367,7 +1645,7 @@ function feedback(): void {
   d.querySelector('.takeover-inner')?.append(commit);
   const update = () => {
     if (sent) return;
-    const off = recordingOff();
+    const off = recordingOff() || (!!continuity.heads.length && !lab.personaRecordingAllowed);
     const offNotice = body.querySelector<HTMLElement>('.recording-off');
     if (offNotice) offNotice.hidden = !off;
     const chips = body.querySelector<HTMLElement>('.verdict-chips');
@@ -1453,20 +1731,30 @@ function frame(now: number): void {
 document.addEventListener('visibilitychange', () => {
   last = performance.now();
   if (document.hidden && state) {
-    putNow('run', exportRun(state, inputs));
+    const run = runExport();
+    lab.setPersonaRecording(continuitySession.recordingKey);
+    lab.captureSave({ key: 'run', value: run });
+    putNow('run', run);
     lab.flush();
   }
 });
 window.addEventListener('pagehide', () => {
-  if (state) putNow('run', exportRun(state, inputs));
+  if (state) {
+    const run = runExport();
+    lab.setPersonaRecording(continuitySession.recordingKey);
+    lab.captureSave({ key: 'run', value: run });
+    putNow('run', run);
+  }
 });
 window.addEventListener('resize', redraw);
 window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', redraw);
 title();
-void get<RunExport>('run').then((row) => {
+void get<RunExport>('run').then(async (row) => {
   if (row) {
     try {
-      saved = verifyImport(JSON.stringify(row.value));
+      const validated = verifyImport(JSON.stringify(row.value));
+      await validateContinuity(validated.continuity, validated.state, validated.inputs);
+      saved = validated;
     } catch {
       saved = null;
     }

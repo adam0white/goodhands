@@ -61,7 +61,7 @@ test('imports reject malformed new inputs before running them', () => {
 });
 
 test('full and compact edition 4 exports retain their rules edition', () => {
-  const state = newGame(17);
+  const state = newGame(17, 4);
   apply(state, { type: 'interview', candidate: 'sevda' });
   apply(state, { type: 'choose', scene: view(state).scene!.id, choice: 'last-family' });
   const full = exportRun(state, state.inputs);

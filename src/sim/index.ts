@@ -18,6 +18,7 @@ import {
   trustOf,
 } from '@adam0white/human-framework';
 import { arrangementSpec } from './arrangements.ts';
+import { applyGuest, type GuestAdmission, guestViews, initGuests, stepGuests } from './guests.ts';
 import { hourWords, negotiationChoices, responses, termsWords, validTerms } from './negotiation.ts';
 import {
   familyDisagreementWords,
@@ -50,6 +51,10 @@ import { QUALITIES } from './types.ts';
 import * as legacy from './v1/index.ts';
 import * as previous from './v2/index.ts';
 import * as third from './v3/index.ts';
+import * as fourth from './v4/index.ts';
+
+export * from './guests.ts';
+
 import {
   answer,
   contextualConcern,
@@ -501,12 +506,17 @@ function quietOffice(s: Sim) {
   s.quietOfficeAt = s.now + 45;
 }
 
-export function newGame(seed: number, version: 1 | 2 | 3 | 4 = 4): State {
+export function newGame(
+  seed: number,
+  version: 1 | 2 | 3 | 4 | 5 = 5,
+  admissions: GuestAdmission[] = [],
+): State {
   if (version === 1) return legacy.newGame(seed);
   if (version === 2) return previous.newGame(seed);
   if (version === 3) return third.newGame(seed);
+  if (version === 4) return fourth.newGame(seed);
   const s: Sim = {
-    version: 4,
+    version: 5,
     seed: Math.trunc(seed) || 1,
     rng: Math.trunc(seed) >>> 0,
     now: 510,
@@ -556,6 +566,7 @@ export function newGame(seed: number, version: 1 | 2 | 3 | 4 = 4): State {
       refuses: [],
     };
   arrive(s);
+  initGuests(s, admissions);
   return s;
 }
 function finish(s: Sim, why: string) {
@@ -645,6 +656,7 @@ function closeDay(s: Sim) {
   };
 }
 function step(s: Sim) {
+  stepGuests(s);
   landReferrals(s);
   for (const c of CANDIDATES) {
     const card = s.cards[c.id]!;
@@ -772,6 +784,7 @@ export function advance(state: State, minutes: number): State {
   if (state.version === 1) return legacy.advance(state as legacy.State, minutes);
   if (state.version === 2) return previous.advance(state as previous.State, minutes);
   if (state.version === 3) return third.advance(state as third.State, minutes);
+  if (state.version === 4) return fourth.advance(state as fourth.State, minutes);
   snapshots.delete(state);
   const s = sim(state);
   if (Number.isFinite(minutes) && minutes > 0) runTo(s, s.now + minutes, true);
@@ -821,6 +834,13 @@ export function apply(state: State, input: Input): State {
   if (state.version === 1) return legacy.apply(state as legacy.State, input as legacy.Input);
   if (state.version === 2) return previous.apply(state as previous.State, input as previous.Input);
   if (state.version === 3) return third.apply(state as third.State, input as third.Input);
+  if (state.version === 4) return fourth.apply(state as fourth.State, input as fourth.Input);
+  if (input.type === 'guest-action') {
+    snapshots.delete(state);
+    state.inputs.push({ at: state.now, input: structuredClone(input) });
+    applyGuest(state, input);
+    return state;
+  }
   const before = sim(state);
   const sc = input.type === 'choose' && before.scene?.id === input.scene ? before.scene : null;
   const valid = !!(
@@ -1636,6 +1656,7 @@ export function view(state: State): View {
   if (state.version === 1) return legacy.view(state as legacy.State);
   if (state.version === 2) return previous.view(state as previous.State);
   if (state.version === 3) return third.view(state as third.State);
+  if (state.version === 4) return fourth.view(state as fourth.State);
   const cached = snapshots.get(state);
   if (cached) return cached;
   const s = sim(state);
@@ -1793,6 +1814,7 @@ export function view(state: State): View {
   const snapshot: View = structuredClone({
     next: nextEvent(s),
     simulation: s.version,
+    guests: guestViews(s),
     seed: s.seed,
     now: s.now,
     dateLabel: dateLabel(s.now),
@@ -1876,12 +1898,14 @@ export function replay(
   seed: number,
   inputs: LoggedInput[],
   until: number,
-  version: 1 | 2 | 3 | 4 = 4,
+  version: 1 | 2 | 3 | 4 | 5 = 5,
+  admissions: GuestAdmission[] = [],
 ): State {
   if (version === 1) return legacy.replay(seed, inputs as legacy.LoggedInput[], until);
   if (version === 2) return previous.replay(seed, inputs as previous.LoggedInput[], until);
   if (version === 3) return third.replay(seed, inputs as third.LoggedInput[], until);
-  const s = sim(newGame(seed));
+  if (version === 4) return fourth.replay(seed, inputs as fourth.LoggedInput[], until);
+  const s = sim(newGame(seed, version, admissions));
   for (const entry of inputs) {
     if (entry.at > until) break;
     if (entry.at < s.now) throw new Error('Run inputs are out of order.');
