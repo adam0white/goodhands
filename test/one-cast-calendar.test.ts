@@ -87,7 +87,7 @@ describe('Selin quiet calendar', () => {
 
   it('continues the actual pending iftar while Nermin waits and answers after the current activity', async () => {
     const admission = await prepareGuest(fixture());
-    const s = newGame(76, 5, [admission]);
+    const s = newGame(76, 6, [admission]);
     runTo(s, admission.person.now);
     expect(s.people['selin-voice']!.activity?.action).toBe('eat');
     // Nermin has not selected a reply; waiting must not freeze Selin's ordinary meal.
@@ -98,7 +98,7 @@ describe('Selin quiet calendar', () => {
     const owed = s.people['selin-voice']!.agenda.owed!.length;
     answer(s);
     expect(s.people['selin-voice']!.agenda.owed).toHaveLength(owed);
-    expect(fingerprint(replay(s.seed, s.inputs, s.now, 5, [admission]))).toBe(fingerprint(s));
+    expect(fingerprint(replay(s.seed, s.inputs, s.now, 6, [admission]))).toBe(fingerprint(s));
   });
   it('schedules synthetic owed worship in a future declared qada window after today expires', async () => {
     const admission = await prepareGuest(fixture());
@@ -142,7 +142,7 @@ describe('Selin quiet calendar', () => {
   it('returns the actual Nermin answer with original source binding and live owed state', async () => {
     const envelope = fixture();
     const admission = await prepareGuest(envelope);
-    const s = newGame(73, 5, [admission]);
+    const s = newGame(73, 6, [admission]);
     runTo(s, admission.person.now);
     const person = s.people['selin-voice']!;
     const source = wrapper(envelope);
@@ -172,7 +172,7 @@ describe('Selin quiet calendar', () => {
       actions: ['work'],
       chain: 'job',
     });
-    expect(fingerprint(replay(s.seed, s.inputs, s.now, 5, [admission]))).toBe(fingerprint(s));
+    expect(fingerprint(replay(s.seed, s.inputs, s.now, 6, [admission]))).toBe(fingerprint(s));
   });
   it('replays full and compact calendar arrivals with pinned heads', async () => {
     const source = fixture(),
@@ -189,7 +189,7 @@ describe('Selin quiet calendar', () => {
       heads: [claim],
       rows: [continuityRow(claim, 'admitted', 'file')],
     };
-    const s = newGame(74, 5, [admission]);
+    const s = newGame(74, 6, [admission]);
     runTo(s, admission.person.now);
     answer(s);
     const transfer = await guestCheckpointTransfer(s, 'selin-voice', source);
@@ -246,7 +246,7 @@ describe('Selin quiet calendar', () => {
     expect(p.agenda.owed!.find((d) => d.ofId === 'control-paid-original')?.scheduledAs).toBe(receiptId);
     expect(p.agenda.commitments.find((c) => c.id === receiptId)?.status).toBe('kept');
     expect(p.agenda.owed!.find((d) => d.ofId === 'control-unscheduled-extra')?.scheduledAs).toBeTruthy();
-    const s = newGame(75, 5, [admitted]);
+    const s = newGame(75, 6, [admitted]);
     runTo(s, p.now);
     answer(s);
     const exported = calendar((await exportGuest(s, 'selin-voice')).projection);

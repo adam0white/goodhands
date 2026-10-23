@@ -19,6 +19,7 @@ import {
   validatePersonaProjection,
 } from '@adam0white/human-framework';
 import { canonicalPersona, validatePersona } from '@adam0white/lab-client';
+import { castProfile } from './cast.ts';
 import {
   type CalendarGuest,
   maintainCalendarGuest,
@@ -130,11 +131,7 @@ export function freshGuest(id: GuestId, seed = 1): GuestAdmission {
     now,
     bornAt: now - info.age * 365.25 * DAY,
     sex: 'female',
-    traits:
-      id === 'zeynep-pass'
-        ? { honesty: 0.8, conscientiousness: 0.85, agreeableness: 0.7 }
-        : { conscientiousness: 0.7, extraversion: 0.6, agreeableness: 0.65, honesty: 0.75 },
-    values: id === 'selin-voice' ? { benevolence: 0.8, achievement: 0.6, tradition: 0.4 } : {},
+    ...castProfile(id),
     skills: id === 'zeynep-pass' ? { cold: 0.7 } : {},
     voices: [{ voiceId: 'nermin', trust: 0.5 }],
   });

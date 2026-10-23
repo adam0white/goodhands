@@ -6,8 +6,8 @@ import {
   questions,
   workerDisagreement,
   workerNeed,
-} from '../src/sim/voices.ts';
-import { CANDIDATES, makePeople } from '../src/sim/world.ts';
+} from '../src/sim/v4/voices.ts';
+import { CANDIDATES, makePeople } from '../src/sim/v4/world.ts';
 
 function sentences(text: string): number {
   return text.split(/[.!?]+(?:\s|$)/).filter(Boolean).length;

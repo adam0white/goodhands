@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import * as stories from '../src/sim/references.ts';
 import type { Quality } from '../src/sim/types.ts';
-import { FAMILIES, makePeople, REFEREES } from '../src/sim/world.ts';
+import * as stories from '../src/sim/v4/references.ts';
+import { FAMILIES, makePeople, REFEREES } from '../src/sim/v4/world.ts';
 
 const questions = ['ref-patient', 'ref-honest', 'ref-reliable', 'ref-leaving', 'ref-return'];
 

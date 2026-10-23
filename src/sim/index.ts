@@ -1,4 +1,6 @@
 import { householdVoice } from './backstories.ts';
+import { CAST_EDITION, castManifest } from './cast.ts';
+import { applyCastTalk, castContacts } from './cast-scenes.ts';
 // Versions 1, 2 and 3 are frozen for exact replay of earlier saves and compact exports.
 
 import {
@@ -154,16 +156,7 @@ interface Sim extends State {
   confidences: { candidate: string; family: string; text: string; told: boolean }[];
 }
 const snapshots = new WeakMap<State, View>();
-const sim = (state: State): Sim => {
-  const s = state as Sim;
-  // Append the twin to older saves; the grandmother keeps her original person id.
-  if (!s.people['arslans-4']) {
-    s.people['arslans-4'] = makePeople(s.seed)['arslans-4']!;
-    const request = s.requests.find((r) => r.family === 'arslans');
-    if (request) request.wants = FAMILIES.find((f) => f.id === 'arslans')!.wants;
-  }
-  return s;
-};
+const sim = (state: State): Sim => state as Sim;
 const DAY = 1440;
 const END = 27 * DAY + 1140;
 const weekdays = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
@@ -508,15 +501,19 @@ function quietOffice(s: Sim) {
 
 export function newGame(
   seed: number,
-  version: 1 | 2 | 3 | 4 | 5 = 5,
+  version: 1 | 2 | 3 | 4 | 5 | 6 = 6,
   admissions: GuestAdmission[] = [],
 ): State {
   if (version === 1) return legacy.newGame(seed);
   if (version === 2) return previous.newGame(seed);
   if (version === 3) return third.newGame(seed);
   if (version === 4) return fourth.newGame(seed);
+  if (version === 5)
+    throw new Error('This month uses the older cast. Start fresh; keep its export for inspection.');
   const s: Sim = {
-    version: 5,
+    version: 6,
+    castEdition: CAST_EDITION,
+    castManifest: castManifest(),
     seed: Math.trunc(seed) || 1,
     rng: Math.trunc(seed) >>> 0,
     now: 510,
@@ -835,6 +832,13 @@ export function apply(state: State, input: Input): State {
   if (state.version === 2) return previous.apply(state as previous.State, input as previous.Input);
   if (state.version === 3) return third.apply(state as third.State, input as third.Input);
   if (state.version === 4) return fourth.apply(state as fourth.State, input as fourth.Input);
+  if (input.type === 'cast-talk') {
+    if (applyCastTalk(state, input.person, input.choice)) {
+      snapshots.delete(state);
+      state.inputs.push({ at: state.now, input: structuredClone(input) });
+    }
+    return state;
+  }
   if (input.type === 'guest-action') {
     snapshots.delete(state);
     state.inputs.push({ at: state.now, input: structuredClone(input) });
@@ -1229,8 +1233,8 @@ function applyInput(state: State, input: Input): State {
               s,
               'phone',
               'arslans',
-              'The Arslans are checking',
-              'Have you found someone? The twins, Ada and Deniz, are three. They need someone tomorrow morning; Grandmother Saadet will be there too.',
+              'The household is checking',
+              'Have you found someone? We need childcare tomorrow morning. Please confirm the duties and handover before agreeing.',
               [
                 { id: 'look', label: 'Say you are still interviewing' },
                 { id: 'soon', label: 'Promise an answer today' },
@@ -1815,6 +1819,7 @@ export function view(state: State): View {
     next: nextEvent(s),
     simulation: s.version,
     guests: guestViews(s),
+    castContacts: castContacts(s),
     seed: s.seed,
     now: s.now,
     dateLabel: dateLabel(s.now),
@@ -1898,13 +1903,15 @@ export function replay(
   seed: number,
   inputs: LoggedInput[],
   until: number,
-  version: 1 | 2 | 3 | 4 | 5 = 5,
+  version: 1 | 2 | 3 | 4 | 5 | 6 = 6,
   admissions: GuestAdmission[] = [],
 ): State {
   if (version === 1) return legacy.replay(seed, inputs as legacy.LoggedInput[], until);
   if (version === 2) return previous.replay(seed, inputs as previous.LoggedInput[], until);
   if (version === 3) return third.replay(seed, inputs as third.LoggedInput[], until);
   if (version === 4) return fourth.replay(seed, inputs as fourth.LoggedInput[], until);
+  if (version === 5)
+    throw new Error('This month uses the older cast. Start fresh; keep its export for inspection.');
   const s = sim(newGame(seed, version, admissions));
   for (const entry of inputs) {
     if (entry.at > until) break;
@@ -3030,12 +3037,7 @@ function arrangementTests(s: Sim) {
       const family = s.people[`${p.family}-0`]!;
       const mode = p.arrangementMode;
       const spec = arrangementSpec(p.candidate, p.pending.at - DAY);
-      const kept =
-        mode === 'negotiate' &&
-        family.traits.honesty + 0.15 * trustOf(family, 'nermin') > 0.49 &&
-        (p.candidate !== 'osman' ||
-          FAMILIES.find((f) => f.id === p.family)!.district ===
-            CANDIDATES.find((c) => c.id === p.candidate)!.home);
+      const kept = mode === 'negotiate' && family.traits.honesty + 0.15 * trustOf(family, 'nermin') > 0.49;
       const bent = mode === 'bend' && worker.needs.autonomy > 0.28 && s.now < (p.bendUntil ?? 0);
       p.arrangementKept = kept;
       const at = p.pending.at;

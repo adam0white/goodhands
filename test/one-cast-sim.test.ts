@@ -45,7 +45,7 @@ function trial(seed: number, level: number, arm: 'fresh' | 'biography' | 'contin
       },
     ];
   a.person.skills.cold!.level = level;
-  const s = newGame(seed, 5, [a]);
+  const s = newGame(seed, 6, [a]);
   runTo(s, 2010);
   apply(s, { type: 'guest-action', guest: 'zeynep-pass', action: 'offer-trial' });
   return { s, a, result: view(s).guests!.find((g) => g.id === 'zeynep-pass')!.trial! };
@@ -91,7 +91,7 @@ describe('one cast guest edition', () => {
     });
     expect(admitted.person.agenda.commitments[0]!.targetId).toBeUndefined();
     expect(admitted.familyHistory).toEqual({ status: 'kept', from: 2730, until: 2770 });
-    const s = newGame(42, 5, [admitted]);
+    const s = newGame(42, 6, [admitted]);
     runTo(s, 3450);
     const guest = view(s).guests!.find((g) => g.id === 'zeynep-pass')!;
     expect(guest.text).toContain('work the cold side: completed');
@@ -115,7 +115,7 @@ describe('one cast guest edition', () => {
       }
       if (arm !== 'continuing')
         a.person.skills.cold = { level: 0.7, practice: 0, lastPracticed: a.person.now };
-      const control = newGame(56, 5, [a]);
+      const control = newGame(56, 6, [a]);
       runTo(control, 3450);
       apply(control, { type: 'guest-action', guest: 'zeynep-pass', action: 'offer-trial' });
       outcomes[arm] = view(control).guests!.find((g) => g.id === 'zeynep-pass')!.trial?.succeeded;
@@ -134,7 +134,9 @@ describe('one cast guest edition', () => {
   it('delays guests beyond the ordinary opening and keeps separate identities', () => {
     const s = newGame(1);
     expect(view(s).guests).toEqual([]);
-    expect(s.people['zeynep-pass']!.id).not.toBe(s.people['tass-2']!.id);
+    expect(s.people['tass-2']).toBeUndefined();
+    expect(s.people['tass-0']!.name).not.toBe('Halil');
+    expect(s.people['zeynep-pass']!.name).toBe('Zeynep');
     runTo(s, 2010);
     expect(view(s).guests!.map((g) => g.id)).toEqual(['zeynep-pass']);
     expect(s.people['zeynep-pass']!.agenda.commitments[0]).toMatchObject({
@@ -152,7 +154,7 @@ describe('one cast guest edition', () => {
     expect(result.chance).toBeGreaterThan(0.8);
     expect(s.people['zeynep-pass']!.skills.cooking).toBeUndefined();
     runTo(s, 2100);
-    const r = replay(s.seed, s.inputs, s.now, 5, [a]);
+    const r = replay(s.seed, s.inputs, s.now, 6, [a]);
     expect(fingerprint(r)).toBe(fingerprint(s));
   });
   it('measures matched target seeds fresh / biography / continuing', () => {
@@ -301,7 +303,7 @@ describe('one cast guest edition', () => {
       heads: [claim],
       rows: [continuityRow(claim, 'admitted', 'file')],
     };
-    const received = newGame(91, 5, [admission]);
+    const received = newGame(91, 6, [admission]);
     runTo(received, 2521);
     apply(received, { type: 'guest-action', guest: 'selin-voice', action: 'ask-service' });
     const full = exportRun(received, received.inputs, book);

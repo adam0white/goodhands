@@ -1,11 +1,11 @@
 import { expect, test } from 'vitest';
-import { candidateMemories, householdMemories } from '../src/sim/backstories.ts';
-import { personalAnswer } from '../src/sim/dialogue.ts';
 import { advance, apply, fingerprint, newGame, replay, view } from '../src/sim/index.ts';
-import { familyMoment } from '../src/sim/references.ts';
 import type { State } from '../src/sim/types.ts';
 import * as third from '../src/sim/v3/index.ts';
-import { CANDIDATES, FAMILIES } from '../src/sim/world.ts';
+import { candidateMemories, householdMemories } from '../src/sim/v4/backstories.ts';
+import { personalAnswer } from '../src/sim/v4/dialogue.ts';
+import { familyMoment } from '../src/sim/v4/references.ts';
+import { CANDIDATES, FAMILIES } from '../src/sim/v4/world.ts';
 
 function agree(s: State, wage: number, fee: number) {
   apply(s, { type: 'place', candidate: 'sevda', family: 'arslans', vouch: ['patient'] });

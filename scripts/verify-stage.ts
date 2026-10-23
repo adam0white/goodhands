@@ -62,7 +62,7 @@ try {
     await fits('start');
     await page.getByRole('button', { name: 'Open the office', exact: true }).click();
     await fits('office');
-    await page.getByRole('button', { name: 'Gül', exact: true }).click();
+    await page.getByRole('button', { name: 'Nanny applicant 01', exact: true }).click();
     await fits('candidate');
     assert.equal(await page.locator('.candidate-actions button').count(), 5);
     assert.equal(

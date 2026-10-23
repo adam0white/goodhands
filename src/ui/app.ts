@@ -234,7 +234,7 @@ function title(): void {
   playing = false;
   shown = '';
   setScreen('title');
-  root.innerHTML = `<main class="title-page">${topbar(`<a href="${ALL_GAMES}">All games</a>`)}<section class="title-body"><p class="eyebrow">Izmir · November 2026</p><div class="agency-mark" aria-hidden="true">G H<span>placement agency</span></div><h1>Good Hands</h1><p class="subtitle">A month at Nermin’s desk.</p><p class="goal">The Arslans need a nanny by Tuesday 08:00. Three women wait on your bench. Rent is due Friday.</p><button type="button" data-action="other-ways">Other ways in ▸</button><div class="recording-notice-slot"></div><p class="title-status" role="status">${saveReady ? '' : 'Looking for a saved month…'}</p></section><div class="title-actions lk-commit"></div></main>`;
+  root.innerHTML = `<main class="title-page">${topbar(`<a href="${ALL_GAMES}">All games</a>`)}<section class="title-body"><p class="eyebrow">Izmir · November 2026</p><div class="agency-mark" aria-hidden="true">G H<span>placement agency</span></div><h1>Good Hands</h1><p class="subtitle">A month at Nermin’s desk.</p><p class="goal">A household needs a nanny by Tuesday 08:00. Three applicants wait on your bench. Rent is due Friday.</p><button type="button" data-action="other-ways">Other ways in ▸</button><div class="recording-notice-slot"></div><p class="title-status" role="status">${saveReady ? '' : 'Looking for a saved month…'}</p></section><div class="title-actions lk-commit"></div></main>`;
   if (recordingNotice && !recordingNoticeDone)
     root.querySelector('.recording-notice-slot')?.append(recordingNotice);
   const actions = root.querySelector('.title-actions');
@@ -312,7 +312,7 @@ async function newMonth(fresh = false, file?: unknown): Promise<void> {
       try {
         const source = await validatePersona(candidate.source);
         const initial = await prepareGuest(source);
-        sim.newGame(seed, 5, [...admissions, initial]); // Complete target preflight before claiming the head.
+        sim.newGame(seed, 6, [...admissions, initial]); // Complete target preflight before claiming the head.
         const claim = await continuitySession.claim(source, candidate.scope);
         admissions.push(initial);
         book.arrivals.push({ source, claim, initial, scope: candidate.scope });
@@ -329,7 +329,7 @@ async function newMonth(fresh = false, file?: unknown): Promise<void> {
       }
     }
     closeSheet(false);
-    await begin(sim.newGame(seed, 5, admissions), [], book, !!file);
+    await begin(sim.newGame(seed, 6, admissions), [], book, !!file);
     continuityStatus = messages.join(' ');
     if (continuityStatus) {
       notice = continuityStatus;
@@ -1279,17 +1279,33 @@ function task(): void {
   } else if (target.kind === 'placement') placementSheet(target.id);
 }
 function guestsHtml(v: View): string {
-  return (v.guests ?? [])
-    .map(
-      (g) =>
-        `<article class="guest-card"><h3>${h(g.name)} · ${g.id === 'zeynep-pass' ? 'guest cook' : 'telephone enquiry'}</h3><p>${h(g.text)}</p>${g.choices.map((c) => `<button type="button" data-guest="${h(g.id)}" data-guest-action="${h(c.action)}" ${c.disabled ? 'disabled' : ''}>${h(c.label)}${c.disabled ? `<small>${h(c.disabled)}</small>` : ''}</button>`).join('')}</article>`,
-    )
-    .join('');
+  return (
+    (v.castContacts ?? [])
+      .map(
+        (c) =>
+          `<article class="guest-card"><h3>${h(c.name)} · ${h(c.role)}</h3><p>${h(c.text)}</p>${c.choices.map((q) => `<button type="button" data-cast-person="${h(c.id)}" data-cast-choice="${h(q.id)}">${h(q.label)}</button>`).join('')}</article>`,
+      )
+      .join('') +
+    (v.guests ?? [])
+      .map(
+        (g) =>
+          `<article class="guest-card"><h3>${h(g.name)} · ${g.id === 'zeynep-pass' ? 'guest cook' : 'telephone enquiry'}</h3><p>${h(g.text)}</p>${g.choices.map((c) => `<button type="button" data-guest="${h(g.id)}" data-guest-action="${h(c.action)}" ${c.disabled ? 'disabled' : ''}>${h(c.label)}${c.disabled ? `<small>${h(c.disabled)}</small>` : ''}</button>`).join('')}</article>`,
+      )
+      .join('')
+  );
 }
 function handleClick(event: Event): void {
   const b = (event.target as HTMLElement).closest<HTMLButtonElement>('button');
   if (!b || b.disabled || waitAnimation) return;
   const v = state ? current() : null;
+  if (b.dataset.castPerson && b.dataset.castChoice) {
+    send({
+      type: 'cast-talk',
+      person: b.dataset.castPerson as import('../sim/cast.ts').CastKey,
+      choice: b.dataset.castChoice,
+    });
+    return;
+  }
   if (b.dataset.guest && b.dataset.guestAction) {
     send({
       type: 'guest-action',

@@ -28,6 +28,7 @@ export type Speed = 0 | 1 | 2 | 3; // slow, walk, trot, gallop
 export const SPEEDS: readonly number[] = [0.5, 2, 6, 20];
 
 export type Input =
+  | { type: 'cast-talk'; person: import('./cast.ts').CastKey; choice: string }
   | { type: 'guest-action'; guest: import('./guests.ts').GuestId; action: import('./guests.ts').GuestAction }
   | { type: 'call-in'; candidate: string }
   | { type: 'propose-terms'; scene: string; terms: EmploymentTerms }
@@ -230,6 +231,7 @@ export interface DayCard {
 }
 
 export interface View {
+  castContacts?: import('./cast-scenes.ts').CastContact[];
   guests?: import('./guests.ts').GuestView[];
   simulation?: number;
   next: { label: string; at: Minute; dateLabel: string } | null;
@@ -288,7 +290,7 @@ export interface Review {
 
 /** The sim's state: plain JSON. People are HF Persons, keyed by id. */
 export interface State {
-  version: 1 | 2 | 3 | 4 | 5;
+  version: 1 | 2 | 3 | 4 | 5 | 6;
   seed: number;
   rng: number; // seeded RNG state
   now: Minute;

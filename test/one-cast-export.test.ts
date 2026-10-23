@@ -40,7 +40,7 @@ test('two explicit forks and later checkpoints retain their exact claim lineage'
     heads: [claim],
     rows: [continuityRow(claim, 'admitted', 'shared')],
   };
-  const state = newGame(42, 5, [initial]);
+  const state = newGame(42, 6, [initial]);
   while (state.now < 3450) advance(state, Math.min(60, 3450 - state.now));
   apply(state, { type: 'guest-action', guest: 'zeynep-pass', action: 'offer-trial' });
   while (state.now < 3540) advance(state, Math.min(60, 3540 - state.now));

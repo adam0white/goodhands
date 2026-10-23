@@ -49,14 +49,9 @@ export function responses(
     late = t.endHour > finish,
     long = t.endHour - t.startHour > 10 + (1 - w.needs.autonomy) * 2;
   const harsh = t.trialDays > 7 && w.needs.safety < 0.55;
-  const wrongDay = c.id === 'gul' && t.dayOff !== 6;
   const workerRefuses =
     t.wage < c.wage * (0.65 + w.needs.safety * 0.1) || t.endHour > finish + 2 || t.endHour - t.startHour > 14;
-  const worker = workerRefuses
-    ? 'refused'
-    : low || late || long || harsh || wrongDay
-      ? 'countered'
-      : 'accepted';
+  const worker = workerRefuses ? 'refused' : low || late || long || harsh ? 'countered' : 'accepted';
   const costly =
     t.wage >
     f.wage *
@@ -73,17 +68,15 @@ export function responses(
     familyResponse,
     workerWords: workerRefuses
       ? 'No. I cannot take a job on those terms. Offer a fair wage and a day I can manage.'
-      : wrongDay
-        ? 'Sunday is when my daughter brings the children. I need Sunday off.'
-        : low
-          ? `I need ₺${c.wage} a month. Will you put that to them?`
-          : late
-            ? `I need to leave by ${String(Math.floor(finish)).padStart(2, '0')}:00. ${workerNeed(c.id).words}`
-            : long
-              ? 'Those hours leave no time to recover. Shorten the day.'
-              : harsh
-                ? 'I cannot wait that long for a settled job. Try seven working days first.'
-                : `I can agree to that. ${weekdays[t.dayOff]} off, and we keep those hours.`,
+      : low
+        ? `I need ₺${c.wage} a month. Will you put that to them?`
+        : late
+          ? `I need to leave by ${String(Math.floor(finish)).padStart(2, '0')}:00. ${workerNeed(c.id).words}`
+          : long
+            ? 'Those hours leave no time to recover. Shorten the day.'
+            : harsh
+              ? 'I cannot wait that long for a settled job. Try seven working days first.'
+              : `I can agree to that. ${weekdays[t.dayOff]} off, and we keep those hours.`,
     familyWords: familyRefuses
       ? 'No. We cannot commit to that wage and fee. Bring us an offer within our means.'
       : costly

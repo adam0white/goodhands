@@ -2,7 +2,7 @@ import type { CandidateView, Note, PlacementView, Quality, RequestView, View } f
 
 export const SPEED_NAMES = ['Slow', 'Steady', 'Fast'] as const;
 export const INTRO =
-  'You run Good Hands, a small placement agency. The Arslans need a nanny by Tuesday 08:00. Three women are waiting on your bench. Rent is due Friday.';
+  'You run Good Hands, a small placement agency. A household needs a nanny by Tuesday 08:00. Three applicants are waiting on your bench. Rent is due Friday.';
 
 export function escapeHtml(value: string): string {
   return value.replace(

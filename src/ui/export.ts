@@ -5,6 +5,7 @@ import {
   type PersonaEnvelope,
   validatePersona,
 } from '@adam0white/lab-client';
+import { CAST, CAST_EDITION } from '../sim/cast.ts';
 import { exportGuest, type GuestId, prepareGuest } from '../sim/guests.ts';
 import { fingerprint, replay, view } from '../sim/index.ts';
 import { type Input, type LoggedInput, QUALITIES, type State } from '../sim/types.ts';
@@ -13,7 +14,8 @@ import { type ContinuityBook, castIds, emptyContinuity, type OneCastRow } from '
 export interface RunExport {
   game: 'goodhands';
   version: 1;
-  simulation?: 1 | 2 | 3 | 4 | 5;
+  castEdition?: string;
+  simulation?: 1 | 2 | 3 | 4 | 5 | 6;
   continuity?: ContinuityBook;
   oneCast?: OneCastRow[];
   seed: number;
@@ -82,7 +84,8 @@ export function exportRun(state: State, inputs: LoggedInput[], continuity?: Cont
   return {
     game: 'goodhands',
     version: 1,
-    ...(state.version === 5 ? { oneCast: structuredClone(continuity?.rows ?? []) } : {}),
+    ...(state.version === 6 ? { castEdition: CAST_EDITION } : {}),
+    ...(state.version === 6 ? { oneCast: structuredClone(continuity?.rows ?? []) } : {}),
     ...(continuity && (continuity.arrivals.length || continuity.heads.length)
       ? { continuity: structuredClone(continuity), oneCast: structuredClone(continuity.rows) }
       : {}),
@@ -95,13 +98,15 @@ export function exportRun(state: State, inputs: LoggedInput[], continuity?: Cont
   };
 }
 export function compactRun(run: RunExport): CompactRunExport {
-  const { game, version, simulation, seed, minute, inputs, fingerprint, continuity, oneCast } = run;
+  const { game, version, simulation, seed, minute, inputs, fingerprint, continuity, oneCast, castEdition } =
+    run;
   return {
     game,
     version,
     ...(oneCast ? { oneCast: structuredClone(oneCast) } : {}),
     ...(continuity ? { continuity: structuredClone(continuity) } : {}),
     ...(simulation ? { simulation } : {}),
+    ...(castEdition ? { castEdition } : {}),
     seed,
     minute,
     inputs: structuredClone(inputs),
@@ -135,6 +140,7 @@ function validInput(value: unknown): value is Input {
     'wait-for': [],
     sleep: [],
     'guest-action': ['guest', 'action'],
+    'cast-talk': ['person', 'choice'],
   };
   if (typeof value.type !== 'string' || !Object.hasOwn(fields, value.type)) return false;
   const required = fields[value.type];
@@ -145,7 +151,11 @@ function validInput(value: unknown): value is Input {
   )
     return false;
   for (const key of required) {
-    if (value.type === 'guest-action' && key === 'guest') {
+    if (value.type === 'cast-talk' && key === 'person') {
+      if (!Object.hasOwn(CAST, String(value[key]))) return false;
+    } else if (value.type === 'cast-talk' && key === 'choice') {
+      if (!['invite', 'respect', 'defer'].includes(String(value[key]))) return false;
+    } else if (value.type === 'guest-action' && key === 'guest') {
       if (!['zeynep-pass', 'selin-voice'].includes(value[key] as string)) return false;
     } else if (value.type === 'guest-action' && key === 'action') {
       if (!['offer-trial', 'decline', 'ask-service', 'end-enquiry'].includes(value[key] as string))
@@ -234,12 +244,16 @@ export function verifyImport(text: string): {
   }
   const inputs = structuredClone(data.inputs) as LoggedInput[];
   const simulation = data.simulation ?? 1;
-  if (simulation !== 1 && simulation !== 2 && simulation !== 3 && simulation !== 4 && simulation !== 5)
+  if (simulation === 5)
+    throw new Error('This month uses the older cast. Start fresh; keep its export for inspection.');
+  if (simulation !== 1 && simulation !== 2 && simulation !== 3 && simulation !== 4 && simulation !== 6)
     throw new Error('Unsupported simulation version.');
+  if (simulation === 6 && data.castEdition !== CAST_EDITION)
+    throw new Error('Unsupported cast edition. Start fresh.');
   const continuity = readContinuity(data.continuity, data.oneCast);
-  if (simulation !== 5 && (continuity.arrivals.length || continuity.heads.length))
+  if (simulation !== 6 && (continuity.arrivals.length || continuity.heads.length))
     throw new Error('Legacy runs cannot admit a guest.');
-  if (simulation !== 5 && inputs.some((e) => e.input.type === 'guest-action'))
+  if (simulation !== 6 && inputs.some((e) => e.input.type === 'guest-action'))
     throw new Error('Legacy editions have no guest actions.');
   const state = replay(
     data.seed as number,
@@ -420,7 +434,7 @@ export async function validateContinuity(
       view(savedState).seed,
       inputs.filter((entry) => entry.at <= at),
       at,
-      5,
+      6,
       book.arrivals.map((a) => a.initial),
     );
     const expected = await guestCheckpointTransfer(source, arrival.initial.id, arrival.source);
