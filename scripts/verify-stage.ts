@@ -13,7 +13,7 @@ const server = await createServer({
   server: { host: '127.0.0.1', port, strictPort: true, hmr: false, watch: null },
 });
 await server.listen();
-const browser = await chromium.launch();
+const browser = await chromium.launch({ channel: process.env.HF_BROWSER_CHANNEL });
 const out = join(homedir(), 'code/.lab-scratch/codex/goodhands-ui-stage');
 mkdirSync(out, { recursive: true });
 try {

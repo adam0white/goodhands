@@ -14,6 +14,8 @@ jobs:
   ci:
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    env:
+      HF_BROWSER_CHANNEL: chrome
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
@@ -23,6 +25,6 @@ jobs:
           node-version: 24
           cache: npm
       - run: npm ci --no-audit --no-fund
-      - run: npx playwright-core install --with-deps chromium-headless-shell
+      - run: google-chrome --version
       - run: npm run check
       - run: npm run build

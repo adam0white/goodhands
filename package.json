@@ -12,7 +12,7 @@
     "dev": "vite",
     "build": "node scripts/stamp-release.ts && vite build",
     "preview": "vite preview",
-    "test": "vitest run --testTimeout=180000",
+    "test": "vitest run --no-file-parallelism --testTimeout=180000",
     "typecheck": "tsc -p tsconfig.json",
     "lint": "biome check .",
     "format": "biome format --write .",

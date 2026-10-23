@@ -8,7 +8,7 @@ let page: Page;
 beforeAll(async () => {
   server = await createServer({ server: { host: '127.0.0.1', port: 0, hmr: false, watch: null } });
   await server.listen();
-  browser = await chromium.launch();
+  browser = await chromium.launch({ channel: process.env.HF_BROWSER_CHANNEL });
   page = await browser.newPage({ viewport: { width: 360, height: 690 } });
   await page.clock.install();
   await page.clock.pauseAt(new Date());
