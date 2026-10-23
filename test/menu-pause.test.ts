@@ -14,7 +14,7 @@ beforeAll(async () => {
   await page.clock.pauseAt(new Date());
   await page.goto(server.resolvedUrls?.local[0] ?? '');
   await page.getByRole('button', { name: 'Open the office', exact: true }).click();
-});
+}, 60_000); // Cold Vite/Chrome startup can exceed Vitest's default ten-second hook on CI.
 afterAll(async () => {
   await browser?.close();
   await server?.close();
