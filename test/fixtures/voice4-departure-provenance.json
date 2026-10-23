@@ -1,0 +1,33 @@
+{
+  "v": 1,
+  "kind": "actual-ordinary-input-voice4-departure",
+  "generatedAt": "2026-10-23T20:00:30.691Z",
+  "seed": 7,
+  "rules": 4,
+  "sourceCommit": "fecf72682cd2e00f03c78007e71f2cbfe76f3459",
+  "sourceDirty": false,
+  "sourceStatus": "",
+  "sourceFiles": {
+    "apps/site/src/voice/sim/game.ts": "c46d0da875d7291f691bf2b963a931b6e4f12650bdd22be832565747e8473867",
+    "apps/site/src/voice/sim/persona.ts": "e3e3816cb2f587deb3ee5cac616ea8481619b620ccdd851d306f16a84c106f3f",
+    "apps/site/src/voice/sim/record.ts": "9afcc742fff3005dd6582088d159e9175441c2412353ce8fcd63bfe86dfe03ec",
+    "apps/site/src/voice/sim/town.ts": "93bf534a583541b05593422106832cdf18823c1d8234de5a65c58c47ce1ee848",
+    "apps/site/src/voice/sim/headless.ts": "78d2092fbb6b433ef878e1ac0bfd24bd67acd12f32a646ea412d3047e7550e8c",
+    "apps/site/src/voice/protocol.ts": "ef27d2e9f453f1b1e7d79338ffd5ef92a240820addeb617b22c158f4367e0151"
+  },
+  "publicHf": {
+    "version": "2.16.0",
+    "integrity": "sha512-aT7GwbI9pwQD7QVTD+m5YB5JATb0AZq24rKSl+XiOsnfYMyECCY725uuuBfgrUZSP9x++f8+uK3uXBrrcrO6EA=="
+  },
+  "actualSourceNow": 2575,
+  "sourceCheckpointDigest": "2b8ea91f66f8e3320d6472c0ac5739552ed4b0d1d5b9885a2bca5c4c42155c96",
+  "sourcePersonActivity": null,
+  "owedCount": 1,
+  "replayDriftAt": -1,
+  "voiceHash": "18e5968a34213a",
+  "inputEntries": 12,
+  "envelopeRevision": "b646359e747e8ac3287d0ac54ff9fcd14bc6420fc857067f6589c73ea9c36ac9",
+  "scope": "local-file-only",
+  "noShelfMutation": true,
+  "noSourceEdits": true
+}

@@ -5,7 +5,7 @@ import {
   validatePersona,
   watchPersonaCheckpoint,
 } from '@adam0white/lab-client';
-import { exportGuest, type GuestAction, type GuestId, prepareGuest } from '../sim/guests.ts';
+import { type GuestAction, type GuestId, prepareGuest } from '../sim/guests.ts';
 import {
   type ContinuityBook,
   ContinuitySession,
@@ -36,7 +36,13 @@ import {
   type State,
   type View,
 } from '../sim/types.ts';
-import { exportRun, type RunExport, validateContinuity, verifyImport } from './export.ts';
+import {
+  exportRun,
+  guestCheckpointTransfer,
+  type RunExport,
+  validateContinuity,
+  verifyImport,
+} from './export.ts';
 import { lab, notebookRunOptions } from './lab.ts';
 import { cityFigurePositions, drawCity, MAP_HEIGHT, MAP_WIDTH } from './map.ts';
 import { drawOffice, officeSeats } from './office.ts';
@@ -387,23 +393,10 @@ function checkpoint(fork = false): Promise<void> {
         const guest = sim.view(pinned).guests?.find((g) => g.id === id);
         if (guest?.status !== 'complete') continue;
         try {
-          const projected = await exportGuest(pinned, id);
-          if (activeGeneration !== generation) return;
           const origin = continuity.arrivals.find((a) => a.source.castId === head.castId)?.source;
-          const transfer = {
-            person: projected.projection,
-            history: projected.history,
-            checkpoint: projected.checkpoint,
-            admission: {
-              adapter: 'goodhands/1',
-              sourceRevision: origin?.revision ?? head.revision,
-              sourceCheckpointDigest:
-                (origin?.transfer.checkpoint as { checkpointDigest?: string } | undefined)
-                  ?.checkpointDigest ?? '',
-              mapping: projected.projection.mappingVersion,
-              opening: projected.projection.source.now,
-            },
-          };
+          if (!origin) throw new Error('Original admitted source is missing.');
+          const transfer = await guestCheckpointTransfer(pinned, id, origin);
+          if (activeGeneration !== generation) return;
           // Avoid consuming a revision for an unchanged checkpoint.
           if (canonicalPersona(head.transfer) === canonicalPersona(transfer) && !fork) continue;
           await continuitySession.publish(continuity, head.castId, transfer, fork);

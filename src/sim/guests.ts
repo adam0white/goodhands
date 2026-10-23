@@ -1,3 +1,4 @@
+import type { CalendarPersonaSnapshot } from '@adam0white/human-framework';
 import {
   type Affordance,
   admitPersona,
@@ -18,6 +19,13 @@ import {
   validatePersonaProjection,
 } from '@adam0white/human-framework';
 import { canonicalPersona, validatePersona } from '@adam0white/lab-client';
+import {
+  type CalendarGuest,
+  maintainCalendarGuest,
+  prepareCalendarGuest,
+  returnCalendarGuest,
+  startCalendarRoutine,
+} from './guest-calendar.ts';
 import type { Input, LogEntry, State } from './types.ts';
 
 export type GuestId = 'zeynep-pass' | 'selin-voice';
@@ -35,6 +43,7 @@ export interface GuestAdmission {
   arm: 'fresh' | 'biography' | 'continuing';
   history: GuestHistory[];
   familyHistory?: { status: 'kept' | 'broken'; from: number; until: number };
+  calendar?: CalendarGuest;
 }
 export interface GuestView {
   id: GuestId;
@@ -51,6 +60,8 @@ interface Guest extends Omit<GuestAdmission, 'person'> {
   trial?: GuestView['trial'];
   encounterEpisode?: string;
   routine?: string;
+  calendarDay?: number;
+  pendingEnquiry?: 'ask-service' | 'end-enquiry';
 }
 interface GuestState extends State {
   guests: Guest[];
@@ -176,6 +187,42 @@ export async function prepareGuest(input: unknown): Promise<GuestAdmission> {
   if (!id || envelope.castRevision !== '1') fail('unsupported cast revision');
   const info = IDENTITY[id];
   if (envelope.source.game !== info.source || envelope.source.engine !== '2.14.1') fail('unsupported source');
+  if (
+    id === 'selin-voice' &&
+    (envelope.transfer.person as { format?: string } | undefined)?.format === 'hf-persona-calendar/1'
+  ) {
+    if (
+      Object.keys(envelope.transfer).some(
+        (key) => !['person', 'history', 'checkpoint', 'calendarHost', 'targetOpening'].includes(key),
+      )
+    )
+      fail('unsupported calendar transfer fields');
+    const admitted = prepareCalendarGuest(envelope, freshGuest(id).person);
+    const p = admitted.projection.person;
+    const facts = history(envelope.transfer.history);
+    if (
+      facts.length !== 1 ||
+      facts.some(
+        (f) =>
+          f.sourceGame !== 'voice' ||
+          f.at > p.source.now ||
+          f.id !== p.episodes[0]!.id ||
+          f.summary !== p.episodes[0]!.summary ||
+          f.at !== p.episodes[0]!.at,
+      )
+    )
+      fail('unsupported source history');
+    const checkpoint = envelope.transfer.checkpoint as Record<string, unknown> | undefined;
+    if (
+      !checkpoint ||
+      Object.keys(checkpoint).sort().join(',') !== 'checkpointDigest,sourceNow,sourceRng,sourceSchema' ||
+      checkpoint.sourceSchema !== p.source.schema ||
+      checkpoint.sourceNow !== p.source.now ||
+      canonicalPersona(checkpoint.sourceRng) !== canonicalPersona(p.rng)
+    )
+      fail('missing source checkpoint provenance');
+    return { id, person: admitted.person, arm: 'continuing', history: facts, calendar: admitted.metadata };
+  }
   if (
     Object.keys(envelope.transfer).some(
       (key) =>
@@ -327,6 +374,7 @@ export function stepGuests(state: State) {
   for (const g of s.guests ?? []) {
     const p = s.people[g.id]!;
     if (s.now < p.now) continue;
+    if (g.calendar) g.calendarDay = maintainCalendarGuest(p, g.calendar.calendarHost, g.calendarDay);
     if (p.activity && s.now >= p.activity.endsAt) {
       const a = p.activity.affordance;
       tick(p, p.activity.endsAt);
@@ -337,7 +385,19 @@ export function stepGuests(state: State) {
         at: p.now,
         status: 'completed',
         ...(trial ? { quality: g.trial?.succeeded ? 1 : 0.25 } : {}),
-        needs: a.action === 'eat' ? { food: 0.8, water: 0.8 } : a.action === 'sleep' ? { sleep: 0.8 } : {},
+        needs: g.calendar
+          ? a.action === 'eat'
+            ? { food: 0.6 }
+            : a.action === 'drink'
+              ? { water: 0.6 }
+              : a.action === 'rest'
+                ? { rest: 0.25, leisure: 0.1 }
+                : {}
+          : a.action === 'eat'
+            ? { food: 0.8, water: 0.8 }
+            : a.action === 'sleep'
+              ? { sleep: 0.8 }
+              : {},
         summary: trial
           ? `Prepared the cold supper: ${g.trial?.succeeded ? 'ready as agreed' : 'needed correction'}.`
           : a.label,
@@ -366,6 +426,15 @@ export function stepGuests(state: State) {
     }
     if (p.activity) continue;
     const t = local(s.now);
+    if (g.calendar) {
+      g.calendarDay = maintainCalendarGuest(p, g.calendar.calendarHost, g.calendarDay);
+      if (g.pendingEnquiry && t >= 1080 && t < 1260) {
+        const answer = g.pendingEnquiry;
+        delete g.pendingEnquiry;
+        answerEnquiry(s, g, p, answer);
+      } else startCalendarRoutine(p);
+      continue;
+    }
     const obligation = p.agenda.commitments.find(
       (c) => c.status === 'pending' && c.from <= s.now && c.until > s.now,
     );
@@ -390,6 +459,16 @@ export function stepGuests(state: State) {
       startRoutine(p, offer('guest-sleep', 'sleep', 570, { mode: 'sleep', advertises: { sleep: 0.8 } }));
     }
   }
+}
+function answerEnquiry(s: GuestState, g: Guest, p: Person, action: 'ask-service' | 'end-enquiry') {
+  const text =
+    action === 'ask-service'
+      ? 'Nermin: I cannot confirm a suitable service reaches your father’s address. We have made no placement. Please check local availability and ask him what help he wants.'
+      : 'Nermin: We have ended the enquiry without arranging help. Your father has not agreed to a service.';
+  g.encounterEpisode = attendAnswer(p, text);
+  g.text = text;
+  g.status = 'complete';
+  record(s, `Selin heard ${text}`);
 }
 export function applyGuest(state: State, input: Extract<Input, { type: 'guest-action' }>) {
   const s = state as GuestState;
@@ -432,15 +511,15 @@ export function applyGuest(state: State, input: Extract<Input, { type: 'guest-ac
     g.text = 'Zeynep agreed to the ninety-minute cold-supper preparation. Her family window stays free.';
     record(s, g.text);
   } else if (g.id === 'selin-voice' && (input.action === 'ask-service' || input.action === 'end-enquiry')) {
-    if (t < 1080 || p.activity) return;
-    const text =
-      input.action === 'ask-service'
-        ? 'Nermin: I cannot confirm a suitable service reaches your father’s address. We have made no placement. Please check local availability and ask him what help he wants.'
-        : 'Nermin: We have ended the enquiry without arranging help. Your father has not agreed to a service.';
-    g.encounterEpisode = attendAnswer(p, text);
-    g.text = text;
-    g.status = 'complete';
-    record(s, `Selin heard ${text}`);
+    if (t < 1080 || (!g.calendar && p.activity)) return;
+    if (g.calendar && p.activity) {
+      if (g.pendingEnquiry) return;
+      g.pendingEnquiry = input.action;
+      g.text = `Selin is finishing ${p.activity.affordance.label.toLowerCase()}. Nermin will reply when she is free.`;
+      record(s, g.text);
+      return;
+    }
+    answerEnquiry(s, g, p, input.action);
   } else if (g.id === 'zeynep-pass' && input.action === 'decline') {
     g.text = 'Nermin declined the guest trial. No placement took place.';
     g.status = 'complete';
@@ -479,16 +558,29 @@ export function guestViews(state: State): GuestView[] {
             : [
                 {
                   action: 'ask-service',
-                  label: 'Check the limits of this enquiry',
-                  ...(local(state.now) < 1080 || state.people[g.id]?.activity
-                    ? { disabled: 'Selin can speak after office work, from 18:00.' }
+                  label:
+                    g.calendar && state.people[g.id]?.activity
+                      ? 'Reply after Selin finishes'
+                      : 'Check the limits of this enquiry',
+                  ...(local(state.now) < 1080 ||
+                  (g.calendar ? !!g.pendingEnquiry : state.people[g.id]?.activity)
+                    ? {
+                        disabled: g.pendingEnquiry
+                          ? 'Nermin’s reply is waiting until Selin finishes.'
+                          : 'Selin can speak after office work, from 18:00.',
+                      }
                     : {}),
                 },
                 {
                   action: 'end-enquiry',
                   label: 'End without a placement',
-                  ...(local(state.now) < 1080 || state.people[g.id]?.activity
-                    ? { disabled: 'Selin can speak after office work, from 18:00.' }
+                  ...(local(state.now) < 1080 ||
+                  (g.calendar ? !!g.pendingEnquiry : state.people[g.id]?.activity)
+                    ? {
+                        disabled: g.pendingEnquiry
+                          ? 'Nermin’s reply is waiting until Selin finishes.'
+                          : 'Selin can speak after office work, from 18:00.',
+                      }
                     : {}),
                 },
               ],
@@ -498,7 +590,11 @@ export async function exportGuest(
   state: State,
   id: GuestId,
 ): Promise<{
-  projection: PersonaProjectionSnapshot;
+  projection: PersonaProjectionSnapshot | CalendarPersonaSnapshot;
+  targetOpening?: number;
+  calendarHost?: CalendarGuest['calendarHost'];
+  sourceRevision?: string;
+  sourceCheckpointDigest?: string;
   checkpoint: {
     sourceSchema: Person['schema'];
     sourceNow: number;
@@ -512,6 +608,33 @@ export async function exportGuest(
     fail('an attended completed encounter is required');
   const p = state.people[id]!;
   const z = id === 'zeynep-pass';
+  if (g.calendar) {
+    const returned = returnCalendarGuest(p, g.encounterEpisode, g.calendar);
+    const e = p.memory.episodes.find((e) => e.id === g.encounterEpisode)!;
+    const bytes = new TextEncoder().encode(canonicalPersona(snapshot(p)));
+    const digest = [...new Uint8Array(await crypto.subtle.digest('SHA-256', bytes))]
+      .map((n) => n.toString(16).padStart(2, '0'))
+      .join('');
+    return {
+      ...returned,
+      checkpoint: {
+        sourceSchema: p.schema,
+        sourceNow: p.now,
+        sourceRng: clone(p.rng),
+        checkpointDigest: digest,
+      },
+      history: [
+        ...g.history,
+        {
+          id: 'goodhands-encounter',
+          summary: e.summary,
+          at: e.at,
+          sourceGame: 'goodhands',
+          sourceEpisodeId: e.id,
+        },
+      ].slice(-8),
+    };
+  }
   const bindings: Record<
     string,
     {

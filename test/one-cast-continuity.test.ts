@@ -424,3 +424,101 @@ test('a preference change before bootstrap finishes still leaves an imported run
     vi.unstubAllGlobals();
   }
 });
+
+test('a live central denial or invalid reply overrides cached association; offline permission stays local', async () => {
+  const source = await original();
+  const results: boolean[] = [];
+  for (const mode of ['denied', 'unbound', 'invalid', 'offline']) {
+    const book = emptyContinuity();
+    book.heads = [source];
+    const associations = new Map<string, boolean>();
+    let key: string | null = null;
+    let queries = 0;
+    const allowed = () => key === null || associations.get(key) === true;
+    const lab = {
+      get playerId() {
+        return allowed() ? 'player-a' : null;
+      },
+      get personaRecordingAllowed() {
+        return allowed();
+      },
+      setPersonaRecording(value: string | null) {
+        key = value;
+      },
+      allowPersonaRecording(value: boolean) {
+        if (key) associations.set(key, value);
+      },
+    };
+    const session = new ContinuitySession(
+      {
+        enabled: true,
+        ready: Promise.resolve(true),
+        setEnabled() {},
+        async request<T>(): Promise<T> {
+          if (++queries === 1)
+            return { sameEpoch: true, branchId: source.branchId, revision: source.revision } as T;
+          if (mode === 'invalid') throw Error('Invalid selected person envelope');
+          if (mode === 'offline') throw Error('Shelf unavailable. Use a local file.');
+          return (
+            mode === 'denied'
+              ? { sameEpoch: false, branchId: source.branchId, revision: source.revision }
+              : { sameEpoch: true }
+          ) as T;
+        },
+      },
+      lab,
+    );
+    await session.recording(book);
+    expect(allowed()).toBe(true);
+    await session.recording(book);
+    results.push(allowed());
+  }
+  expect(results).toEqual([false, false, false, true]);
+});
+
+test('one unavailable head cannot hide another head’s live recording denial', async () => {
+  const source = await original();
+  const { revision: _revision, ...body } = source;
+  const second = await createPersona({ ...body, castId: 'hf.cast.selin.voice', branchId: 'second-branch' });
+  const book = emptyContinuity();
+  book.heads = [source, second];
+  const associations = new Map<string, boolean>();
+  let key: string | null = null;
+  let initial = true;
+  const allowed = () => key === null || associations.get(key) === true;
+  const lab = {
+    get playerId() {
+      return allowed() ? 'player-a' : null;
+    },
+    get personaRecordingAllowed() {
+      return allowed();
+    },
+    setPersonaRecording(value: string | null) {
+      key = value;
+    },
+    allowPersonaRecording(value: boolean) {
+      if (key) associations.set(key, value);
+    },
+  };
+  const session = new ContinuitySession(
+    {
+      enabled: true,
+      ready: Promise.resolve(true),
+      setEnabled() {},
+      async request<T>(request: import('@adam0white/lab-client').PersonaRequest): Promise<T> {
+        if (!initial && request.castId === source.castId) throw Error('Shelf unavailable. Use a local file.');
+        return {
+          sameEpoch: initial,
+          branchId: request.envelope!.branchId,
+          revision: request.envelope!.revision,
+        } as T;
+      },
+    },
+    lab,
+  );
+  await session.recording(book);
+  expect(allowed()).toBe(true);
+  initial = false;
+  await session.recording(book);
+  expect(allowed()).toBe(false);
+});

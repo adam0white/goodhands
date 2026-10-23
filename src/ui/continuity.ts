@@ -1,4 +1,5 @@
 /** Browser transport only. Simulation admissions and encounter semantics stay in sim/guests. */
+import type { CalendarPersonaSnapshot, PersonaProjectionSnapshot } from '@adam0white/human-framework';
 import {
   createPersona,
   type Lab,
@@ -32,6 +33,8 @@ export type ContinuityBook = {
   arrivals: Arrival[];
   heads: PersonaEnvelope[];
   rows: OneCastRow[];
+  /** Explicit fork revisions retain their prior accepted head through later checkpoints. */
+  forks?: Record<string, string>;
 };
 export const emptyContinuity = (): ContinuityBook => ({ v: 1, arrivals: [], heads: [], rows: [] });
 export const castIds = ['hf.cast.zeynep.pass', 'hf.cast.selin.voice'] as const;
@@ -134,24 +137,22 @@ export class ContinuitySession {
     // Lab.playerId is null while the persona gate is closed. Capture after our own gate change;
     // preference/storage events still invalidate identity changes hidden by that null getter.
     player = this.lab.playerId;
-    try {
-      const associations = await Promise.all(
-        heads.map((p) =>
-          this.shelf.request<RecordingReply>({ action: 'recording', castId: p.castId, envelope: p }),
-        ),
-      );
-      if (
-        current() &&
-        (associations.every(
-          (a, i) =>
-            a.sameEpoch === true && a.branchId === heads[i]?.branchId && a.revision === heads[i]?.revision,
-        ) ||
-          cachedAllowed)
+    const associations = await Promise.allSettled(
+      heads.map(async (p) =>
+        this.shelf.request<RecordingReply>({ action: 'recording', castId: p.castId, envelope: p }),
+      ),
+    );
+    if (
+      current() &&
+      associations.every((result, i) =>
+        result.status === 'rejected'
+          ? cachedAllowed && bridgeUnavailable(result.reason)
+          : result.value.sameEpoch === true &&
+            result.value.branchId === heads[i]?.branchId &&
+            result.value.revision === heads[i]?.revision,
       )
-        this.lab.allowPersonaRecording(true);
-    } catch {
-      if (current() && cachedAllowed) this.lab.allowPersonaRecording(true);
-    }
+    )
+      this.lab.allowPersonaRecording(true);
   }
   async allow(book: ContinuityBook, allow: boolean): Promise<void> {
     const generation = ++this.recordingGeneration;
@@ -239,6 +240,7 @@ export class ContinuitySession {
     const prior = book.heads.find((p) => p.castId === castId);
     if (!prior) throw new Error('No accepted source revision in this run.');
     const { revision, ...body } = prior;
+    const projection = transfer.person as PersonaProjectionSnapshot | CalendarPersonaSnapshot | undefined;
     const envelope = await createPersona({
       ...body,
       branchId: fork ? crypto.randomUUID() : prior.branchId,
@@ -250,7 +252,9 @@ export class ContinuitySession {
         rules: 'goodhands-5',
       },
       limitations:
-        (transfer.person as { limitations?: string[] } | undefined)?.limitations ?? prior.limitations,
+        (projection?.format === 'hf-persona-calendar/1'
+          ? projection.person.limitations
+          : projection?.limitations) ?? prior.limitations,
       transfer: fork
         ? {
             ...transfer,
@@ -259,6 +263,16 @@ export class ContinuitySession {
         : transfer,
     });
     await this.shelf.request({ action: 'put', envelope, fork });
+    const priorFork = (prior.transfer.admission as Record<string, unknown> | undefined)?.forkOf;
+    if (fork || (prior.parentRevision === null && typeof priorFork === 'string')) {
+      book.forks = {
+        ...book.forks,
+        ...(prior.parentRevision === null && typeof priorFork === 'string'
+          ? { [prior.revision]: priorFork }
+          : {}),
+        ...(fork ? { [envelope.revision]: revision } : {}),
+      };
+    }
     const index = book.heads.findIndex((p) => p.castId === castId);
     book.heads[index] = envelope;
     const arrival = book.arrivals.find((a) => a.source.castId === castId);

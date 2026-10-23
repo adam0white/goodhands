@@ -1,5 +1,11 @@
-import { boundedPersonaJson, canonicalPersona, validatePersona } from '@adam0white/lab-client';
-import { exportGuest, prepareGuest } from '../sim/guests.ts';
+import type { CalendarPersonaSnapshot, PersonaProjectionSnapshot } from '@adam0white/human-framework';
+import {
+  boundedPersonaJson,
+  canonicalPersona,
+  type PersonaEnvelope,
+  validatePersona,
+} from '@adam0white/lab-client';
+import { exportGuest, type GuestId, prepareGuest } from '../sim/guests.ts';
 import { fingerprint, replay, view } from '../sim/index.ts';
 import { type Input, type LoggedInput, QUALITIES, type State } from '../sim/types.ts';
 import { type ContinuityBook, castIds, emptyContinuity, type OneCastRow } from './continuity.ts';
@@ -17,6 +23,59 @@ export interface RunExport {
   fingerprint: string;
 }
 export type CompactRunExport = Omit<RunExport, 'state'>;
+
+function projectionBody(projection: PersonaProjectionSnapshot | CalendarPersonaSnapshot) {
+  return projection.format === 'hf-persona-calendar/1' ? projection.person : projection;
+}
+function calendarTransfer(projected: {
+  projection: PersonaProjectionSnapshot | CalendarPersonaSnapshot;
+  targetOpening?: number;
+  calendarHost?: unknown;
+  sourceRevision?: string;
+  sourceCheckpointDigest?: string;
+}) {
+  if (projected.projection.format !== 'hf-persona-calendar/1') return {};
+  if (
+    !Number.isInteger(projected.targetOpening) ||
+    !projected.calendarHost ||
+    !projected.sourceRevision ||
+    !projected.sourceCheckpointDigest
+  )
+    throw new Error('Calendar return needs its pinned host clock.');
+  return {
+    targetOpening: projected.targetOpening,
+    calendarHost: projected.calendarHost,
+    sourceRevision: projected.sourceRevision,
+    sourceCheckpointDigest: projected.sourceCheckpointDigest,
+  };
+}
+/** The same pinned wire is constructed for publication and deterministic load validation. */
+export async function guestCheckpointTransfer(state: State, id: GuestId, origin: PersonaEnvelope) {
+  const projected = await exportGuest(state, id);
+  const body = projectionBody(projected.projection);
+  const checkpoint = origin.transfer.checkpoint as { checkpointDigest?: string } | undefined;
+  if (!checkpoint?.checkpointDigest) throw new Error('Original source checkpoint is missing.');
+  const calendar = calendarTransfer(projected);
+  if (
+    'sourceRevision' in calendar &&
+    (calendar.sourceRevision !== origin.revision ||
+      calendar.sourceCheckpointDigest !== checkpoint.checkpointDigest)
+  )
+    throw new Error('Calendar return changed the original source binding.');
+  return {
+    person: projected.projection,
+    history: projected.history,
+    checkpoint: projected.checkpoint,
+    ...calendar,
+    admission: {
+      adapter: 'goodhands/1',
+      sourceRevision: origin.revision,
+      sourceCheckpointDigest: checkpoint.checkpointDigest,
+      mapping: body.mappingVersion,
+      opening: body.source.now,
+    },
+  };
+}
 
 export function exportRun(state: State, inputs: LoggedInput[], continuity?: ContinuityBook): RunExport {
   const visible = view(state);
@@ -236,6 +295,16 @@ function readContinuity(value: unknown, rows: unknown): ContinuityBook {
   if (value.fileUnlinked !== undefined && typeof value.fileUnlinked !== 'boolean')
     throw new Error('Invalid file recording state.');
   const book = value as unknown as ContinuityBook;
+  if (
+    book.forks !== undefined &&
+    (!record(book.forks) ||
+      Object.keys(book.forks).length > book.rows.length ||
+      Object.entries(book.forks).some(
+        ([revision, parent]) =>
+          !/^[a-f0-9]{64}$/.test(revision) || typeof parent !== 'string' || !/^[a-f0-9]{64}$/.test(parent),
+      ))
+  )
+    throw new Error('Invalid explicit fork history.');
   for (const arrival of book.arrivals) {
     if (
       !record(arrival) ||
@@ -328,7 +397,11 @@ export async function validateContinuity(
       if (!ancestor) throw new Error('Pinned head has incomplete claim lineage.');
       cursor = ancestor.parentRevision;
       if (cursor === null && ancestor.stage === 'checkpoint') {
-        const forkOf = (head.transfer.admission as Record<string, unknown> | undefined)?.forkOf;
+        const forkOf =
+          book.forks?.[ancestor.revision] ??
+          (ancestor.revision === head.revision
+            ? (head.transfer.admission as Record<string, unknown> | undefined)?.forkOf
+            : undefined);
         if (typeof forkOf === 'string' && !visited.has(forkOf)) {
           cursor = forkOf;
         }
@@ -350,12 +423,11 @@ export async function validateContinuity(
       5,
       book.arrivals.map((a) => a.initial),
     );
-    const projected = await exportGuest(source, arrival.initial.id);
-    if (
-      canonicalPersona(head.transfer.person) !== canonicalPersona(projected.projection) ||
-      canonicalPersona(head.transfer.history) !== canonicalPersona(projected.history) ||
-      canonicalPersona(checkpoint) !== canonicalPersona(projected.checkpoint)
-    )
+    const expected = await guestCheckpointTransfer(source, arrival.initial.id, arrival.source);
+    const forkOf = (head.transfer.admission as Record<string, unknown> | undefined)?.forkOf;
+    const transfer =
+      typeof forkOf === 'string' ? { ...expected, admission: { ...expected.admission, forkOf } } : expected;
+    if (canonicalPersona(head.transfer) !== canonicalPersona(transfer))
       throw new Error('Pinned head does not match the source checkpoint.');
   }
 }

@@ -1,4 +1,5 @@
 import { readFileSync } from 'node:fs';
+import type { CalendarPersonaSnapshot, PersonaProjectionSnapshot } from '@adam0white/human-framework';
 import { perceive, projectPersona, snapshot } from '@adam0white/human-framework';
 import { canonicalPersona, createPersona } from '@adam0white/lab-client';
 import { describe, expect, it } from 'vitest';
@@ -14,8 +15,18 @@ import {
   view,
 } from '../src/sim/index.ts';
 import * as v4 from '../src/sim/v4/index.ts';
+
+const base = (p: PersonaProjectionSnapshot | CalendarPersonaSnapshot) =>
+  p.format === 'hf-persona-calendar/1' ? p.person : p;
+
 import { type ContinuityBook, continuityRow } from '../src/ui/continuity.ts';
-import { compactRun, exportRun, validateContinuity, verifyImport } from '../src/ui/export.ts';
+import {
+  compactRun,
+  exportRun,
+  guestCheckpointTransfer,
+  validateContinuity,
+  verifyImport,
+} from '../src/ui/export.ts';
 
 function runTo(s: ReturnType<typeof newGame>, at: number) {
   while (s.now < at) advance(s, Math.min(60, at - s.now));
@@ -89,7 +100,7 @@ describe('one cast guest edition', () => {
     expect(view(s).guests!.find((g) => g.id === 'zeynep-pass')!.trial?.verdict).toBe('assented');
     runTo(s, 3540);
     const returned = await exportGuest(s, 'zeynep-pass');
-    expect(returned.projection.episodes[0]).toMatchObject({
+    expect(base(returned.projection).episodes[0]).toMatchObject({
       actorId: 'nermin-goodhands',
       targetId: 'zeynep',
     });
@@ -164,9 +175,12 @@ describe('one cast guest edition', () => {
     runTo(s, 2100);
     const out = await exportGuest(s, 'zeynep-pass');
     expect(out.checkpoint.checkpointDigest).toMatch(/^[a-f0-9]{64}$/);
-    expect(Object.keys(out.projection.skills)).toEqual(['cold']);
+    expect(Object.keys(base(out.projection).skills)).toEqual(['cold']);
     expect(out.history.at(-1)!.summary).toMatch(/cold dishes/);
-    expect(out.projection.episodes[0]).toMatchObject({ actorId: 'nermin-goodhands', targetId: 'zeynep' });
+    expect(base(out.projection).episodes[0]).toMatchObject({
+      actorId: 'nermin-goodhands',
+      targetId: 'zeynep',
+    });
     expect(canonicalPersona(out)).not.toContain('trace');
     s.people['zeynep-pass']!.agenda.commitments.push({
       id: 'unsupported-duty',
@@ -192,8 +206,8 @@ describe('one cast guest edition', () => {
     )!;
     guest.encounterEpisode = outcome!.id;
     const out = await exportGuest(s, 'zeynep-pass');
-    expect(out.projection.episodes[0]!.actorId).toBe('zeynep');
-    expect(out.projection.episodes[0]!.targetId).toBe(outcome!.targetId);
+    expect(base(out.projection).episodes[0]!.actorId).toBe('zeynep');
+    expect(base(out.projection).episodes[0]!.targetId).toBe(outcome!.targetId);
   });
   it('keeps Selin office job and records enquiry without inventing a placement', async () => {
     const s = newGame(2);
@@ -203,14 +217,14 @@ describe('one cast guest edition', () => {
     expect(g.status).toBe('complete');
     expect(g.text).toContain('cannot confirm');
     const out = await exportGuest(s, 'selin-voice');
-    expect(out.projection.commitments[0]).toMatchObject({
+    expect(base(out.projection).commitments[0]).toMatchObject({
       kind: 'job',
       actions: ['work'],
       importance: 0.8,
       recurEvery: 1440,
     });
     expect(out.history.at(-1)!.summary).toContain('no placement');
-    expect(out.projection.episodes[0]).toMatchObject({
+    expect(base(out.projection).episodes[0]).toMatchObject({
       action: 'selin-enquiry',
       actorId: 'nermin-goodhands',
       targetId: 'selin',
@@ -298,17 +312,11 @@ describe('one cast guest edition', () => {
       expect(imported.continuity.arrivals[0]!.initial).toEqual(admission);
       await validateContinuity(imported.continuity);
     }
-    const returned = await exportGuest(received, 'selin-voice');
     const { revision: claimRevision, ...claimBody } = claim;
     const head = await createPersona({
       ...claimBody,
       parentRevision: claimRevision,
-      transfer: {
-        person: returned.projection,
-        history: returned.history,
-        checkpoint: returned.checkpoint,
-        admission: { adapter: 'goodhands/1', mapping: 'goodhands-selin/1' },
-      },
+      transfer: await guestCheckpointTransfer(received, 'selin-voice', envelope),
     });
     book.heads = [head];
     book.rows.push(continuityRow(head, 'checkpoint', 'file'));
