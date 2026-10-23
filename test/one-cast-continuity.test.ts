@@ -1,5 +1,5 @@
 import { acceptPersona, createPersona } from '@adam0white/lab-client';
-import { expect, test } from 'vitest';
+import { expect, test, vi } from 'vitest';
 import { ContinuitySession, emptyContinuity } from '../src/ui/continuity.ts';
 
 async function original() {
@@ -63,9 +63,13 @@ test('recording gate is set before association lookup; files never inherit sameE
       enabled: true,
       ready: Promise.resolve(true),
       setEnabled() {},
-      async request<T>(): Promise<T> {
+      async request<T>(request: import('@adam0white/lab-client').PersonaRequest): Promise<T> {
         calls.push('query');
-        return { sameEpoch: true } as T;
+        return {
+          sameEpoch: true,
+          branchId: request.envelope?.branchId,
+          revision: request.envelope?.revision,
+        } as T;
       },
     },
     {
@@ -78,13 +82,19 @@ test('recording gate is set before association lookup; files never inherit sameE
     },
   );
   await session.recording(book, false);
-  expect(calls).toEqual(['gate', 'deny', 'query', 'allow']);
+  expect(calls.indexOf('gate')).toBeLessThan(calls.indexOf('query'));
+  expect(calls.indexOf('deny')).toBeLessThan(calls.indexOf('query'));
+  expect(calls.at(-1)).toBe('allow');
   calls.length = 0;
   await session.recording(book, true);
-  expect(calls).toEqual(['gate', 'deny']);
+  expect(calls).not.toContain('query');
+  expect(calls).not.toContain('allow');
+  expect(calls.at(-1)).toBe('deny');
   calls.length = 0;
   await session.recording(book, false);
-  expect(calls).toEqual(['gate', 'deny']);
+  expect(calls).not.toContain('query');
+  expect(calls).not.toContain('allow');
+  expect(calls.at(-1)).toBe('deny');
 });
 
 test('validated reload rejects a checksum-valid unrelated head', async () => {
@@ -166,4 +176,251 @@ test('a full bounded replay history refuses before any shelf mutation', async ()
   expect(writes).toBe(0);
   expect(book.rows).toHaveLength(256);
   expect(book.heads).toEqual([source]);
+});
+
+test('recording queries pin the exact envelope and reject an unbound bridge reply', async () => {
+  const source = await original();
+  const book = emptyContinuity();
+  book.heads = [source];
+  const requests: import('@adam0white/lab-client').PersonaRequest[] = [];
+  const grants: boolean[] = [];
+  const session = new ContinuitySession(
+    {
+      enabled: true,
+      ready: Promise.resolve(true),
+      setEnabled() {},
+      async request<T>(request: import('@adam0white/lab-client').PersonaRequest): Promise<T> {
+        requests.push(request);
+        return { sameEpoch: true } as T;
+      },
+    },
+    {
+      setPersonaRecording() {},
+      allowPersonaRecording(allow) {
+        grants.push(allow);
+      },
+    },
+  );
+  await session.recording(book);
+  expect(requests[0]?.envelope).toEqual(source);
+  expect(grants).not.toContain(true);
+});
+
+test('a late recording reply cannot approve a changed identity or a later refusal', async () => {
+  const source = await original();
+  const book = emptyContinuity();
+  book.heads = [source];
+  let resolve!: (result: unknown) => void;
+  let queries = 0;
+  const grants: boolean[] = [];
+  const lab = {
+    playerId: 'player-a',
+    setPersonaRecording() {},
+    allowPersonaRecording(allow: boolean) {
+      grants.push(allow);
+    },
+  };
+  const session = new ContinuitySession(
+    {
+      enabled: true,
+      ready: Promise.resolve(true),
+      setEnabled() {},
+      request<T>(): Promise<T> {
+        if (++queries > 2) return Promise.resolve({ sameEpoch: false } as T);
+        return new Promise((r) => {
+          resolve = r as (result: unknown) => void;
+        });
+      },
+    },
+    lab,
+  );
+  const pending = session.recording(book);
+  await new Promise((r) => setTimeout(r, 10));
+  lab.playerId = 'player-b';
+  resolve({ sameEpoch: true, branchId: source.branchId, revision: source.revision });
+  await pending;
+  expect(grants).not.toContain(true);
+  grants.length = 0;
+  const second = session.recording(book);
+  await new Promise((r) => setTimeout(r, 10));
+  await session.allow(book, false);
+  resolve({ sameEpoch: true, branchId: source.branchId, revision: source.revision });
+  await second;
+  expect(grants).not.toContain(true);
+});
+
+test('explicit recording grant and denial carry the immediately queried opaque epoch', async () => {
+  const source = await original();
+  const book = emptyContinuity();
+  book.heads = [source];
+  const requests: (import('@adam0white/lab-client').PersonaRequest & { recordingEpoch?: string })[] = [];
+  const session = new ContinuitySession(
+    {
+      enabled: true,
+      ready: Promise.resolve(true),
+      setEnabled() {},
+      async request<T>(request: import('@adam0white/lab-client').PersonaRequest): Promise<T> {
+        requests.push(request);
+        return {
+          sameEpoch: false,
+          branchId: source.branchId,
+          revision: source.revision,
+          recordingEpoch: 'opaque-test-epoch',
+        } as T;
+      },
+    },
+    { playerId: 'player-a', setPersonaRecording() {}, allowPersonaRecording() {} },
+  );
+  await session.recording(book);
+  requests.length = 0;
+  await session.allow(book, true);
+  expect(requests).toHaveLength(2);
+  expect(requests[1]).toMatchObject({
+    envelope: source,
+    allowRecording: true,
+    recordingEpoch: 'opaque-test-epoch',
+  });
+  requests.length = 0;
+  await session.allow(book, false);
+  expect(requests).toHaveLength(2);
+  expect(requests[1]).toMatchObject({
+    envelope: source,
+    allowRecording: false,
+    recordingEpoch: 'opaque-test-epoch',
+  });
+  expect(book.fileUnlinked).toBe(true);
+});
+
+test('the real SDK gated player getter does not invalidate our own gate changes', async () => {
+  const source = await original();
+  const book = emptyContinuity();
+  book.heads = [source];
+  let allowed = true;
+  let gated = false;
+  const requests: (import('@adam0white/lab-client').PersonaRequest & { recordingEpoch?: string })[] = [];
+  const lab = {
+    get playerId() {
+      return gated && !allowed ? null : 'player-a';
+    },
+    get personaRecordingAllowed() {
+      return !gated || allowed;
+    },
+    setPersonaRecording(key: string | null) {
+      gated = key !== null;
+    },
+    allowPersonaRecording(value: boolean) {
+      allowed = value;
+    },
+  };
+  const session = new ContinuitySession(
+    {
+      enabled: true,
+      ready: Promise.resolve(true),
+      setEnabled() {},
+      async request<T>(request: import('@adam0white/lab-client').PersonaRequest): Promise<T> {
+        requests.push(request);
+        return {
+          sameEpoch: true,
+          branchId: source.branchId,
+          revision: source.revision,
+          recordingEpoch: 'opaque-test-epoch',
+        } as T;
+      },
+    },
+    lab,
+  );
+  await session.recording(book);
+  expect(allowed).toBe(true);
+  await session.allow(book, false);
+  expect(allowed).toBe(false);
+  requests.length = 0;
+  await session.allow(book, true);
+  expect(allowed).toBe(true);
+  expect(requests[1]?.allowRecording).toBe(true);
+});
+
+test('identity preference events invalidate replies even while the SDK player getter stays null', async () => {
+  const events = new EventTarget();
+  vi.stubGlobal('addEventListener', events.addEventListener.bind(events));
+  try {
+    const source = await original();
+    const book = emptyContinuity();
+    book.heads = [source];
+    let resolve!: (value: unknown) => void;
+    let allowed = false;
+    const session = new ContinuitySession(
+      {
+        enabled: true,
+        ready: Promise.resolve(true),
+        setEnabled() {},
+        request<T>(): Promise<T> {
+          return new Promise((r) => {
+            resolve = r as (value: unknown) => void;
+          });
+        },
+      },
+      {
+        get playerId() {
+          return null;
+        },
+        setPersonaRecording() {},
+        allowPersonaRecording(value) {
+          allowed = value;
+        },
+      },
+    );
+    const pending = session.recording(book);
+    await new Promise((r) => setTimeout(r, 10));
+    events.dispatchEvent(new Event('hf-lab-preference'));
+    resolve({ sameEpoch: true, branchId: source.branchId, revision: source.revision });
+    await pending;
+    expect(allowed).toBe(false);
+  } finally {
+    vi.unstubAllGlobals();
+  }
+});
+
+test('a preference change before bootstrap finishes still leaves an imported run gated', async () => {
+  const events = new EventTarget();
+  vi.stubGlobal('addEventListener', events.addEventListener.bind(events));
+  try {
+    const source = await original();
+    const book = emptyContinuity();
+    book.heads = [source];
+    let ready!: (value: boolean) => void;
+    let key: string | null = null;
+    let allowed = true;
+    const session = new ContinuitySession(
+      {
+        enabled: true,
+        ready: new Promise((r) => {
+          ready = r;
+        }),
+        setEnabled() {},
+        async request<T>(): Promise<T> {
+          throw Error('unexpected query');
+        },
+      },
+      {
+        get playerId() {
+          return key && !allowed ? null : 'player-a';
+        },
+        setPersonaRecording(value) {
+          key = value;
+        },
+        allowPersonaRecording(value) {
+          allowed = value;
+        },
+      },
+    );
+    const pending = session.recording(book, true);
+    events.dispatchEvent(new Event('hf-lab-preference'));
+    ready(true);
+    await pending;
+    expect(key).not.toBeNull();
+    expect(allowed).toBe(false);
+    expect(book.fileUnlinked).toBe(true);
+  } finally {
+    vi.unstubAllGlobals();
+  }
 });

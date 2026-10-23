@@ -347,10 +347,13 @@ async function begin(
   fromFile = false,
 ): Promise<void> {
   if (!next) return;
+  const activeGeneration = ++generation;
   await validateContinuity(book, next, history);
+  if (activeGeneration !== generation) return;
+  playing = false;
   stopTracking?.();
   await continuitySession.recording(book, fromFile);
-  generation++;
+  if (activeGeneration !== generation) return;
   continuity = structuredClone(book);
   recordingNoticeDone = true;
   state = next;
