@@ -136,3 +136,13 @@ export function monthTally(v: View): string {
   const trust = v.review.trustedBy.length;
   return `<details data-month-tally><summary>See tally</summary><h2>Nermin’s closing tally</h2><p>The game’s own reckoning of agency outcomes, not a measure of people.</p><p>TOTAL: ${kept + trust - ended} = kept placements (${kept}) + households that trust Nermin (${trust}) − returned, quit or dismissed placements (${ended}). Each placement record counts once; trials and withdrawals do not count.</p></details>`;
 }
+
+/** Money language follows the run's rules edition, including imported months. */
+export function placementDepositWords(simulation: number, replacement = false): string {
+  if (replacement) return 'The earlier deposit covers this replacement.';
+  return simulation >= 4
+    ? 'The family pays one week’s wage as a deposit now, capped at the agreed fee.'
+    : simulation === 3
+      ? 'The family pays half the agreed fee as a deposit now.'
+      : 'The family pays one week’s wage as a deposit now.';
+}

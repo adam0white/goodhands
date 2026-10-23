@@ -11,7 +11,7 @@ function until(s: State, at: number) {
   while (s.now < at) advance(s, at - s.now);
 }
 test('a number keeps contact but a home interview requires a real journey', () => {
-  const s = newGame(1);
+  const s = newGame(1, 3);
   apply(s, { type: 'take-number', candidate: 'sevda' });
   apply(s, { type: 'interview', candidate: 'sevda' });
   expect(view(s).scene).toBeNull();
@@ -28,10 +28,10 @@ test('a number keeps contact but a home interview requires a real journey', () =
   expect(card(s, 'sevda').presence).toBe('office');
   apply(s, { type: 'interview', candidate: 'sevda' });
   expect(view(s).scene?.kind).toBe('interview');
-  expect(fingerprint(replay(s.seed, s.inputs, s.now))).toBe(fingerprint(s));
+  expect(fingerprint(replay(s.seed, s.inputs, s.now, 3))).toBe(fingerprint(s));
 });
 test('placement terms need both answers and acceptance before any fee is paid', () => {
-  const s = newGame(1);
+  const s = newGame(1, 3);
   const cash = view(s).cash;
   apply(s, { type: 'place', candidate: 'sevda', family: 'arslans', vouch: [] });
   expect(view(s).scene?.kind).toBe('negotiation');
@@ -52,10 +52,10 @@ test('placement terms need both answers and acceptance before any fee is paid', 
   expect(p.terms?.fee).toBe(3000);
   expect(p.trialEnds - p.since).toBeLessThanOrEqual(4 * 1440);
   expect(view(s).cash - cash).toBe(1500);
-  expect(fingerprint(replay(s.seed, s.inputs, s.now))).toBe(fingerprint(s));
+  expect(fingerprint(replay(s.seed, s.inputs, s.now, 3))).toBe(fingerprint(s));
 });
 test('household calls use the selected adult and offer four spoken acts', () => {
-  const s = newGame(1);
+  const s = newGame(1, 3);
   const household = view(s).families.find((f) => f.id === 'arslans')!.household;
   const adult = household[0]!;
   const grandmother = household.find((m) => m.name.includes('Saadet'))!;
@@ -74,11 +74,11 @@ test('household calls use the selected adult and offer four spoken acts', () => 
     close(s);
   }
   expect(lines[0]).not.toBe(lines[1]);
-  expect(fingerprint(replay(s.seed, s.inputs, s.now))).toBe(fingerprint(s));
+  expect(fingerprint(replay(s.seed, s.inputs, s.now, 3))).toBe(fingerprint(s));
 });
 
 test('changing terms invalidates acceptance and spoken counters can resolve the disagreement', () => {
-  const s = newGame(1);
+  const s = newGame(1, 3);
   apply(s, { type: 'place', candidate: 'sevda', family: 'arslans', vouch: [] });
   const id = view(s).scene!.id;
   apply(s, {
@@ -105,7 +105,7 @@ test('changing terms invalidates acceptance and spoken counters can resolve the 
 });
 test('daily terms change fatigue, rest and wages through the household state', () => {
   const make = (endHour: number, dayOff: number, wage: number) => {
-    const s = newGame(1);
+    const s = newGame(1, 3);
     apply(s, { type: 'place', candidate: 'sevda', family: 'arslans', vouch: [] });
     const id = view(s).scene!.id;
     apply(s, {
@@ -131,7 +131,7 @@ test('daily terms change fatigue, rest and wages through the household state', (
   expect(paid.people.sevda!.needs.safety).toBeGreaterThan(long.people.sevda!.needs.safety);
 });
 test('leaving without contact is different from keeping a number', () => {
-  const s = newGame(1);
+  const s = newGame(1, 3);
   apply(s, { type: 'take-number', candidate: 'sevda' });
   until(s, 850);
   expect(card(s, 'gul').status).toBe('gone');
@@ -141,7 +141,7 @@ test('leaving without contact is different from keeping a number', () => {
   expect(card(s, 'sevda').arrival).toBeDefined();
 });
 test('a household call cannot replace an interview and children cannot answer agency calls', () => {
-  const s = newGame(1);
+  const s = newGame(1, 3);
   apply(s, { type: 'interview', candidate: 'sevda' });
   const id = view(s).scene!.id;
   apply(s, { type: 'call-household', family: 'arslans', member: 'arslans-0', topic: 'smooth' });
@@ -151,7 +151,7 @@ test('a household call cannot replace an interview and children cannot answer ag
   expect(view(s).scene).toBeNull();
 });
 test('each selected adult reports their own HF impression and soothing changes that adult', () => {
-  const s = newGame(1);
+  const s = newGame(1, 3);
   apply(s, { type: 'place', candidate: 'sevda', family: 'arslans', vouch: [] });
   const id = view(s).scene!.id;
   apply(s, { type: 'choose', scene: id, choice: 'accept-terms' });
@@ -164,11 +164,11 @@ test('each selected adult reports their own HF impression and soothing changes t
   apply(s, { type: 'call-household', family: 'arslans', member: 'arslans-3', topic: 'smooth' });
   expect(bad.affect.mood.valence).toBeGreaterThan(-0.5);
   expect(good.affect.mood.valence).toBe(0.2);
-  expect(fingerprint(replay(s.seed, s.inputs, s.now))).not.toBe(fingerprint(s)); // direct fixture edits deliberately are not replay inputs
+  expect(fingerprint(replay(s.seed, s.inputs, s.now, 3))).not.toBe(fingerprint(s)); // direct fixture edits deliberately are not replay inputs
 });
 
 test('an appointment cannot bring a placed worker back onto the bench', () => {
-  const s = newGame(1);
+  const s = newGame(1, 3);
   apply(s, { type: 'take-number', candidate: 'sevda' });
   apply(s, { type: 'call-in', candidate: 'sevda' });
   const arrival = card(s, 'sevda').arrival!.at;
@@ -180,7 +180,7 @@ test('an appointment cannot bring a placed worker back onto the bench', () => {
   expect(card(s, 'sevda').arrival).toBeUndefined();
 });
 test('each side can refuse an extreme proposal and counter a negotiable one', () => {
-  const s = newGame(1);
+  const s = newGame(1, 3);
   apply(s, { type: 'place', candidate: 'sevda', family: 'arslans', vouch: [] });
   const id = view(s).scene!.id;
   apply(s, {
@@ -197,7 +197,7 @@ test('each side can refuse an extreme proposal and counter a negotiable one', ()
   expect(view(s).scene!.negotiation?.worker).toBe('countered');
 });
 test('household and candidate calls respect the current conversation', () => {
-  const s = newGame(1);
+  const s = newGame(1, 3);
   apply(s, { type: 'take-number', candidate: 'sevda' });
   apply(s, { type: 'interview', candidate: 'gul' });
   const id = view(s).scene!.id;
@@ -207,7 +207,7 @@ test('household and candidate calls respect the current conversation', () => {
 });
 
 test('a reference call cannot repeat testimony or add duplicate notes', () => {
-  const s = newGame(1);
+  const s = newGame(1, 3);
   apply(s, { type: 'interview', candidate: 'sevda' });
   close(s);
   until(s, 600);
@@ -223,7 +223,7 @@ test('a reference call cannot repeat testimony or add duplicate notes', () => {
   expect(card(s, 'sevda').notes).toEqual(before);
 });
 test('a trial status names tomorrow noon and its report arrives then', () => {
-  const s = newGame(1);
+  const s = newGame(1, 3);
   apply(s, { type: 'trial', candidate: 'sevda', family: 'arslans' });
   expect(card(s, 'sevda').busy).toContain('Tuesday 3 November, 12:00');
   until(s, 2160);
@@ -235,10 +235,10 @@ test('a trial status names tomorrow noon and its report arrives then', () => {
     close(s);
   }
   expect(found).toBe(true);
-  expect(fingerprint(replay(1, s.inputs, s.now))).toBe(fingerprint(s));
+  expect(fingerprint(replay(1, s.inputs, s.now, 3))).toBe(fingerprint(s));
 });
 test('an expired request carries a one-line reason', () => {
-  const s = newGame(1);
+  const s = newGame(1, 3);
   until(s, 1921);
   const r = view(s).requests.find((r) => r.family === 'arslans')!;
   expect(r.status).toBe('lost');
@@ -246,7 +246,7 @@ test('an expired request carries a one-line reason', () => {
 });
 
 test('the agreed day off replaces Sunday rest and the map follows working hours', () => {
-  const s = newGame(1);
+  const s = newGame(1, 3);
   apply(s, { type: 'place', candidate: 'sevda', family: 'arslans', vouch: [] });
   const id = view(s).scene!.id;
   apply(s, {
@@ -262,11 +262,11 @@ test('the agreed day off replaces Sunday rest and the map follows working hours'
   expect(figure.place).toContain('Arslans');
   const p = (s.placements as { moments: { day: number }[] }[])[0]!;
   expect(p.moments.some((m) => m.day === 6)).toBe(true);
-  expect(fingerprint(replay(1, s.inputs, s.now))).not.toBe(fingerprint(s)); // direct clock fixture deliberately skips intervening days
+  expect(fingerprint(replay(1, s.inputs, s.now, 3))).not.toBe(fingerprint(s)); // direct clock fixture deliberately skips intervening days
 });
 
 test('a shorter trial can resolve the family wage counter they actually offer', () => {
-  const s = newGame(1);
+  const s = newGame(1, 3);
   s.people['arslans-0']!.traits.agreeableness = 0.5;
   s.people['arslans-0']!.memory.sourceTrust.nermin = 0.5;
   apply(s, { type: 'place', candidate: 'sevda', family: 'arslans', vouch: [] });
@@ -281,7 +281,7 @@ test('a shorter trial can resolve the family wage counter they actually offer', 
   expect(view(s).scene!.negotiation?.familyResponse).toBe('accepted');
 });
 test('trial days count working days, and hours preserve minutes in spoken terms', () => {
-  const s = newGame(1);
+  const s = newGame(1, 3);
   apply(s, { type: 'place', candidate: 'sevda', family: 'arslans', vouch: [] });
   const id = view(s).scene!.id;
   apply(s, {
@@ -297,7 +297,7 @@ test('trial days count working days, and hours preserve minutes in spoken terms'
 });
 
 test('interview answers use clock time and leaving after a long conversation keeps contact', () => {
-  const s = newGame(1);
+  const s = newGame(1, 3);
   apply(s, { type: 'interview', candidate: 'sevda' });
   const id = view(s).scene!.id;
   for (let i = 0; i < 4; i++) {
@@ -314,5 +314,5 @@ test('interview answers use clock time and leaving after a long conversation kee
   close(s);
   apply(s, { type: 'call-in', candidate: 'sevda' });
   expect(card(s, 'sevda').arrival!.at).toBeGreaterThanOrEqual(card(s, 'sevda').interviewAfter!);
-  expect(fingerprint(replay(1, s.inputs, s.now))).toBe(fingerprint(s));
+  expect(fingerprint(replay(1, s.inputs, s.now, 3))).toBe(fingerprint(s));
 });

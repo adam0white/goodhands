@@ -58,11 +58,16 @@ function vouched(c: CandidateView): Quality[] {
 }
 
 /** `until` is an absolute game minute. A chosen action may finish a few minutes after it. */
-export function runPolicy(seed: number, policy: Policy, until = MONTH_END, version: 1 | 2 | 3 = 3): State {
+export function runPolicy(
+  seed: number,
+  policy: Policy,
+  until = MONTH_END,
+  version: 1 | 2 | 3 | 4 = 3,
+): State {
   if (!Number.isFinite(until) || until < 510)
     throw new Error('Policy end must be a finite minute at or after 08:30.');
   let state = newGame(seed, version);
-  const match = (c: CandidateView, r: RequestView) => matches(c, r, version === 3);
+  const match = (c: CandidateView, r: RequestView) => matches(c, r, version >= 3);
   const attempted = new Set<string>();
   const coached = new Set<string>();
   const interviewed = new Set<string>();
@@ -88,7 +93,7 @@ export function runPolicy(seed: number, policy: Policy, until = MONTH_END, versi
     return true;
   }
   function startInterview(candidate: CandidateView): boolean {
-    if (version === 3 && candidate.presence !== 'office') {
+    if (version >= 3 && candidate.presence !== 'office') {
       return candidate.presence === 'home' && !candidate.arrival
         ? act({ type: 'call-in', candidate: candidate.id })
         : false;

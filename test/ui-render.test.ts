@@ -12,6 +12,7 @@ import {
   monthTally,
   noteText,
   phoneAvailability,
+  placementDepositWords,
   referenceReason,
   requestGroups,
   resumeLine,
@@ -200,4 +201,10 @@ it('keeps the optional agency tally off until a finished review and explains its
   expect(monthTally(view)).toContain('dismissed placements (1)');
   expect(monthTally(view)).toContain('not a measure of people');
   expect(JSON.stringify(view)).toBe(before);
+});
+
+it('explains the deposit for the saved rules edition', () => {
+  expect(placementDepositWords(3)).toContain('half the agreed fee');
+  expect(placementDepositWords(4)).toContain('one week');
+  expect(placementDepositWords(4, true)).toContain('earlier deposit');
 });

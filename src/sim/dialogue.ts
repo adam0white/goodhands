@@ -1,3 +1,4 @@
+import { candidateMemories } from './backstories.ts';
 import type { Quality, Role } from './types.ts';
 import { CANDIDATES } from './world.ts';
 
@@ -270,9 +271,9 @@ export function personalAnswer(candidateId: string, questionId: string): string 
     case 'wage':
       return `₺${candidate.wage} a month.${candidate.presentation === 'chatty' ? ' I need to know what is coming in, same as anyone.' : ''}`;
     case 'last-family':
-      return voice.lastFamily;
+      return `${voice.lastFamily} ${candidateMemories[candidateId]!.last}`;
     case 'why-left':
-      return voice.whyLeft;
+      return `${voice.whyLeft} ${candidateMemories[candidateId]!.leaving}`;
     case 'hours':
       return voice.hours;
     case 'home':

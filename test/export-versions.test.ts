@@ -18,7 +18,7 @@ test('phase 1 compact histories keep simulation 2 and its fingerprint', () => {
 });
 test('full and compact simulation 3 exports replay each new verb', () => {
   for (const verb of ['call-in', 'propose-terms', 'call-household']) {
-    const state = newGame(17);
+    const state = newGame(17, 3);
     if (verb === 'call-in') {
       apply(state, { type: 'take-number', candidate: 'sevda' });
       apply(state, { type: 'call-in', candidate: 'sevda' });
@@ -58,4 +58,15 @@ test('imports reject malformed new inputs before running them', () => {
   expect(() => verifyImport(JSON.stringify({ ...run, simulation: 99 }))).toThrow(
     'Unsupported simulation version',
   );
+});
+
+test('full and compact edition 4 exports retain their rules edition', () => {
+  const state = newGame(17);
+  apply(state, { type: 'interview', candidate: 'sevda' });
+  apply(state, { type: 'choose', scene: view(state).scene!.id, choice: 'last-family' });
+  const full = exportRun(state, state.inputs);
+  expect(full.simulation).toBe(4);
+  for (const run of [full, compactRun(full)]) {
+    expect(verifyImport(JSON.stringify(run)).state).toEqual(state);
+  }
 });

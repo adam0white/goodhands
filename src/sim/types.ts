@@ -286,7 +286,7 @@ export interface Review {
 
 /** The sim's state: plain JSON. People are HF Persons, keyed by id. */
 export interface State {
-  version: 1 | 2 | 3;
+  version: 1 | 2 | 3 | 4;
   seed: number;
   rng: number; // seeded RNG state
   now: Minute;

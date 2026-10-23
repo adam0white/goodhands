@@ -10,6 +10,12 @@ The top bar holds the date, one information control and the menu. The rent bar s
 
 Pacing is presentation only. Automatic is the default: held for conversations, calls and the day card; slow for departures and reading with a waiting bench; steady with people waiting; fast with an empty bench. Menu choices Automatic / Slow / Steady / Fast never emit simulation speed inputs. Skip ⏩ names the next event on its second line. Historical speed inputs and earlier placement rules remain replayable. This section supersedes the older interface and pacing descriptions below; simulation rules are unchanged.
 
+## Open-fix sweep (2026-10-23)
+
+Delivery means the open Good Hands ledger routes are checked against the live rebuild, clear remaining fixes and F-340 backstories are deployed with focused tests and exact legacy continuation, one independent Codex review is addressed, CI is green, and live browser checks pass at 360×690 and 1280×800. The route reconciliation and delivery report live in `~/code/.lab-scratch/sweep/`; a separate consolidator updates the shared ledger. Adam accepts the result by playing it.
+
+New months use simulation 4. Simulation 3 is frozen alongside 1 and 2; continuing or importing an earlier month keeps all its prior rules and authored text. Edition 4 deepens existing candidate and household accounts through the existing conversations and outcomes. Those accounts remain attributed claims; they do not certify a person's character. Faith remains background. The explicit deposit route changes the upfront fee to one week's agreed wage (monthly wage divided by four), capped at the total fee. The remaining fee follows the kept trial; replacement does not charge a second deposit. Difficulty, household pressures, HF traits and the existing choices stay intact.
+
 ## The idea
 
 Izmir, November. You are **Nermin**, who runs **Good Hands**, a one-room placement agency above a pharmacy in Alsancak. Families phone you when they need a nanny, a cook, a carer for an old father or a driver. Women and men climb your stairs and sit on the bench outside your door, hoping you will place them.

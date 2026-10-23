@@ -1,4 +1,5 @@
 import { estimate, type Person } from '@adam0white/human-framework';
+import { householdConsequence } from './backstories.ts';
 import type { Quality, SceneChoice } from './types.ts';
 import { CANDIDATES, QUALITY_MAP, type Referee } from './world.ts';
 
@@ -1668,7 +1669,12 @@ const households: Record<string, HouseholdAccount> = {
 };
 
 export function familyMoment(familyId: string, quality: Quality, good: boolean, worker: string): string {
-  return households[familyId]!.moments[quality][good ? 0 : 1].replaceAll('{worker}', worker);
+  return [
+    households[familyId]!.moments[quality][good ? 0 : 1].replaceAll('{worker}', worker),
+    householdConsequence(familyId, quality, good),
+  ]
+    .filter(Boolean)
+    .join(' ');
 }
 
 export function familyDisagreementWords(familyId: string, worker: string): string {

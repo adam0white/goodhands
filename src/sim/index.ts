@@ -1,4 +1,5 @@
-// Versions 1 and 2 are frozen for exact replay of earlier saves and compact exports.
+import { householdVoice } from './backstories.ts';
+// Versions 1, 2 and 3 are frozen for exact replay of earlier saves and compact exports.
 
 import {
   believe,
@@ -48,6 +49,7 @@ import type {
 import { QUALITIES } from './types.ts';
 import * as legacy from './v1/index.ts';
 import * as previous from './v2/index.ts';
+import * as third from './v3/index.ts';
 import {
   answer,
   contextualConcern,
@@ -118,7 +120,7 @@ interface Sim extends State {
   routeFacts: Record<number, { prop: string; value: boolean }>;
   envelopePromise?: { candidate: string; at: number };
   envelopeDebt?: { candidate: string; scene: string; at: number };
-  fees: Record<string, { first: boolean; second: boolean }>;
+  fees: Record<string, { first: boolean; second: boolean; deposit?: number }>;
   offerDetails?: Record<
     string,
     { kind: 'confidence' | 'envelope' | 'poach' | 'refund'; candidate: string; family: string }
@@ -499,11 +501,12 @@ function quietOffice(s: Sim) {
   s.quietOfficeAt = s.now + 45;
 }
 
-export function newGame(seed: number, version: 1 | 2 | 3 = 3): State {
+export function newGame(seed: number, version: 1 | 2 | 3 | 4 = 4): State {
   if (version === 1) return legacy.newGame(seed);
   if (version === 2) return previous.newGame(seed);
+  if (version === 3) return third.newGame(seed);
   const s: Sim = {
-    version: 3,
+    version: 4,
     seed: Math.trunc(seed) || 1,
     rng: Math.trunc(seed) >>> 0,
     now: 510,
@@ -768,6 +771,7 @@ function runTo(s: Sim, target: number, stopOnNew = false) {
 export function advance(state: State, minutes: number): State {
   if (state.version === 1) return legacy.advance(state as legacy.State, minutes);
   if (state.version === 2) return previous.advance(state as previous.State, minutes);
+  if (state.version === 3) return third.advance(state as third.State, minutes);
   snapshots.delete(state);
   const s = sim(state);
   if (Number.isFinite(minutes) && minutes > 0) runTo(s, s.now + minutes, true);
@@ -816,6 +820,7 @@ function choiceReply(s: Sim, sc: SceneView, choice: string, cashBefore: number):
 export function apply(state: State, input: Input): State {
   if (state.version === 1) return legacy.apply(state as legacy.State, input as legacy.Input);
   if (state.version === 2) return previous.apply(state as previous.State, input as previous.Input);
+  if (state.version === 3) return third.apply(state as third.State, input as third.Input);
   const before = sim(state);
   const sc = input.type === 'choose' && before.scene?.id === input.scene ? before.scene : null;
   const valid = !!(
@@ -1533,7 +1538,8 @@ function applyInput(state: State, input: Input): State {
     r.status = 'filled';
     s.fees[f.id] ??= { first: false, second: false };
     const fee = s.fees[f.id]!;
-    const firstPaid = fee.first ? 0 : agreed.fee / 2;
+    const firstPaid = fee.first ? 0 : Math.min(agreed.fee, agreed.wage / 4);
+    if (!fee.first) fee.deposit = firstPaid;
     fee.first = true;
     s.cash += firstPaid;
     for (const q of [...new Set([...vouched, ...card.coached])])
@@ -1541,7 +1547,7 @@ function applyInput(state: State, input: Input): State {
     log(
       s,
       'placement',
-      `${c.name} placed with ${f.name}. ${firstPaid ? `Half the fee, ₺${firstPaid}, is in the cash box. The rest is due if the family keeps the worker after the agreed trial.` : `The earlier deposit covers this replacement.`}`,
+      `${c.name} placed with ${f.name}. ${firstPaid ? `The deposit, ₺${firstPaid}, is in the cash box. The rest is due if the family keeps the worker after the agreed trial.` : agreed.fee === 0 ? `No agency fee is due under these terms.` : `The earlier deposit covers this replacement.`}`,
       { candidate: c.id, family: f.id, placement: p.id },
     );
     runTo(s, s.now + 15);
@@ -1629,6 +1635,7 @@ function applyInput(state: State, input: Input): State {
 export function view(state: State): View {
   if (state.version === 1) return legacy.view(state as legacy.State);
   if (state.version === 2) return previous.view(state as previous.State);
+  if (state.version === 3) return third.view(state as third.State);
   const cached = snapshots.get(state);
   if (cached) return cached;
   const s = sim(state);
@@ -1865,9 +1872,15 @@ export function view(state: State): View {
   snapshots.set(state, snapshot);
   return snapshot;
 }
-export function replay(seed: number, inputs: LoggedInput[], until: number, version: 1 | 2 | 3 = 3): State {
+export function replay(
+  seed: number,
+  inputs: LoggedInput[],
+  until: number,
+  version: 1 | 2 | 3 | 4 = 4,
+): State {
   if (version === 1) return legacy.replay(seed, inputs as legacy.LoggedInput[], until);
   if (version === 2) return previous.replay(seed, inputs as previous.LoggedInput[], until);
+  if (version === 3) return third.replay(seed, inputs as third.LoggedInput[], until);
   const s = sim(newGame(seed));
   for (const entry of inputs) {
     if (entry.at > until) break;
@@ -2184,7 +2197,12 @@ function verdicts(s: Sim) {
       p.status = kept ? 'kept' : 'returned';
       s.fees[p.family] ??= { first: true, second: false };
       const fee = s.fees[p.family]!;
-      const secondPaid = kept && !fee.second ? (p.terms ? p.terms.fee / 2 : (p.wage * 3) / 4) : 0;
+      const secondPaid =
+        kept && !fee.second
+          ? p.terms
+            ? Math.max(0, p.terms.fee - (fee.deposit ?? 0))
+            : (p.wage * 3) / 4
+          : 0;
       if (kept) {
         p.pendingFee = secondPaid;
         fee.second = true;
@@ -3359,6 +3377,7 @@ function negotiationChoice(s: Sim, sc: SceneView, choice: string) {
       return;
     }
     const vouch = s.negotiationVouches?.[sc.id] ?? [];
+    const depositAlreadyPaid = s.fees[n.family]?.first === true;
     s.negotiationAgreed = { candidate: n.candidate, family: n.family, terms: structuredClone(n.terms) };
     s.scene = null;
     applyInput(s, { type: 'place', candidate: n.candidate, family: n.family, vouch });
@@ -3368,7 +3387,11 @@ function negotiationChoice(s: Sim, sc: SceneView, choice: string) {
       { speaker: c.name, text: 'All right. I will begin on those terms.', kind: 'speech', side: 'worker' },
       {
         speaker: name(n.family),
-        text: 'We have an agreement. We will have the first half of the fee ready.',
+        text: depositAlreadyPaid
+          ? 'We have an agreement. The earlier deposit covers this replacement; any remaining balance follows if we keep the placement.'
+          : n.terms.fee === 0
+            ? 'We have an agreement. No agency fee is due under these terms.'
+            : `We have an agreement. The deposit is ₺${Math.min(n.terms.fee, n.terms.wage / 4)}; the balance follows if we keep the placement.`,
         kind: 'speech',
         side: 'family',
       },
@@ -3472,6 +3495,7 @@ function householdReply(s: Sim, sc: SceneView, family: string, member: string, t
         addNote(s, p.candidate, q, read === 'good' ? 0.75 : 0.3, 'heard', m.name, m.id, words);
     }
   }
+  if (topic === 'progress') words = `${householdVoice(family, f.household.indexOf(m))} ${words}`;
   sc.lines.push({ speaker: m.name, text: words, kind: 'speech', side: 'family' });
   sc.choices = householdChoices();
   s.familyLines[family] = `${m.name}: “${words}”`;

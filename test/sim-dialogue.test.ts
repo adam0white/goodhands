@@ -29,7 +29,10 @@ describe('authored worker conversations', () => {
       for (const question of personalQuestions(candidate.id)) {
         const text = personalAnswer(candidate.id, question.id);
         expect(text).not.toBe('');
-        expect(sentences(text)).toBeLessThanOrEqual(2);
+        expect(sentences(text)).toBeLessThanOrEqual(
+          ['last-family', 'why-left'].includes(question.id) ? 5 : 2,
+        );
+        expect(text.length).toBeLessThan(500);
       }
       expect(personalAnswer(candidate.id, 'wage')).toContain(`₺${candidate.wage}`);
       expect(personalAnswer(candidate.id, 'home')).toContain(candidate.home);

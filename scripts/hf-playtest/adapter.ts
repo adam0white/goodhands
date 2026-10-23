@@ -34,7 +34,7 @@ export class GoodHandsAdapter {
   private previousCash: number;
   private interviewed = new Set<string>();
 
-  constructor(seed: number, version: 1 | 2 | 3 = 3) {
+  constructor(seed: number, version: 1 | 2 | 3 | 4 = 3) {
     this.state = newGame(seed, version);
     this.previousCash = view(this.state).cash;
   }
@@ -177,7 +177,7 @@ export class GoodHandsAdapter {
                 ? `Call back after ${clockLabels(c.interviewAfter).dateLabel}, ${clockLabels(c.interviewAfter).timeLabel}`
                 : undefined),
           );
-        if (v.simulation === 3 && c.presence !== 'office')
+        if ((v.simulation ?? 1) >= 3 && c.presence !== 'office')
           add(
             `call-in:${c.id}`,
             `Call ${c.name} into the office`,
@@ -198,14 +198,14 @@ export class GoodHandsAdapter {
             r.status === 'open' &&
             r.by > v.now &&
             c.roles.includes(r.role) &&
-            (v.simulation === 3 || c.wage === null || c.wage <= r.wage) &&
+            ((v.simulation ?? 1) >= 3 || c.wage === null || c.wage <= r.wage) &&
             !c.refuses?.some((x) => x.family === r.family),
         )) {
           const family = v.families.find((f) => f.id === request.family)?.name ?? request.family;
           const vouched = this.supported(c.notes);
           add(
             `place:${c.id}:${request.family}`,
-            `${v.simulation === 3 ? 'Negotiate a placement for' : 'Place'} ${c.name} with ${family}; vouch for ${vouched.length ? vouched.join(', ') : 'no qualities yet'}`,
+            `${(v.simulation ?? 1) >= 3 ? 'Negotiate a placement for' : 'Place'} ${c.name} with ${family}; vouch for ${vouched.length ? vouched.join(', ') : 'no qualities yet'}`,
             { type: 'place', candidate: c.id, family: request.family, vouch: vouched },
             c.notes.length ? 0.8 : 0.4,
           );
@@ -219,7 +219,7 @@ export class GoodHandsAdapter {
             );
         }
       }
-      if (v.simulation === 3)
+      if ((v.simulation ?? 1) >= 3)
         for (const family of v.families)
           for (const member of family.household) {
             if (!member.id) continue;

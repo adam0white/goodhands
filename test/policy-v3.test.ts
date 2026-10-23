@@ -8,7 +8,7 @@ test('the current careful policy calls a saved contact in before interviewing', 
   expect(state.version).toBe(3);
   expect(state.inputs.some(({ input }) => input.type === 'call-in')).toBe(true);
   expect(view(state).placements.length).toBeGreaterThan(0);
-  expect(fingerprint(replay(state.seed, state.inputs, state.now))).toBe(fingerprint(state));
+  expect(fingerprint(replay(state.seed, state.inputs, state.now, state.version))).toBe(fingerprint(state));
 });
 test('the HF adapter shows physical interview limits and offers the call-in verb', () => {
   const game = new GoodHandsAdapter(1);

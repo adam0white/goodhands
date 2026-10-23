@@ -4,7 +4,7 @@ import { type Input, type LoggedInput, QUALITIES, type State } from '../sim/type
 export interface RunExport {
   game: 'goodhands';
   version: 1;
-  simulation?: 1 | 2 | 3;
+  simulation?: 1 | 2 | 3 | 4;
   seed: number;
   minute: number;
   inputs: LoggedInput[];
@@ -154,7 +154,7 @@ export function verifyImport(text: string): { state: State; inputs: LoggedInput[
   }
   const inputs = structuredClone(data.inputs) as LoggedInput[];
   const simulation = data.simulation ?? 1;
-  if (simulation !== 1 && simulation !== 2 && simulation !== 3)
+  if (simulation !== 1 && simulation !== 2 && simulation !== 3 && simulation !== 4)
     throw new Error('Unsupported simulation version.');
   const state = replay(data.seed as number, inputs, data.minute, simulation);
   const visible = view(state);
