@@ -132,3 +132,38 @@ test('two different admissions from the same source cannot share an idempotent c
   expect(typeof (first.transfer.targetClaim as { claimId: string }).claimId).toBe('string');
   await expect(session.claim(source, 'shared')).rejects.toThrow('Continuity conflict');
 });
+
+test('a full bounded replay history refuses before any shelf mutation', async () => {
+  const source = await original();
+  const book = emptyContinuity();
+  book.heads = [source];
+  book.rows = Array.from({ length: 256 }, () => ({
+    v: 1 as const,
+    probe: 'zeynep' as const,
+    arm: 'continuing' as const,
+    scope: 'shared' as const,
+    castId: source.castId,
+    branchId: source.branchId,
+    revision: source.revision,
+    parentRevision: null,
+    stage: 'checkpoint',
+    outcome: 'accepted',
+  }));
+  let writes = 0;
+  const session = new ContinuitySession(
+    {
+      enabled: true,
+      ready: Promise.resolve(true),
+      setEnabled() {},
+      async request<T>(): Promise<T> {
+        writes++;
+        return true as T;
+      },
+    },
+    { setPersonaRecording() {}, allowPersonaRecording() {} },
+  );
+  await expect(session.publish(book, source.castId, { person: {} })).rejects.toThrow(/history.*full/);
+  expect(writes).toBe(0);
+  expect(book.rows).toHaveLength(256);
+  expect(book.heads).toEqual([source]);
+});

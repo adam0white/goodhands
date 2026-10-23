@@ -165,6 +165,10 @@ export class ContinuitySession {
     transfer: Record<string, unknown>,
     fork = false,
   ): Promise<PersonaEnvelope> {
+    if (book.rows.length >= 256)
+      throw new Error(
+        'This run’s continuity history is full. Keep a copy and start a new chapter. Local play remains available.',
+      );
     await this.shelf.ready;
     const prior = book.heads.find((p) => p.castId === castId);
     if (!prior) throw new Error('No accepted source revision in this run.');
