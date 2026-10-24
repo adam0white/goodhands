@@ -108,13 +108,14 @@ export function castContacts(state: State): CastContact[] {
     .map((id) => {
       const stage = s.castTalk?.[id];
       const story = STORY[id];
+      const life = (s.castChapter as import('./cast-chapter.ts').AgencyChapter | undefined)?.facts[id];
       return {
         id,
         name: CAST[id].name,
         role: `${CAST[id].age} · ${CAST[id].role}`,
         text:
           stage?.text ??
-          `${CAST[id].name} can choose whether to discuss something beyond the immediate work.`,
+          `${life?.line ?? ''} ${CAST[id].name} can choose whether to discuss something beyond the immediate work.`,
         choices:
           stage?.step === 2
             ? []

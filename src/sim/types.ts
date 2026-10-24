@@ -28,6 +28,7 @@ export type Speed = 0 | 1 | 2 | 3; // slow, walk, trot, gallop
 export const SPEEDS: readonly number[] = [0.5, 2, 6, 20];
 
 export type Input =
+  | { type: 'pause-cast' | 'resume-cast' }
   | { type: 'cast-talk'; person: import('./cast.ts').CastKey; choice: string }
   | { type: 'guest-action'; guest: import('./guests.ts').GuestId; action: import('./guests.ts').GuestAction }
   | { type: 'call-in'; candidate: string }

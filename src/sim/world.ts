@@ -910,15 +910,7 @@ export function makePeople(seed: number): Record<string, Person> {
     now: 510,
     bornAt: -45 * 365.25 * 1440,
     sex: 'female',
-    traits: {
-      honesty: 0.75,
-      agreeableness: 0.65,
-      conscientiousness: 0.75,
-      extraversion: 0.6,
-      emotionality: 0.5,
-      openness: 0.65,
-    },
-    values: castProfile('nermin').values,
+    ...castProfile('nermin'),
     skills: { interviewing: 0.75, placement: 0.7 },
     needs: { autonomy: 0.65, esteem: 0.55, safety: 0.5 },
   });

@@ -181,16 +181,16 @@ function history(value: unknown): GuestHistory[] {
 export async function prepareGuest(input: unknown): Promise<GuestAdmission> {
   const envelope = await validatePersona(input);
   const id = (Object.keys(IDENTITY) as GuestId[]).find((key) => IDENTITY[key].cast === envelope.castId);
-  if (!id || envelope.castRevision !== '1') fail('unsupported cast revision');
+  if (!id || envelope.castRevision !== '2') fail('unsupported cast revision');
   const info = IDENTITY[id];
-  if (envelope.source.game !== info.source || envelope.source.engine !== '2.14.1') fail('unsupported source');
+  if (envelope.source.game !== info.source || envelope.source.engine !== '2.17.0') fail('unsupported source');
   if (
     id === 'selin-voice' &&
     (envelope.transfer.person as { format?: string } | undefined)?.format === 'hf-persona-calendar/1'
   ) {
     if (
       Object.keys(envelope.transfer).some(
-        (key) => !['person', 'history', 'checkpoint', 'calendarHost', 'targetOpening'].includes(key),
+        (key) => !['person', 'history', 'checkpoint', 'calendarHost', 'targetOpening', 'life'].includes(key),
       )
     )
       fail('unsupported calendar transfer fields');
@@ -223,7 +223,9 @@ export async function prepareGuest(input: unknown): Promise<GuestAdmission> {
   if (
     Object.keys(envelope.transfer).some(
       (key) =>
-        !['person', 'history', 'checkpoint', 'admission', 'targetOpening', 'familyHistory'].includes(key),
+        !['person', 'history', 'checkpoint', 'admission', 'targetOpening', 'familyHistory', 'life'].includes(
+          key,
+        ),
     )
   )
     fail('unsupported transfer fields');
@@ -421,7 +423,7 @@ export function stepGuests(state: State) {
       if (g.history.length) g.text += ` Her retained account: “${g.history.at(-1)!.summary}”`;
       record(s, `${IDENTITY[g.id].name}: ${g.text}`, 'arrival');
     }
-    if (p.activity) continue;
+    if (p.activity || state.castPauseRequested) continue;
     const t = local(s.now);
     if (g.calendar) {
       g.calendarDay = maintainCalendarGuest(p, g.calendar.calendarHost, g.calendarDay);

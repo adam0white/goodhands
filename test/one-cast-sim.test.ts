@@ -51,7 +51,7 @@ function trial(seed: number, level: number, arm: 'fresh' | 'biography' | 'contin
   return { s, a, result: view(s).guests!.find((g) => g.id === 'zeynep-pass')!.trial! };
 }
 describe('one cast guest edition', () => {
-  it('admits the actual ordinary-input Pass departure and preserves its evidence', async () => {
+  it('keeps the historical Pass fixture inspectable but refuses it as the expanded cast edition', async () => {
     const transfer = JSON.parse(
       readFileSync(new URL('./fixtures/pass-departure.json', import.meta.url), 'utf8'),
     );
@@ -61,66 +61,12 @@ describe('one cast guest edition', () => {
       castRevision: '1',
       branchId: 'actual-pass-seed42',
       parentRevision: null,
-      source: { game: 'pass', build: 'fixture', engine: '2.14.1', rules: '12' },
+      source: { game: 'pass', build: 'historical-fixture', engine: '2.14.1', rules: '12' },
       transfer,
       limitations: transfer.person.limitations,
     });
-    const admitted = await prepareGuest(envelope);
-    const invented = structuredClone(transfer);
-    invented.history[0].summary = 'Invented success that no source episode records.';
-    const { revision: _sourceRevision, ...originalBody } = envelope;
-    await expect(prepareGuest(await createPersona({ ...originalBody, transfer: invented }))).rejects.toThrow(
-      /source history/,
-    );
-
-    expect(admitted.person.now).toBe(transfer.admission.targetOpening);
-    expect(admitted.person.body.fitness).toBe(transfer.person.health.fitness);
-    expect(admitted.person.skills.cold).toMatchObject({
-      level: transfer.person.skills.cold.level,
-      practice: transfer.person.skills.cold.practice,
-      lastPracticed:
-        transfer.person.skills.cold.lastPracticed +
-        transfer.admission.targetOpening -
-        transfer.person.source.now,
-    });
-    expect(admitted.person.agenda.commitments[0]).toMatchObject({
-      actions: ['leave-for-home'],
-      toId: 'sons',
-      from: transfer.person.commitments[0].from,
-      until: transfer.person.commitments[0].until,
-    });
-    expect(admitted.person.agenda.commitments[0]!.targetId).toBeUndefined();
-    expect(admitted.familyHistory).toEqual({ status: 'kept', from: 2730, until: 2770 });
-    const s = newGame(42, 6, [admitted]);
-    runTo(s, 3450);
-    const guest = view(s).guests!.find((g) => g.id === 'zeynep-pass')!;
-    expect(guest.text).toContain('work the cold side: completed');
-    expect(s.people['zeynep-pass']!.skills.cooking).toBeUndefined();
-    apply(s, { type: 'guest-action', guest: 'zeynep-pass', action: 'offer-trial' });
-    expect(view(s).guests!.find((g) => g.id === 'zeynep-pass')!.trial?.verdict).toBe('assented');
-    runTo(s, 3540);
-    const returned = await exportGuest(s, 'zeynep-pass');
-    expect(base(returned.projection).episodes[0]).toMatchObject({
-      actorId: 'nermin-goodhands',
-      targetId: 'zeynep',
-    });
-    // Outcome seed56 is one of the fixed1..512 actual-source ablation seeds.
-    const outcomes: Record<string, boolean | undefined> = {};
-    for (const arm of ['fresh', 'biography', 'continuing'] as const) {
-      const a = structuredClone(admitted);
-      a.arm = arm;
-      if (arm === 'fresh') {
-        a.history = [];
-        a.person.memory.episodes = [];
-      }
-      if (arm !== 'continuing')
-        a.person.skills.cold = { level: 0.7, practice: 0, lastPracticed: a.person.now };
-      const control = newGame(56, 6, [a]);
-      runTo(control, 3450);
-      apply(control, { type: 'guest-action', guest: 'zeynep-pass', action: 'offer-trial' });
-      outcomes[arm] = view(control).guests!.find((g) => g.id === 'zeynep-pass')!.trial?.succeeded;
-    }
-    expect(outcomes).toEqual({ fresh: true, biography: true, continuing: false });
+    await expect(prepareGuest(envelope)).rejects.toThrow(/cast revision/);
+    expect(transfer.person.skills.cold).toBeDefined();
   });
 
   it('retains exact version four behavior', () => {
@@ -270,10 +216,10 @@ describe('one cast guest edition', () => {
     const body = {
       format: 'hf-persona/1' as const,
       castId: 'hf.cast.selin.voice',
-      castRevision: '1',
+      castRevision: '2',
       branchId: 'test-selin',
       parentRevision: null,
-      source: { game: 'voice', build: 'test', engine: '2.14.1', rules: 'voice-3' },
+      source: { game: 'voice', build: 'test', engine: '2.17.0', rules: 'voice-3' },
       transfer: {
         person: projection,
         targetOpening: source.now % 1440,
@@ -295,7 +241,7 @@ describe('one cast guest edition', () => {
     const claim = await createPersona({
       ...unsigned,
       parentRevision: revision,
-      source: { game: 'goodhands', build: 'test', engine: '2.14.1', rules: 'goodhands-5' },
+      source: { game: 'goodhands', build: 'test', engine: '2.17.0', rules: 'goodhands-6' },
     });
     const book: ContinuityBook = {
       v: 1,

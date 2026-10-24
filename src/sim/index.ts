@@ -1,5 +1,6 @@
 import { householdVoice } from './backstories.ts';
-import { CAST_EDITION, castManifest } from './cast.ts';
+import { CAST, CAST_EDITION, castManifest } from './cast.ts';
+import { type AgencyChapter, installAgencyChapter } from './cast-chapter.ts';
 import { applyCastTalk, castContacts } from './cast-scenes.ts';
 // Versions 1, 2 and 3 are frozen for exact replay of earlier saves and compact exports.
 
@@ -503,6 +504,7 @@ export function newGame(
   seed: number,
   version: 1 | 2 | 3 | 4 | 5 | 6 = 6,
   admissions: GuestAdmission[] = [],
+  chapter?: AgencyChapter,
 ): State {
   if (version === 1) return legacy.newGame(seed);
   if (version === 2) return previous.newGame(seed);
@@ -562,8 +564,9 @@ export function newGame(
       experience: [],
       refuses: [],
     };
-  arrive(s);
   initGuests(s, admissions);
+  if (chapter) installAgencyChapter(s, chapter);
+  arrive(s);
   return s;
 }
 function finish(s: Sim, why: string) {
@@ -654,6 +657,7 @@ function closeDay(s: Sim) {
 }
 function step(s: Sim) {
   stepGuests(s);
+  if (s.castPauseRequested && Object.keys(CAST).every((k) => !s.people[k]?.activity)) s.castPaused = true;
   landReferrals(s);
   for (const c of CANDIDATES) {
     const card = s.cards[c.id]!;
@@ -756,8 +760,9 @@ function step(s: Sim) {
 }
 function runTo(s: Sim, target: number, stopOnNew = false) {
   if (!Number.isFinite(target)) return;
+  if (s.castPaused && target > s.now) throw new Error('A paused chapter cannot advance its clock.');
   const end = Math.min(END, Math.max(s.now, target));
-  while (s.now < end && !s.ended) {
+  while (s.now < end && !s.ended && !s.castPaused) {
     const phones = s.phones.length;
     const card = s.dayCard;
     const openScene = s.scene;
@@ -778,6 +783,7 @@ function runTo(s: Sim, target: number, stopOnNew = false) {
   }
 }
 export function advance(state: State, minutes: number): State {
+  if (state.castPaused) return state;
   if (state.version === 1) return legacy.advance(state as legacy.State, minutes);
   if (state.version === 2) return previous.advance(state as previous.State, minutes);
   if (state.version === 3) return third.advance(state as third.State, minutes);
@@ -832,6 +838,22 @@ export function apply(state: State, input: Input): State {
   if (state.version === 2) return previous.apply(state as previous.State, input as previous.Input);
   if (state.version === 3) return third.apply(state as third.State, input as third.Input);
   if (state.version === 4) return fourth.apply(state as fourth.State, input as fourth.Input);
+  if (input.type === 'pause-cast' || input.type === 'resume-cast') {
+    state.castPauseRequested = input.type === 'pause-cast';
+    state.castPaused = state.castPauseRequested && Object.keys(CAST).every((k) => !state.people[k]?.activity);
+    snapshots.delete(state);
+    state.inputs.push({ at: state.now, input });
+    (state.log as LogEntry[]).push({
+      id: (state.log as LogEntry[]).length + 1,
+      at: state.now,
+      kind: 'word',
+      text: state.castPaused
+        ? 'Nermin paused the agency chapter for a departure review. Active placements and promises still belong to their people.'
+        : 'Nermin resumed the agency chapter.',
+    });
+    return state;
+  }
+  if (state.castPaused) return state;
   if (input.type === 'cast-talk') {
     if (applyCastTalk(state, input.person, input.choice)) {
       snapshots.delete(state);
@@ -1905,6 +1927,7 @@ export function replay(
   until: number,
   version: 1 | 2 | 3 | 4 | 5 | 6 = 6,
   admissions: GuestAdmission[] = [],
+  chapter?: AgencyChapter,
 ): State {
   if (version === 1) return legacy.replay(seed, inputs as legacy.LoggedInput[], until);
   if (version === 2) return previous.replay(seed, inputs as previous.LoggedInput[], until);
@@ -1912,7 +1935,7 @@ export function replay(
   if (version === 4) return fourth.replay(seed, inputs as fourth.LoggedInput[], until);
   if (version === 5)
     throw new Error('This month uses the older cast. Start fresh; keep its export for inspection.');
-  const s = sim(newGame(seed, version, admissions));
+  const s = sim(newGame(seed, version, admissions, chapter));
   for (const entry of inputs) {
     if (entry.at > until) break;
     if (entry.at < s.now) throw new Error('Run inputs are out of order.');

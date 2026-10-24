@@ -27,6 +27,7 @@ export interface CalendarHost {
 }
 export interface CalendarGuest {
   calendarHost: CalendarHost;
+  returnCalendarHost?: CalendarHost;
   sourceRevision: string;
   sourceCheckpointDigest: string;
 }
@@ -57,10 +58,10 @@ export function prepareCalendarGuest(
 } {
   if (
     envelope.castId !== 'hf.cast.selin.voice' ||
-    envelope.castRevision !== '1' ||
+    envelope.castRevision !== '2' ||
     envelope.source.game !== 'voice' ||
     envelope.source.rules !== 'voice-4' ||
-    envelope.source.engine !== '2.14.1'
+    envelope.source.engine !== '2.17.0'
   )
     fail('unsupported source');
   const projection = validateCalendarPersona(envelope.transfer.person);
@@ -203,7 +204,7 @@ export function returnCalendarGuest(
   const episode = person.memory.episodes.find((e) => e.id === episodeId);
   if (!episode || episode.actorId !== 'nermin' || episode.targetId !== 'selin-voice')
     fail('actual received Nermin answer required');
-  const targetOpening = metadata.calendarHost.originSourceNow;
+  const targetOpening = (metadata.returnCalendarHost ?? metadata.calendarHost).originSourceNow;
   const projection = projectCalendarPersona(person, {
     version: 'goodhands-selin-calendar/1',
     skills: {},
@@ -225,7 +226,12 @@ export function returnCalendarGuest(
       sourceNorms: DEFAULT_NORMS,
     },
   });
-  return { projection, targetOpening, ...structuredClone(metadata) };
+  return {
+    projection,
+    targetOpening,
+    ...structuredClone(metadata),
+    calendarHost: structuredClone(metadata.returnCalendarHost ?? metadata.calendarHost),
+  };
 }
 
 /** Ordinary host dates; HF alone owns recurrence, exemption, owed scheduling and fulfillment. */

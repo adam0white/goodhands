@@ -6,6 +6,7 @@ import {
   validatePersona,
 } from '@adam0white/lab-client';
 import { CAST, CAST_EDITION } from '../sim/cast.ts';
+import { type AgencyChapter, validateAgencyChapter } from '../sim/cast-chapter.ts';
 import { exportGuest, type GuestId, prepareGuest } from '../sim/guests.ts';
 import { fingerprint, replay, view } from '../sim/index.ts';
 import { type Input, type LoggedInput, QUALITIES, type State } from '../sim/types.ts';
@@ -15,6 +16,8 @@ export interface RunExport {
   game: 'goodhands';
   version: 1;
   castEdition?: string;
+  framework?: string;
+  chapter?: AgencyChapter;
   simulation?: 1 | 2 | 3 | 4 | 5 | 6;
   continuity?: ContinuityBook;
   oneCast?: OneCastRow[];
@@ -84,9 +87,11 @@ export function exportRun(state: State, inputs: LoggedInput[], continuity?: Cont
   return {
     game: 'goodhands',
     version: 1,
+    ...(state.version === 6 ? { framework: '2.18.0' } : {}),
+    ...(state.castChapter ? { chapter: structuredClone(state.castChapter as AgencyChapter) } : {}),
     ...(state.version === 6 ? { castEdition: CAST_EDITION } : {}),
     ...(state.version === 6 ? { oneCast: structuredClone(continuity?.rows ?? []) } : {}),
-    ...(continuity && (continuity.arrivals.length || continuity.heads.length)
+    ...(continuity && (continuity.arrivals.length || continuity.heads.length || continuity.chapter)
       ? { continuity: structuredClone(continuity), oneCast: structuredClone(continuity.rows) }
       : {}),
     ...(state.version !== 1 ? { simulation: state.version } : {}),
@@ -107,6 +112,8 @@ export function compactRun(run: RunExport): CompactRunExport {
     ...(continuity ? { continuity: structuredClone(continuity) } : {}),
     ...(simulation ? { simulation } : {}),
     ...(castEdition ? { castEdition } : {}),
+    ...(run.framework ? { framework: run.framework } : {}),
+    ...(run.chapter ? { chapter: structuredClone(run.chapter) } : {}),
     seed,
     minute,
     inputs: structuredClone(inputs),
@@ -140,6 +147,8 @@ function validInput(value: unknown): value is Input {
     'wait-for': [],
     sleep: [],
     'guest-action': ['guest', 'action'],
+    'pause-cast': [],
+    'resume-cast': [],
     'cast-talk': ['person', 'choice'],
   };
   if (typeof value.type !== 'string' || !Object.hasOwn(fields, value.type)) return false;
@@ -251,7 +260,21 @@ export function verifyImport(text: string): {
   if (simulation === 6 && data.castEdition !== CAST_EDITION)
     throw new Error('Unsupported cast edition. Start fresh.');
   const continuity = readContinuity(data.continuity, data.oneCast);
-  if (simulation !== 6 && (continuity.arrivals.length || continuity.heads.length))
+  if (simulation === 6 && data.framework !== '2.18.0')
+    throw new Error('Older framework edition. Start fresh.');
+  if (data.chapter !== undefined) {
+    boundedPersonaJson(data.chapter);
+    if (
+      !record(data.chapter) ||
+      data.chapter.version !== 'goodhands-chapter/1' ||
+      !Array.isArray(data.chapter.inputs) ||
+      data.chapter.inputs.length > 7 ||
+      data.chapter.seed !== data.seed ||
+      canonicalPersona(data.chapter) !== canonicalPersona(continuity.chapter)
+    )
+      throw new Error('Invalid pinned agency chapter.');
+  } else if (continuity.chapter) throw new Error('Missing pinned agency chapter.');
+  if (simulation !== 6 && (continuity.arrivals.length || continuity.heads.length || continuity.chapter))
     throw new Error('Legacy runs cannot admit a guest.');
   if (simulation !== 6 && inputs.some((e) => e.input.type === 'guest-action'))
     throw new Error('Legacy editions have no guest actions.');
@@ -260,7 +283,8 @@ export function verifyImport(text: string): {
     inputs,
     data.minute,
     simulation,
-    continuity.arrivals.map((a) => a.initial),
+    (data.chapter as AgencyChapter | undefined)?.guests ?? continuity.arrivals.map((a) => a.initial),
+    data.chapter as AgencyChapter | undefined,
   );
   const visible = view(state);
   if (visible.now !== data.minute || visible.seed !== data.seed)
@@ -298,9 +322,9 @@ function readContinuity(value: unknown, rows: unknown): ContinuityBook {
     !record(value) ||
     value.v !== 1 ||
     !Array.isArray(value.arrivals) ||
-    value.arrivals.length > 2 ||
+    value.arrivals.length > 7 ||
     !Array.isArray(value.heads) ||
-    value.heads.length > 2 ||
+    value.heads.length > 7 ||
     !Array.isArray(value.rows) ||
     value.rows.length > 256 ||
     canonicalPersona(rows) !== canonicalPersona(value.rows)
@@ -348,7 +372,7 @@ function readContinuity(value: unknown, rows: unknown): ContinuityBook {
     if (
       !record(row) ||
       row.v !== 1 ||
-      !['zeynep', 'selin'].includes(row.probe) ||
+      !['zeynep', 'selin', 'nermin', 'hatice', 'hulya', 'aylin', 'derya'].includes(row.probe) ||
       !['fresh', 'biography', 'continuing'].includes(row.arm) ||
       !['shared', 'local', 'file'].includes(row.scope) ||
       !castIds.includes(row.castId as (typeof castIds)[number]) ||
@@ -368,12 +392,81 @@ export async function validateContinuity(
   savedState?: State,
   inputs: LoggedInput[] = [],
 ): Promise<void> {
+  if (book.chapter) {
+    await validateAgencyChapter(book.chapter);
+    if (!savedState || canonicalPersona(savedState.castChapter) !== canonicalPersona(book.chapter))
+      throw new Error('Run chapter header differs.');
+    const claims = book.initialClaims ?? [];
+    const localFile = book.fileOrigin === true && !claims.length;
+    if (!localFile && claims.length !== book.chapter.inputs.length)
+      throw new Error('Missing initial batch claims.');
+    for (const input of localFile ? [] : book.chapter.inputs) {
+      const claim = claims.find((p) => p.castId === input.parent.castId);
+      if (
+        !claim ||
+        claim.parentRevision !== input.parent.revision ||
+        claim.branchId !== input.parent.branchId
+      )
+        throw new Error('Invalid batch claim parent.');
+      await validatePersona(claim);
+      if (
+        claim.source.game !== 'goodhands' ||
+        claim.source.rules !== 'goodhands-6' ||
+        canonicalPersona(claim.transfer) !== canonicalPersona({ ...input.parent.transfer, life: input.life })
+      )
+        throw new Error('Batch claim changed the pinned passport.');
+    }
+    for (const head of book.heads) {
+      await validatePersona(head);
+      const claim = claims.find((p) => p.castId === head.castId);
+      if (claim?.revision === head.revision) continue;
+      if (head.source.game !== 'goodhands' || head.source.rules !== 'goodhands-6')
+        throw new Error('Invalid owned source receipt.');
+      const row = book.rows.find(
+        (r) => r.revision === head.revision && r.parentRevision === head.parentRevision,
+      );
+      if (!row) throw new Error('Owned receipt has no accepted lineage.');
+      if (head.terminal) {
+        const source = replay(
+          savedState.seed,
+          inputs.filter((i) => i.at <= head.terminal!.at),
+          head.terminal.at,
+          6,
+          book.chapter.guests,
+          book.chapter,
+        );
+        if (source.people[(await import('../sim/cast.ts')).castKey(head.castId)]?.body.alive)
+          throw new Error('Terminal receipt has no actual source death.');
+        continue;
+      }
+      const cp = head.transfer.checkpoint as { sourceNow?: number; checkpointDigest?: string } | undefined;
+      if (!cp || typeof cp.sourceNow !== 'number' || cp.sourceNow > savedState.now)
+        throw new Error('Owned receipt has no source boundary.');
+      const at = cp.sourceNow;
+      const source = replay(
+        savedState.seed,
+        inputs.filter((i) => i.at <= at),
+        at,
+        6,
+        book.chapter.guests,
+        book.chapter,
+      );
+      const { agencyTransfer } = await import('../sim/cast-chapter.ts');
+      const expected = await agencyTransfer(source, (await import('../sim/cast.ts')).castKey(head.castId));
+      if (
+        canonicalPersona(expected.agencyPerson) !== canonicalPersona(head.transfer.agencyPerson) ||
+        expected.checkpoint.checkpointDigest !== cp.checkpointDigest
+      )
+        throw new Error('Owned checkpoint differs from the pinned source replay.');
+    }
+    return;
+  }
   for (const arrival of book.arrivals) {
     await validatePersona(arrival.source);
     await validatePersona(arrival.claim);
     if (
       arrival.claim.source.game !== 'goodhands' ||
-      arrival.claim.source.rules !== 'goodhands-5' ||
+      arrival.claim.source.rules !== 'goodhands-6' ||
       arrival.claim.parentRevision !== arrival.source.revision ||
       arrival.claim.branchId !== arrival.source.branchId ||
       !book.heads.some((h) => h.castId === arrival.source.castId)
@@ -400,7 +493,7 @@ export async function validateContinuity(
         r.stage === 'checkpoint' &&
         r.parentRevision === head.parentRevision,
     );
-    if (!row || head.source.game !== 'goodhands' || head.source.rules !== 'goodhands-5')
+    if (!row || head.source.game !== 'goodhands' || head.source.rules !== 'goodhands-6')
       throw new Error('Pinned head has no accepted target checkpoint.');
     let cursor: string | null = head.revision;
     const visited = new Set<string>();

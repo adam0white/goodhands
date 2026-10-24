@@ -29,10 +29,10 @@ import {
 
 const fixture = () =>
   JSON.parse(
-    readFileSync(new URL('./fixtures/voice4-departure.json', import.meta.url), 'utf8'),
+    readFileSync(new URL('./fixtures/voice4-current-departure.json', import.meta.url), 'utf8'),
   ) as PersonaEnvelope;
 const provenance = JSON.parse(
-  readFileSync(new URL('./fixtures/voice4-departure-provenance.json', import.meta.url), 'utf8'),
+  readFileSync(new URL('./fixtures/voice4-current-departure-provenance.json', import.meta.url), 'utf8'),
 );
 const wrapper = (envelope: PersonaEnvelope) => validateCalendarPersona(envelope.transfer.person);
 function runTo(s: ReturnType<typeof newGame>, at: number) {
@@ -127,9 +127,9 @@ describe('Selin quiet calendar', () => {
       source = wrapper(envelope);
     expect(provenance.kind).toBe('actual-ordinary-input-voice4-departure');
     expect(provenance.replayDriftAt).toBe(-1);
-    expect(provenance.sourceDirty).toBe(false);
-    expect(provenance.sourceCommit).toBe('fecf72682cd2e00f03c78007e71f2cbfe76f3459');
-    expect(provenance.publicHf.version).toBe('2.16.0');
+    expect(provenance.sourceTrackedClean).toBe(true);
+    expect(provenance.sourceCommit).toBe('f89314f7f1a0fcc59d1fdb5c8300f2beb025665d');
+    expect(provenance.publicHf.version).toBe('2.18.0');
     expect(envelope.revision).toBe(provenance.envelopeRevision);
     const admission = await prepareGuest(envelope);
     expect(admission.calendar?.calendarHost.originSourceNow).toBe(provenance.actualSourceNow);
@@ -181,7 +181,7 @@ describe('Selin quiet calendar', () => {
     const claim = await createPersona({
       ...body,
       parentRevision: revision,
-      source: { game: 'goodhands', build: 'calendar-test', engine: '2.14.1', rules: 'goodhands-5' },
+      source: { game: 'goodhands', build: 'calendar-test', engine: '2.17.0', rules: 'goodhands-6' },
     });
     const book: ContinuityBook = {
       v: 1,

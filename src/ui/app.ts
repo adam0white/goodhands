@@ -1,10 +1,18 @@
 import {
+  anchorPersonaLife,
   canonicalPersona,
+  claimCastChapterBatch,
+  closePersonaBranch,
   createPersona,
+  initialPersonaLife,
+  type PersonaEnvelope,
+  type PersonaLife,
   personaChannel,
   validatePersona,
   watchPersonaCheckpoint,
 } from '@adam0white/lab-client';
+import { ALLOCATION, CAST, CAST_KEYS, castKey } from '../sim/cast.ts';
+import { type AgencyChapter, agencyTransfer, prepareAgencyChapter } from '../sim/cast-chapter.ts';
 import { type GuestAction, type GuestId, prepareGuest } from '../sim/guests.ts';
 import {
   type ContinuityBook,
@@ -195,6 +203,7 @@ function changed(previous: View, next: View): void {
   }
 }
 function send(input: Input): void {
+  if (openingMonth) return;
   if (!state || waitAnimation) return;
   const at = current().now;
   const previous = structuredClone(current());
@@ -285,58 +294,58 @@ function title(): void {
 async function newMonth(fresh = false, file?: unknown): Promise<void> {
   if (openingMonth) return;
   openingMonth = true;
+  const startup = ++generation;
+  const identity = lab.playerId;
+  continuitySession.invalidate();
+  const isCurrent = () => startup === generation;
   try {
-    const admissions = [];
     const seed = crypto.getRandomValues(new Uint32Array(1))[0] ?? 20261102;
     const book = emptyContinuity();
-    const messages: string[] = [];
     await shelf.ready;
-    const candidates: { source: unknown; scope: 'shared' | 'file' }[] = [];
-    if (file) candidates.push({ source: file, scope: 'file' });
-    else if (!fresh && shelf.enabled) {
-      for (const castId of castIds) {
-        try {
-          const source = await shelf.request<import('@adam0white/lab-client').PersonaEnvelope | null>({
-            action: 'get',
-            castId,
-          });
-          if (source && ['pass', 'voice'].includes(source.source.game))
-            candidates.push({ source, scope: 'shared' });
-        } catch (e) {
-          messages.push(errorText(e));
-          lab.milestone('onecast bridgefail');
-        }
+    if (!isCurrent()) return;
+    let chapter = await prepareAgencyChapter([], seed);
+    if (file) {
+      const parent = await validatePersona(file);
+      const { preparePersonaLife } = await import('@adam0white/lab-client');
+      chapter = await prepareAgencyChapter([preparePersonaLife(parent, Date.now())], seed);
+      book.fileOrigin = true;
+      book.fileUnlinked = true;
+    } else if (!fresh && shelf.enabled) {
+      const batch = await claimCastChapterBatch(
+        shelf,
+        ALLOCATION.map((p) => p.castId),
+        { game: 'goodhands', build: lab.build().c || 'development', engine: '2.17.0', rules: 'goodhands-6' },
+        async (inputs) => {
+          const prepared = await prepareAgencyChapter(inputs, seed);
+          sim.newGame(seed, 6, prepared.guests, prepared);
+          return prepared;
+        },
+        { isCurrent },
+      );
+      if (!isCurrent()) return;
+      if (batch) {
+        chapter = batch.initial;
+        book.initialClaims = batch.claims;
+        book.heads = structuredClone(batch.claims);
       }
     }
-    for (const candidate of candidates) {
-      try {
-        const source = await validatePersona(candidate.source);
-        const initial = await prepareGuest(source);
-        sim.newGame(seed, 6, [...admissions, initial]); // Complete target preflight before claiming the head.
-        const claim = await continuitySession.claim(source, candidate.scope);
-        admissions.push(initial);
-        book.arrivals.push({ source, claim, initial, scope: candidate.scope });
-        book.heads.push(claim);
-        book.rows.push(continuityRow(claim, 'admitted', candidate.scope, initial.arm));
-      } catch (e) {
-        pendingFork = candidate.source;
-        messages.push(errorText(e));
-        if (file) {
-          continuityStatus = messages.join(' ');
-          peoplePanel();
-          return;
-        }
-      }
-    }
+    book.chapter = chapter;
+    book.initialClaims ??= [];
+    if (!isCurrent()) return;
     closeSheet(false);
-    await begin(sim.newGame(seed, 6, admissions), [], book, !!file);
-    continuityStatus = messages.join(' ');
-    if (continuityStatus) {
-      notice = continuityStatus;
+    await begin(sim.newGame(seed, 6, chapter.guests, chapter), [], book, !!file);
+    continuityStatus = chapter.inputs.length
+      ? `Accepted ${chapter.inputs.length} carried people together. Their initial actors and life clocks are pinned.`
+      : 'Fresh local agency cast; no carried history was reset.';
+    lab.milestone('run started');
+  } catch (e) {
+    if (isCurrent()) {
+      continuityStatus = errorText(e);
+      notice = `${continuityStatus} Keep this chapter, export history, or choose Start fresh without history in People between games.`;
       noticeUntil = Infinity;
       showNotice();
+      if (!playing) peoplePanel();
     }
-    lab.milestone('run started');
   } finally {
     openingMonth = false;
   }
@@ -354,6 +363,10 @@ async function begin(
 ): Promise<void> {
   if (!next) return;
   const activeGeneration = ++generation;
+  if (fromFile) {
+    book.fileOrigin = true;
+    book.fileUnlinked = true;
+  }
   await validateContinuity(book, next, history);
   if (activeGeneration !== generation) return;
   playing = false;
@@ -383,29 +396,98 @@ function checkpoint(fork = false): Promise<void> {
     .then(async () => {
       await shelf.ready;
       if (!shelf.enabled || !pinned || activeGeneration !== generation) return;
-      if (!continuity.heads.length) {
+      if (continuity.fileOrigin && !fork) {
         continuityStatus =
-          'This month has fresh authored guests. A saved source departure is required for a continuation return. Fresh source play remains available.';
+          'This file remains a local history. An explicit new branch is required before publishing it.';
         return;
       }
-      for (const head of [...continuity.heads]) {
-        const id: GuestId = head.castId === castIds[0] ? 'zeynep-pass' : 'selin-voice';
-        const guest = sim.view(pinned).guests?.find((g) => g.id === id);
-        if (guest?.status !== 'complete') continue;
+      if (
+        !pinned.castPaused &&
+        !continuity.heads.some((h) => !h.terminal && !pinned.people[castKey(h.castId)]?.body.alive)
+      ) {
+        continuityStatus =
+          'Pause the agency chapter before saving eligible people. Active placements must be released through play.';
+        return;
+      }
+      for (const id of CAST_KEYS) {
+        const cast = CAST[id],
+          person = pinned.people[id];
+        if (!person) continue;
+        const parent = continuity.heads.find((p) => p.castId === cast.castId);
         try {
-          const origin = continuity.arrivals.find((a) => a.source.castId === head.castId)?.source;
-          if (!origin) throw new Error('Original admitted source is missing.');
-          const transfer = await guestCheckpointTransfer(pinned, id, origin);
+          const stamps = {
+            game: 'goodhands',
+            build: lab.build().c || 'development',
+            engine: '2.17.0',
+            rules: 'goodhands-6',
+          };
+          let envelope: PersonaEnvelope;
+          if (!person.body.alive) {
+            if (!parent) continue;
+            envelope = await closePersonaBranch(parent, stamps, person.now);
+          } else {
+            const transfer: Record<string, unknown> = await agencyTransfer(pinned, id);
+            if (id === 'zeynep-pass' || id === 'selin-voice') {
+              const g = (pinned.guests as Array<Record<string, unknown>>).find((g) => g.id === id);
+              if (g) {
+                const { person: _p, ...meta } = g;
+                transfer.guestMetadata = meta;
+              }
+              const input = continuity.chapter?.inputs.find((p) => p.parent.castId === cast.castId);
+              const original = (parent?.transfer.returnOrigin ?? input?.parent) as
+                | PersonaEnvelope
+                | undefined;
+              if (original && ['voice', 'pass'].includes(original.source.game)) {
+                Object.assign(transfer, await guestCheckpointTransfer(pinned, id as GuestId, original));
+                transfer.returnOrigin = original;
+              }
+            }
+            const branchId = fork || !parent ? crypto.randomUUID() : parent.branchId;
+            const previous = parent?.transfer.life as PersonaLife | undefined;
+            transfer.life = previous
+              ? anchorPersonaLife(previous, cast.castId, Date.now())
+              : initialPersonaLife(cast.castId, branchId, Date.now());
+            envelope = await createPersona({
+              format: 'hf-persona/1',
+              castId: cast.castId,
+              castRevision: cast.revision,
+              branchId,
+              parentRevision: fork ? null : (parent?.revision ?? null),
+              source: stamps,
+              transfer,
+              limitations: (transfer.limitations as string[]) ?? [],
+            });
+          }
           if (activeGeneration !== generation) return;
-          // Avoid consuming a revision for an unchanged checkpoint.
-          if (canonicalPersona(head.transfer) === canonicalPersona(transfer) && !fork) continue;
-          await continuitySession.publish(continuity, head.castId, transfer, fork);
-          continuityStatus =
-            'Checkpoint accepted. Return in a fresh source chapter; a local source departure save is required.';
-          lab.milestone(id === 'zeynep-pass' ? 'onecast zeynep completion' : 'onecast selin completion');
+          const query = await shelf.request<{ recordingEpoch?: string }>({
+            action: 'recordingBatch',
+            envelopes: parent ? [parent] : [],
+          });
+          if (activeGeneration !== generation) return;
+          await shelf.request({
+            action: 'put',
+            envelope,
+            fork,
+            authored: !parent && !fork && !continuity.fileOrigin && !continuity.chapter?.inputs.length,
+            recordingEpoch: query.recordingEpoch,
+          });
+          if (activeGeneration !== generation) return;
+          const idx = continuity.heads.findIndex((p) => p.castId === cast.castId);
+          if (idx < 0) continuity.heads.push(envelope);
+          else continuity.heads[idx] = envelope;
+          continuity.rows.push(
+            continuityRow(
+              envelope,
+              'checkpoint',
+              continuity.fileOrigin ? 'file' : 'shared',
+              parent ? 'continuing' : 'fresh',
+            ),
+          );
+          continuityStatus = `${cast.name}: accepted ${envelope.terminal ? 'terminal closure' : 'paused chapter checkpoint'}.`;
+          await continuitySession.recording(continuity);
           save();
         } catch (e) {
-          continuityStatus = errorText(e);
+          continuityStatus = `${cast.name}: ${errorText(e)}`;
         }
       }
     });
@@ -415,11 +497,15 @@ watchPersonaCheckpoint(() => checkpoint());
 function peoplePanel(): void {
   const d = openSheet(
     'People between games',
-    '<p data-continuity-status role="status"></p><div data-persona-controls></div><p>Loaded months keep their original people. Arrivals are considered only for a new month. Browser storage may be lost; keep a file backup.</p><button type="button" data-persona-file>Load a person file into a new month</button><button type="button" data-persona-fresh>Start a fresh month without history</button><button type="button" data-persona-export>Download accepted people</button><button type="button" data-persona-checkpoint>Save an eligible return checkpoint</button><button type="button" data-persona-fork>Fork this competing history explicitly</button><p><a href="https://pass.adamwhite.work/">Return to The Pass</a> · <a href="https://human.adamwhite.work/voice/">Return to Voice</a>. A continuation return needs the source departure saved in this browser; otherwise start fresh there.</p>',
+    '<p data-continuity-status role="status"></p><div data-persona-controls></div><p>Loaded months keep their original people. Arrivals are considered only for a new month. Browser storage may be lost; keep a file backup.</p><button type="button" data-persona-file>Load a person file into a new month</button><button type="button" data-persona-fresh>Start a fresh month without history</button><button type="button" data-persona-export>Download accepted people</button><button type="button" data-persona-pause>Pause / resume this agency chapter</button><button type="button" data-persona-checkpoint>Save an eligible return checkpoint</button><button type="button" data-persona-fork>Fork this competing history explicitly</button><p><a href="https://pass.adamwhite.work/">Return to The Pass</a> · <a href="https://human.adamwhite.work/voice/">Return to Voice</a>. A continuation return needs the source departure saved in this browser; otherwise start fresh there.</p>',
   );
   const carry = document.createElement('p');
   carry.textContent =
     'Zeynep carries cold-food preparation, one attended work account and her family promise. Other kitchen skills, wages, equipment and Chef trust stay in The Pass. Selin brings an enquiry and her office schedule; the call grants no medical knowledge, placement or consent. Downloaded person files include the full omission report.';
+  if (continuity.chapter?.inputs.length)
+    carry.textContent = Object.values(continuity.chapter.facts)
+      .map((f) => f?.line)
+      .join(' ');
   d.querySelector('[data-persona-controls]')?.after(carry);
   const update = () => {
     const el = d.querySelector('[data-continuity-status]');
@@ -431,6 +517,8 @@ function peoplePanel(): void {
       personaControls({
         enabled: shelf.enabled,
         setEnabled(value) {
+          generation++;
+          continuitySession.invalidate();
           shelf.setEnabled(value);
           continuityStatus = value
             ? 'Continuity enabled for later fresh months.'
@@ -475,6 +563,10 @@ function peoplePanel(): void {
   };
   d.querySelector<HTMLButtonElement>('[data-persona-export]')!.onclick = () => {
     for (const head of continuity.heads) downloadJson(`${head.castId}.json`, head);
+  };
+  d.querySelector<HTMLButtonElement>('[data-persona-pause]')!.onclick = () => {
+    if (state) send({ type: state.castPaused ? 'resume-cast' : 'pause-cast' });
+    update();
   };
   d.querySelector<HTMLButtonElement>('[data-persona-checkpoint]')!.onclick = () => {
     void checkpoint().then(update);
@@ -1579,7 +1671,7 @@ function feedback(): void {
     }
   };
   const privacy = lab.privacySignalOn;
-  body.innerHTML = `<p>Your run, saves and log reach us on their own. Tell us what they can’t show.</p><div class="verdict-chips">${[
+  body.innerHTML = `<p>Recording follows your choice in the menu. Keep a local copy or send feedback when you choose.</p><div class="verdict-chips">${[
     ['keep', 'I’d keep playing'],
     ['mixed', 'Not sure'],
     ['quit', 'I’d stop here'],
@@ -1707,6 +1799,8 @@ function frame(now: number): void {
   last = now;
   if (
     playing &&
+    !openingMonth &&
+    !state?.castPaused &&
     state &&
     !document.hidden &&
     !overlay &&
@@ -1758,6 +1852,11 @@ window.addEventListener('pagehide', () => {
     putNow('run', run);
   }
 });
+for (const name of ['hf-lab-preference', 'storage'])
+  window.addEventListener(name, () => {
+    generation++;
+    continuitySession.invalidate();
+  });
 window.addEventListener('resize', redraw);
 window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', redraw);
 title();

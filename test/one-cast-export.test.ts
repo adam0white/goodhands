@@ -12,10 +12,10 @@ test('two explicit forks and later checkpoints retain their exact claim lineage'
   const source = await createPersona({
     format: 'hf-persona/1',
     castId: 'hf.cast.zeynep.pass',
-    castRevision: '1',
+    castRevision: '2',
     branchId: 'fork-replay-control',
     parentRevision: null,
-    source: { game: 'pass', build: 'fixture', engine: '2.14.1', rules: 'pass-12' },
+    source: { game: 'pass', build: 'fixture', engine: '2.17.0', rules: 'pass-12' },
     transfer,
     limitations: transfer.person.limitations,
   });

@@ -7,11 +7,13 @@ import {
   type PersonaRequest,
   type personaChannel,
 } from '@adam0white/lab-client';
+import { ALLOCATION, castKey } from '../sim/cast.ts';
+import type { AgencyChapter } from '../sim/cast-chapter.ts';
 import type { GuestAdmission } from '../sim/guests.ts';
 
 export type OneCastRow = {
   v: 1;
-  probe: 'zeynep' | 'selin';
+  probe: import('../sim/cast.ts').CastKey | 'zeynep' | 'selin';
   arm: 'fresh' | 'biography' | 'continuing';
   scope: 'shared' | 'local' | 'file';
   castId: string;
@@ -29,6 +31,9 @@ export type Arrival = {
 };
 export type ContinuityBook = {
   v: 1;
+  chapter?: AgencyChapter;
+  initialClaims?: PersonaEnvelope[];
+  fileOrigin?: boolean;
   fileUnlinked?: boolean;
   arrivals: Arrival[];
   heads: PersonaEnvelope[];
@@ -37,7 +42,7 @@ export type ContinuityBook = {
   forks?: Record<string, string>;
 };
 export const emptyContinuity = (): ContinuityBook => ({ v: 1, arrivals: [], heads: [], rows: [] });
-export const castIds = ['hf.cast.zeynep.pass', 'hf.cast.selin.voice'] as const;
+export const castIds = ALLOCATION.map((p) => p.castId);
 export function continuityRow(
   p: PersonaEnvelope,
   stage: string,
@@ -46,7 +51,12 @@ export function continuityRow(
 ): OneCastRow {
   return {
     v: 1,
-    probe: p.castId === castIds[0] ? 'zeynep' : 'selin',
+    probe:
+      p.castId === 'hf.cast.zeynep.pass'
+        ? 'zeynep'
+        : p.castId === 'hf.cast.selin.voice'
+          ? 'selin'
+          : castKey(p.castId),
     arm,
     scope,
     castId: p.castId,
@@ -82,12 +92,91 @@ export class ContinuitySession {
     if (typeof events.addEventListener === 'function') {
       const invalidate = () => {
         this.recordingGeneration++;
+        this.lab.allowPersonaRecording(false);
       };
       events.addEventListener('hf-lab-preference', invalidate);
       events.addEventListener('storage', invalidate);
     }
   }
+  invalidate() {
+    this.recordingGeneration++;
+    this.recordingKey = 'goodhands:pending';
+    this.lab.setPersonaRecording(this.recordingKey);
+    this.lab.allowPersonaRecording(false);
+  }
+  private async groupRecording(book: ContinuityBook, fromFile: boolean) {
+    const generation = ++this.recordingGeneration;
+    if (fromFile) {
+      book.fileOrigin = true;
+      book.fileUnlinked = true;
+    }
+    const pins = book.heads.map((p) => p.revision).join(':');
+    this.recordingKey =
+      book.heads.length || book.fileUnlinked ? 'goodhands:group:' + pins : 'goodhands:authored';
+    this.lab.setPersonaRecording(this.recordingKey);
+    this.lab.allowPersonaRecording(false);
+    const player = this.lab.playerId;
+    const current = () =>
+      generation === this.recordingGeneration &&
+      player === this.lab.playerId &&
+      pins === book.heads.map((p) => p.revision).join(':');
+    await this.shelf.ready;
+    if (!current() || book.fileUnlinked) return;
+    if (!book.heads.length) {
+      this.recordingKey = null;
+      this.lab.setPersonaRecording(null);
+      return;
+    }
+    if (!this.shelf.enabled) return;
+    try {
+      const reply = await this.shelf.request<{ sameEpoch: boolean; revisions: string[] }>({
+        action: 'recordingBatch',
+        envelopes: book.heads,
+      });
+      if (
+        current() &&
+        reply.sameEpoch &&
+        Array.isArray(reply.revisions) &&
+        reply.revisions.join(':') === pins
+      )
+        this.lab.allowPersonaRecording(true);
+    } catch {
+      /* unavailable association remains local */
+    }
+  }
+  private async groupAllow(book: ContinuityBook, allow: boolean) {
+    const generation = ++this.recordingGeneration;
+    const heads = structuredClone(book.heads),
+      pins = heads.map((p) => p.revision).join(':');
+    this.lab.setPersonaRecording(this.recordingKey ?? 'goodhands:file');
+    this.lab.allowPersonaRecording(false);
+    const player = this.lab.playerId;
+    const current = () =>
+      generation === this.recordingGeneration &&
+      player === this.lab.playerId &&
+      pins === book.heads.map((p) => p.revision).join(':');
+    book.fileUnlinked = !allow;
+    await this.shelf.ready;
+    if (!current()) return;
+    if (this.shelf.enabled && heads.length) {
+      const q = await this.shelf.request<{ recordingEpoch: string | null; revisions: string[] }>({
+        action: 'recordingBatch',
+        envelopes: heads,
+      });
+      if (!current() || !Array.isArray(q.revisions) || q.revisions.join(':') !== pins || !q.recordingEpoch)
+        return;
+      await this.shelf.request({
+        action: 'recordingBatch',
+        envelopes: heads,
+        allowRecording: allow,
+        recordingEpoch: q.recordingEpoch,
+      });
+    }
+    if (current()) this.lab.allowPersonaRecording(allow);
+  }
   async recording(book: ContinuityBook, fromFile = false): Promise<void> {
+    if (book.chapter || ((fromFile || book.fileUnlinked) && !book.heads.length))
+      return this.groupRecording(book, fromFile);
     const generation = ++this.recordingGeneration;
     if (fromFile) book.fileUnlinked = true;
     // A cancelled bootstrap still loads ordinary play safely. The provisional gate is never reused
@@ -155,6 +244,7 @@ export class ContinuitySession {
       this.lab.allowPersonaRecording(true);
   }
   async allow(book: ContinuityBook, allow: boolean): Promise<void> {
+    if (book.chapter || (!book.heads.length && book.fileOrigin)) return this.groupAllow(book, allow);
     const generation = ++this.recordingGeneration;
     let player = this.lab.playerId;
     const heads = [...book.heads];
@@ -208,13 +298,13 @@ export class ContinuitySession {
       parentRevision: revision,
       transfer: {
         ...body.transfer,
-        targetClaim: { adapter: 'goodhands/1', rules: 'goodhands-5', claimId: crypto.randomUUID() },
+        targetClaim: { adapter: 'goodhands/1', rules: 'goodhands-6', claimId: crypto.randomUUID() },
       },
       source: {
         game: 'goodhands',
         build: typeof this.build === 'function' ? this.build() : this.build,
-        engine: '2.14.1',
-        rules: 'goodhands-5',
+        engine: '2.17.0',
+        rules: 'goodhands-6',
       },
     });
     if (scope === 'shared' || this.shelf.enabled) {
@@ -248,8 +338,8 @@ export class ContinuitySession {
       source: {
         game: 'goodhands',
         build: typeof this.build === 'function' ? this.build() : this.build,
-        engine: '2.14.1',
-        rules: 'goodhands-5',
+        engine: '2.17.0',
+        rules: 'goodhands-6',
       },
       limitations:
         (projection?.format === 'hf-persona-calendar/1'

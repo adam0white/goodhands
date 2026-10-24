@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "kind": "actual-ordinary-input-voice4-departure",
+  "sourceCommit": "f89314f7f1a0fcc59d1fdb5c8300f2beb025665d",
+  "publicHf": {
+    "version": "2.18.0"
+  },
+  "actualSourceNow": 2575,
+  "sourceCheckpointDigest": "6d3fb37b71c514f6487eb9d0a9253dce5751f7ae790a58ac12b3a632fea3fac9",
+  "sourcePersonActivity": null,
+  "owedCount": 1,
+  "replayDriftAt": -1,
+  "voiceHash": "10324fbd776eb2",
+  "inputEntries": 12,
+  "envelopeRevision": "b9989bccf4b1d4e16936ed07cce55c0c5cc924d5cb512a26cc52cab20e83f639",
+  "scope": "mechanism-control-only",
+  "noShelfMutation": true,
+  "noSourceEdits": true,
+  "sourceDirty": true,
+  "sourceTrackedClean": true,
+  "sourceStatus": "Only unrelated untracked docs/design.md; no tracked source change."
+}
