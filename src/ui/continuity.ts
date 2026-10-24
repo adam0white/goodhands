@@ -74,7 +74,6 @@ type RecordingLab = Pick<Lab, 'setPersonaRecording' | 'allowPersonaRecording'> &
   readonly personaRecordingAllowed?: boolean;
   readonly playerId?: string | null;
 };
-type RecordingReply = { sameEpoch: boolean; branchId?: string; revision?: string; recordingEpoch?: string };
 const bridgeUnavailable = (e: unknown) =>
   e instanceof Error &&
   /Shelf unavailable|local to this game|Continuity is off|Enable fictional person continuity/.test(e.message);
@@ -95,191 +94,21 @@ export class ContinuitySession {
     this.lab.setPersonaRecording(this.recordingKey);
     this.lab.allowPersonaRecording(false);
   }
-  private async groupRecording(book: ContinuityBook, fromFile: boolean) {
-    const generation = ++this.recordingGeneration;
+  /** Bind metadata without consulting recording identity or historical consent. */
+  async recording(book: ContinuityBook, fromFile = false): Promise<void> {
     if (fromFile) {
       book.fileOrigin = true;
       book.fileUnlinked = true;
     }
-    const pins = book.heads.map((p) => p.revision).join(':');
     this.recordingKey =
-      book.heads.length || book.fileUnlinked ? 'goodhands:group:' + pins : 'goodhands:authored';
+      book.heads
+        .map((p) => p.branchId)
+        .sort()
+        .join(':') || null;
     this.lab.setPersonaRecording(this.recordingKey);
-    this.lab.allowPersonaRecording(false);
-    const player = this.lab.playerId;
-    const current = () =>
-      generation === this.recordingGeneration &&
-      player === this.lab.playerId &&
-      pins === book.heads.map((p) => p.revision).join(':');
-    await this.shelf.ready;
-    if (!current() || book.fileUnlinked) return;
-    if (!book.heads.length) {
-      this.recordingKey = null;
-      this.lab.setPersonaRecording(null);
-      return;
-    }
-    if (!this.shelf.enabled) return;
-    try {
-      const reply = await this.shelf.request<{ sameEpoch: boolean; revisions: string[] }>({
-        action: 'recordingBatch',
-        envelopes: book.heads,
-      });
-      if (
-        current() &&
-        reply.sameEpoch &&
-        Array.isArray(reply.revisions) &&
-        reply.revisions.join(':') === pins
-      )
-        this.lab.allowPersonaRecording(true);
-    } catch {
-      /* unavailable association remains local */
-    }
   }
-  private async groupAllow(book: ContinuityBook, allow: boolean) {
-    const generation = ++this.recordingGeneration;
-    const heads = structuredClone(book.heads),
-      pins = heads.map((p) => p.revision).join(':');
-    this.lab.setPersonaRecording(this.recordingKey ?? 'goodhands:file');
-    this.lab.allowPersonaRecording(false);
-    const player = this.lab.playerId;
-    const current = () =>
-      generation === this.recordingGeneration &&
-      player === this.lab.playerId &&
-      pins === book.heads.map((p) => p.revision).join(':');
-    book.fileUnlinked = !allow;
-    await this.shelf.ready;
-    if (!current()) return;
-    if (this.shelf.enabled && heads.length) {
-      const q = await this.shelf.request<{ recordingEpoch: string | null; revisions: string[] }>({
-        action: 'recordingBatch',
-        envelopes: heads,
-      });
-      if (!current() || !Array.isArray(q.revisions) || q.revisions.join(':') !== pins || !q.recordingEpoch)
-        return;
-      await this.shelf.request({
-        action: 'recordingBatch',
-        envelopes: heads,
-        allowRecording: allow,
-        recordingEpoch: q.recordingEpoch,
-      });
-    }
-    if (current()) this.lab.allowPersonaRecording(allow);
-  }
-  async recording(book: ContinuityBook, fromFile = false): Promise<void> {
-    if (book.chapter || ((fromFile || book.fileUnlinked) && !book.heads.length))
-      return this.groupRecording(book, fromFile);
-    const generation = ++this.recordingGeneration;
-    if (fromFile) book.fileUnlinked = true;
-    // A cancelled bootstrap still loads ordinary play safely. The provisional gate is never reused
-    // as consent: close it synchronously before any await, then select the stable branch key below.
-    if (book.heads.length) {
-      this.recordingKey = 'goodhands:pending';
-      this.lab.setPersonaRecording(this.recordingKey);
-      this.lab.allowPersonaRecording(false);
-    }
-    let player = this.lab.playerId;
-    const pins = book.heads.map((p) => `${p.castId}/${p.branchId}/${p.revision}`).join(':');
-    const current = () =>
-      generation === this.recordingGeneration &&
-      player === this.lab.playerId &&
-      pins === book.heads.map((p) => `${p.castId}/${p.branchId}/${p.revision}`).join(':');
-    await this.shelf.ready;
-    if (!current()) return;
-    const heads = book.heads;
-    const key = heads.length
-      ? 'goodhands:' +
-        [
-          ...new Uint8Array(
-            await crypto.subtle.digest(
-              'SHA-256',
-              new TextEncoder().encode(
-                heads
-                  .map((p) => p.branchId)
-                  .sort()
-                  .join(':'),
-              ),
-            ),
-          ),
-        ]
-          .map((n) => n.toString(16).padStart(2, '0'))
-          .join('')
-      : null;
-    if (!current()) return;
-    this.recordingKey = key;
-    this.lab.setPersonaRecording(this.recordingKey);
-    const cachedAllowed = this.lab.personaRecordingAllowed === true;
-    if (heads.length && book.fileUnlinked) {
-      this.lab.allowPersonaRecording(false);
-      return;
-    }
-    if (!heads.length || !this.shelf.enabled) return;
-    this.lab.allowPersonaRecording(false);
-    // Lab.playerId is null while the persona gate is closed. Capture after our own gate change;
-    // preference/storage events still invalidate identity changes hidden by that null getter.
-    player = this.lab.playerId;
-    const associations = await Promise.allSettled(
-      heads.map(async (p) =>
-        this.shelf.request<RecordingReply>({ action: 'recording', castId: p.castId, envelope: p }),
-      ),
-    );
-    if (
-      current() &&
-      associations.every((result, i) =>
-        result.status === 'rejected'
-          ? cachedAllowed && bridgeUnavailable(result.reason)
-          : result.value.sameEpoch === true &&
-            result.value.branchId === heads[i]?.branchId &&
-            result.value.revision === heads[i]?.revision,
-      )
-    )
-      this.lab.allowPersonaRecording(true);
-  }
-  async allow(book: ContinuityBook, allow: boolean): Promise<void> {
-    if (book.chapter || (!book.heads.length && book.fileOrigin)) return this.groupAllow(book, allow);
-    const generation = ++this.recordingGeneration;
-    let player = this.lab.playerId;
-    const heads = [...book.heads];
-    const pins = heads.map((p) => p.revision).join(':');
-    const current = () =>
-      generation === this.recordingGeneration &&
-      player === this.lab.playerId &&
-      pins === book.heads.map((p) => p.revision).join(':');
-    // The explicit choice applies locally now. No delayed reply can grant a later identity.
-    book.fileUnlinked = !allow;
-    this.lab.setPersonaRecording(this.recordingKey);
-    this.lab.allowPersonaRecording(allow);
-    player = this.lab.playerId;
-    await this.shelf.ready;
-    if (this.shelf.enabled && current()) {
-      for (const p of heads) {
-        try {
-          const query = await this.shelf.request<RecordingReply>({
-            action: 'recording',
-            castId: p.castId,
-            envelope: p,
-          });
-          if (!current()) return;
-          // Old bridges cannot safely persist a historical grant. The local choice remains usable.
-          if (
-            query.branchId !== p.branchId ||
-            query.revision !== p.revision ||
-            typeof query.recordingEpoch !== 'string' ||
-            !query.recordingEpoch
-          )
-            continue;
-          const request: PersonaRequest & { recordingEpoch: string } = {
-            action: 'recording',
-            castId: p.castId,
-            envelope: p,
-            allowRecording: allow,
-            recordingEpoch: query.recordingEpoch,
-          };
-          await this.shelf.request(request);
-        } catch (e) {
-          if (!bridgeUnavailable(e)) throw e;
-        }
-      }
-    }
+  async allow(_book: ContinuityBook, _allow: boolean): Promise<void> {
+    // Kept for old callers. The single recording menu switch owns this preference.
   }
   async claim(source: PersonaEnvelope, scope: OneCastRow['scope']): Promise<PersonaEnvelope> {
     await this.shelf.ready;
