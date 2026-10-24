@@ -140,3 +140,23 @@ test('a second agency chapter maps Selin’s actual calendar days and keeps the 
   expect(carried.calendar?.sourceRevision).toBe(guest.calendar.sourceRevision);
   expect(carried.calendar?.sourceCheckpointDigest).toBe(guest.calendar.sourceCheckpointDigest);
 });
+
+test('admits the actual source-UI general Voice Selin passport without inventing an attended episode', async () => {
+  const { default: raw } = await import('./fixtures/voice-site-selin.json');
+  const { validatePersona } = await import('@adam0white/lab-client');
+  const envelope = await validatePersona(raw);
+  const input = preparePersonaLife(envelope, (envelope.transfer.life as any).clock.watermark * 3_600_000);
+  const chapter = await prepareAgencyChapter([input], 7);
+  const person = chapter.actors['selin-voice']!;
+  expect(person.skills.office?.practice).toBe(
+    (envelope.transfer.person as any).person.skills.office.practice,
+  );
+  expect(person.agenda.owed).toHaveLength(1);
+  expect(chapter.guests[0]?.history).toEqual([]);
+  const s = newGame(7, 6, chapter.guests, chapter);
+  expect(fingerprint(replay(7, [], s.now, 6, chapter.guests, chapter))).toBe(fingerprint(s));
+  const bad = structuredClone(envelope);
+  (bad.transfer.person as any).calendar.norms[0].label = 'Different meaning';
+  const { prepareSiteSelin } = await import('../src/sim/site-selin.ts');
+  expect(() => prepareSiteSelin(bad)).toThrow();
+});

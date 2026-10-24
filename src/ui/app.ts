@@ -437,7 +437,11 @@ function checkpoint(fork = false): Promise<void> {
               const original = (parent?.transfer.returnOrigin ?? input?.parent) as
                 | PersonaEnvelope
                 | undefined;
-              if (original && ['voice', 'pass'].includes(original.source.game)) {
+              if (
+                original &&
+                ((original.source.game === 'voice' && original.source.rules === 'voice-4') ||
+                  original.source.game === 'pass')
+              ) {
                 Object.assign(transfer, await guestCheckpointTransfer(pinned, id as GuestId, original));
                 transfer.returnOrigin = original;
               }

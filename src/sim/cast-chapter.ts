@@ -21,6 +21,7 @@ import {
 } from '@adam0white/lab-client';
 import { CAST, CAST_KEYS, type CastKey, castKey } from './cast.ts';
 import { freshGuest, type GuestAdmission, prepareGuest } from './guests.ts';
+import { prepareSiteSelin } from './site-selin.ts';
 import type { State } from './types.ts';
 import { makePeople } from './world.ts';
 export interface AgencyChapter {
@@ -146,7 +147,10 @@ export async function prepareAgencyChapter(inputs: LifePreparation[], seed: numb
     const facts = lifeAdmission(input, 'goodhands');
     let person: Person;
     if (parent.source.game === 'voice' && key === 'selin-voice') {
-      const guest = await prepareGuest(parent);
+      const guest =
+        parent.transfer.castPassport === 'site-cast/1'
+          ? prepareSiteSelin(parent)
+          : await prepareGuest(parent);
       chapter.guests.push(guest);
       person = guest.person;
     } else if (parent.source.game === 'pass' && key === 'zeynep-pass') {
