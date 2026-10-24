@@ -1,8 +1,5 @@
 /** Browser checks for the UI grammar. Later state imports stay replay verified. */
 import assert from 'node:assert/strict';
-import { mkdirSync } from 'node:fs';
-import { homedir } from 'node:os';
-import { join } from 'node:path';
 import { chromium } from 'playwright-core';
 import { createServer } from 'vite';
 import { advance, apply, newGame, view } from '../src/sim/index.ts';
@@ -14,8 +11,6 @@ const server = await createServer({
 });
 await server.listen();
 const browser = await chromium.launch({ channel: process.env.HF_BROWSER_CHANNEL });
-const out = join(homedir(), 'code/.lab-scratch/codex/goodhands-ui-stage');
-mkdirSync(out, { recursive: true });
 try {
   for (const viewport of [
     { width: 360, height: 690 },
@@ -26,7 +21,7 @@ try {
     page.on('pageerror', (e) => errors.push(e.message));
     await page.clock.install();
     await page.clock.pauseAt(new Date());
-    await page.goto(`http://127.0.0.1:${port}`);
+    await page.goto(`http://127.0.0.1:${port}/?lab=1`);
     await page.evaluate(() => document.fonts.ready);
     const fits = async (name: string) => {
       const geometry = await page.evaluate(() => ({
@@ -40,7 +35,7 @@ try {
       assert.equal(await page.locator('[data-action="info"]').count(), 1);
       assert.equal(await page.locator('[data-action="menu"]').count(), 1);
       assert.equal(await page.locator('dialog dialog').count(), 0);
-      await page.screenshot({ path: join(out, `${viewport.width}-${name}.png`) });
+      // This regression uses DOM assertions; simplify QA owns the screenshot budget.
     };
     const hitTargets = async (selector: string) => {
       for (const control of await page.locator(selector).all()) {
@@ -60,7 +55,9 @@ try {
       }
     };
     await fits('start');
-    await page.getByRole('button', { name: 'Open the office', exact: true }).click();
+    await page.getByRole('button', { name: 'Lab tools', exact: true }).click();
+    await page.getByRole('button', { name: 'People between games', exact: true }).click();
+    await page.getByRole('button', { name: 'Start a fresh month without history', exact: true }).click();
     await fits('office');
     await page.getByRole('button', { name: 'Nanny applicant 01', exact: true }).click();
     await fits('candidate');
@@ -83,7 +80,7 @@ try {
     await page.clock.runFor(3000);
     assert.equal(await page.locator('[data-time]').innerText(), held);
     await page.getByRole('button', { name: 'Slow', exact: true }).click();
-    await page.getByRole('button', { name: 'Send word ▸', exact: true }).click();
+    await page.getByRole('button', { name: 'Feedback', exact: true }).click();
     await fits('feedback');
     const pending = page.waitForEvent('download');
     await page.getByRole('button', { name: 'Keep a copy of this run ⤓', exact: true }).click();
@@ -114,7 +111,7 @@ try {
     verifyImport(JSON.stringify(run));
     await page.locator('[data-action="menu"]').click();
     await page.getByRole('button', { name: 'To the title page', exact: true }).click();
-    await page.getByRole('button', { name: 'Other ways in ▸', exact: true }).click();
+    await page.getByRole('button', { name: 'Lab tools', exact: true }).click();
     const chooser = page.waitForEvent('filechooser');
     await page.getByRole('button', { name: 'Load a playtest run', exact: true }).click();
     await (await chooser).setFiles({
@@ -132,7 +129,7 @@ try {
     verifyImport(JSON.stringify(earlyRun));
     await page.locator('[data-action="menu"]').click();
     await page.getByRole('button', { name: 'To the title page', exact: true }).click();
-    await page.getByRole('button', { name: 'Other ways in ▸', exact: true }).click();
+    await page.getByRole('button', { name: 'Lab tools', exact: true }).click();
     const earlyChooser = page.waitForEvent('filechooser');
     await page.getByRole('button', { name: 'Load a playtest run', exact: true }).click();
     await (await earlyChooser).setFiles({
@@ -146,7 +143,7 @@ try {
     assert.deepEqual(errors, []);
     await page.close();
   }
-  console.log(`UI grammar verified; screenshots: ${out}`);
+  console.log(`UI grammar verified; DOM assertions only`);
 } finally {
   await browser.close();
   await server.close();

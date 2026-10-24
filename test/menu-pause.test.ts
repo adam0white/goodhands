@@ -12,8 +12,10 @@ beforeAll(async () => {
   page = await browser.newPage({ viewport: { width: 360, height: 690 } });
   await page.clock.install();
   await page.clock.pauseAt(new Date());
-  await page.goto(server.resolvedUrls?.local[0] ?? '');
-  await page.getByRole('button', { name: 'Open the office', exact: true }).click();
+  await page.goto(`${server.resolvedUrls?.local[0]}?lab=1`);
+  await page.getByRole('button', { name: 'Lab tools', exact: true }).click();
+  await page.getByRole('button', { name: 'People between games', exact: true }).click();
+  await page.getByRole('button', { name: 'Start a fresh month without history', exact: true }).click();
 }, 60_000); // Cold Vite/Chrome startup can exceed Vitest's default ten-second hook on CI.
 afterAll(async () => {
   await browser?.close();
@@ -26,7 +28,7 @@ it('holds the menu and information, then resumes without speed inputs', async ()
   await page.clock.runFor(6000);
   expect(await clock.innerText()).toBe(held);
   await page.getByRole('button', { name: 'Fast', exact: true }).click();
-  await page.getByRole('button', { name: 'Back to the desk', exact: true }).click();
+  await page.getByRole('button', { name: 'Resume', exact: true }).click();
   await page.getByRole('button', { name: 'Information', exact: true }).click();
   await page.clock.runFor(3000);
   expect(await clock.innerText()).toBe(held);
@@ -34,7 +36,7 @@ it('holds the menu and information, then resumes without speed inputs', async ()
   await page.clock.runFor(1000);
   expect(await clock.innerText()).not.toBe(held);
   await page.getByRole('button', { name: 'Game menu', exact: true }).click();
-  await page.getByRole('button', { name: 'Send word ▸', exact: true }).click();
+  await page.getByRole('button', { name: 'Feedback', exact: true }).click();
   const pending = page.waitForEvent('download');
   await page.getByRole('button', { name: 'Keep a copy of this run ⤓', exact: true }).click();
   const stream = await (await pending).createReadStream();

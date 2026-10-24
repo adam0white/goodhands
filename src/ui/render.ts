@@ -1,4 +1,5 @@
 import type { CandidateView, Note, PlacementView, Quality, RequestView, View } from '../sim/types.ts';
+import { plainText } from './plain-english.ts';
 
 export const SPEED_NAMES = ['Slow', 'Steady', 'Fast'] as const;
 export const INTRO =
@@ -16,13 +17,13 @@ export function money(amount: number): string {
 }
 
 export function noteText(note: Note): string {
-  return `${note.quality} — ${note.phrase} · ${note.source}: ${note.from}${note.claim ? ` — ${note.claim}` : ''}`;
+  return `${note.quality} — ${plainText(note.phrase)} · ${note.source}: ${note.from}${note.claim ? ` — ${note.claim}` : ''}`;
 }
 
 export function evidence(candidate: CandidateView, quality: Quality): string {
   const notes = candidate.notes.filter((n) => n.quality === quality && !n.crossedOut);
   return notes.length
-    ? notes.map((n) => `${n.source}: ${n.phrase} (${n.from})`).join('; ')
+    ? notes.map((n) => `${n.source}: ${plainText(n.phrase)} (${n.from})`).join('; ')
     : 'No note yet. You have not checked this.';
 }
 
@@ -49,7 +50,7 @@ export function candidateAvailability(candidate: CandidateView): string | undefi
 
 export function placementLabel(placement: PlacementView): string {
   return {
-    trial: 'In the trial week',
+    trial: 'During the trial',
     kept: 'Kept on',
     returned: 'Returned to the books',
     quit: 'Left the house',

@@ -57,13 +57,14 @@ import {
 import { lab } from './lab.ts';
 import { cityFigurePositions, drawCity, MAP_HEIGHT, MAP_WIDTH } from './map.ts';
 import { drawOffice, officeSeats } from './office.ts';
+import { plainText } from './plain-english.ts';
 import {
   automaticPace,
   candidateAvailability,
   canWait,
   clockLabels,
+  escapeHtml,
   evidence,
-  escapeHtml as h,
   matchingReason,
   money,
   monthTally,
@@ -76,22 +77,21 @@ import {
   resumeLine,
   vouchLabel,
 } from './render.ts';
+import { resumeForPlay } from './resume.ts';
 import { get, put, putNow } from './store.ts';
+
+const h = (value: string) => escapeHtml(plainText(value));
+const labTools = new URLSearchParams(location.search).get('lab') === '1';
 
 const host = document.querySelector<HTMLDivElement>('#app');
 if (!host) throw new Error('Good Hands needs an app element.');
 const root = host;
 const recordingNotice = telemetryNotice();
-let recordingNoticeDone = false;
-recordingNotice?.querySelector('button')?.addEventListener('click', () => {
-  recordingNoticeDone = true;
-});
-if (recordingNotice)
-  Object.assign(recordingNotice.style, {
-    position: 'static',
-    transform: 'none',
-    margin: '0 auto',
-  });
+// Keep the SDK's actual node mounted outside the rerendered game.
+const noticeFooter = document.createElement('footer');
+noticeFooter.className = 'lab-notice-footer';
+if (recordingNotice) noticeFooter.append(recordingNotice);
+root.after(noticeFooter);
 let state: State | null = null;
 let inputs: LoggedInput[] = [];
 let saved: ReturnType<typeof verifyImport> | null = null;
@@ -198,7 +198,7 @@ function save(): void {
   lab.captureSave({ key: 'run', value: run });
   void put('run', run).then((ok) => {
     if (!ok) {
-      notice = 'This browser could not save. Keep a copy from Send word.';
+      notice = 'This browser could not save. Keep a copy from Feedback.';
       noticeUntil = Number.POSITIVE_INFINITY;
       showNotice();
     }
@@ -206,7 +206,7 @@ function save(): void {
 }
 function showNotice(): void {
   const el = root.querySelector<HTMLElement>('[data-status]');
-  if (el) el.textContent = notice;
+  if (el) el.textContent = plainText(notice);
 }
 function changed(previous: View, next: View): void {
   // Views are copied before a tick because the simulation may mutate its state.
@@ -259,14 +259,12 @@ function title(): void {
   playing = false;
   shown = '';
   setScreen('title');
-  root.innerHTML = `<main class="title-page">${topbar(`<a href="${ALL_GAMES}">All games</a>`)}<section class="title-body"><p class="eyebrow">Izmir · November 2026</p><div class="agency-mark" aria-hidden="true">G H<span>placement agency</span></div><h1>Good Hands</h1><p class="subtitle">A month at Nermin’s desk.</p><p class="goal">A household needs a nanny by Tuesday 08:00. Three applicants wait on your bench. Rent is due Friday.</p><button type="button" data-action="other-ways">Other ways in ▸</button><div class="recording-notice-slot"></div><p class="title-status" role="status">${saveReady ? '' : 'Looking for a saved month…'}</p></section><div class="title-actions lk-commit"></div></main>`;
-  if (recordingNotice && !recordingNoticeDone)
-    root.querySelector('.recording-notice-slot')?.append(recordingNotice);
+  root.innerHTML = `<main class="title-page">${topbar(`<a href="${ALL_GAMES}" target="_top">All games</a>`)}<section class="title-body"><p class="eyebrow">Izmir · November 2026</p><div class="agency-mark" aria-hidden="true">G H<span>placement agency</span></div><h1>Good Hands</h1><p class="subtitle">A month at Nermin’s desk.</p><p class="goal">A household needs a nanny by Tuesday 08:00. Three applicants wait on your bench. Rent is due Friday.</p>${labTools ? '<button type="button" data-action="other-ways">Lab tools</button>' : ''}<p class="title-status" role="status">${saveReady ? '' : 'Looking for a saved month…'}</p></section><div class="title-actions lk-commit"></div></main>`;
   const actions = root.querySelector('.title-actions');
   if (saved) {
     actions?.append(
       button(
-        'Back to the desk',
+        'Resume',
         () => {
           if (saved) void begin(saved.state, saved.inputs, saved.continuity);
         },
@@ -278,7 +276,7 @@ function title(): void {
     p.textContent = resumeLine(sim.view(saved.state));
     actions?.append(p);
     actions?.append(
-      button('A new month', () => {
+      button('New game', () => {
         const confirm = document.createElement('div');
         confirm.className = 'restart-confirm';
         confirm.innerHTML = '<p>This month’s save is replaced.</p>';
@@ -361,11 +359,20 @@ async function newMonth(fresh = false, file?: unknown): Promise<void> {
     lab.milestone('run started');
   } catch (e) {
     if (isCurrent()) {
+      console.error('Could not open the agency month', e);
       continuityStatus = errorText(e);
-      notice = `${continuityStatus} Keep this chapter, export history, or choose Start fresh without history in People between games.`;
+      notice = labTools
+        ? continuityStatus
+        : 'This month could not start because its people could not be loaded safely. Your saved month is unchanged. Try again or use Feedback.';
       noticeUntil = Infinity;
-      showNotice();
-      if (!playing) peoplePanel();
+      if (!playing) {
+        const line = root.querySelector('[role="status"]');
+        if (line) line.textContent = notice;
+      } else {
+        showNotice();
+        const line = sheet?.querySelector('[role="status"]');
+        if (line) line.textContent = notice;
+      }
     }
   } finally {
     openingMonth = false;
@@ -395,9 +402,9 @@ async function begin(
   await continuitySession.recording(book, fromFile);
   if (activeGeneration !== generation) return;
   continuity = structuredClone(book);
-  recordingNoticeDone = true;
-  state = next;
-  inputs = structuredClone(history);
+  const resumed = labTools ? { state: next, inputs: structuredClone(history) } : resumeForPlay(next, history);
+  state = resumed.state;
+  inputs = resumed.inputs;
   selected = null;
   tab = 'Bench';
   city = false;
@@ -530,6 +537,7 @@ function checkpoint(fork = false): Promise<void> {
 }
 watchPersonaCheckpoint(() => checkpoint());
 function peoplePanel(): void {
+  if (!labTools) return;
   const d = openSheet(
     'People between games',
     '<p data-continuity-status role="status"></p><div data-persona-controls></div><p>Loaded months keep their original people. Arrivals are considered only for a new month. Browser storage may be lost; keep a file backup.</p><button type="button" data-persona-file>Load a person file into a new month</button><button type="button" data-persona-fresh>Start a fresh month without history</button><button type="button" data-persona-export>Download accepted people</button><button type="button" data-persona-pause>Pause / resume this agency chapter</button><button type="button" data-persona-checkpoint>Save an eligible return checkpoint</button><button type="button" data-persona-fork>Fork this competing history explicitly</button><p><a href="https://pass.adamwhite.work/">Return to The Pass</a> · <a href="https://human.adamwhite.work/voice/">Return to Voice</a>. A continuation return needs the source departure saved in this browser; otherwise start fresh there.</p>',
@@ -643,26 +651,28 @@ function pace(v: View): number {
   return paceChoice === 'automatic' ? automatic : { slow: 0.5, steady: 2, fast: 20 }[paceChoice];
 }
 function paceWords(v: View): string {
-  if (overlay) return 'held: reading';
-  if (modal === 'menu') return 'held: the menu';
-  if (modal === 'feedback') return 'held: sending word';
-  if (waitAnimation) return 'held: skipping ahead';
+  if (overlay) return 'Paused while you read.';
+  if (modal === 'menu') return 'Paused while the menu is open.';
+  if (modal === 'feedback') return 'Paused for Feedback.';
+  if (waitAnimation) return 'Skipping to the next event.';
   if (v.scene)
-    return `held: ${v.scene.with ? person(v, v.scene.with) : v.scene.title.replace(/^.*: /, '')} is talking`;
-  if (v.phoneRinging) return 'held: the phone';
-  if (v.dayCard || !v.open) return 'held: the office is closed';
-  if (v.heldScene) return `held: ${v.heldScene.title}`;
+    return `Paused: ${v.scene.with ? person(v, v.scene.with) : v.scene.title.replace(/^.*: /, '')} is talking`;
+  if (v.phoneRinging) return 'Paused for the phone call.';
+  if (v.dayCard || !v.open) return 'Paused. The office is closed.';
+  if (v.heldScene) return `Paused for ${v.heldScene.title}.`;
   if (v.slowed) {
     const c = v.bench.find((c) => c.posture === 'leaving');
-    return c ? `slow: ${c.name} is picking up her bag` : 'slow: someone needs an answer';
+    return c
+      ? `The clock is slow. ${c.name} is picking up her bag.`
+      : 'The clock is slow. Someone needs an answer.';
   }
-  if (sheet && v.bench[0]) return `reading: ${v.bench[0].name} is waiting`;
+  if (sheet && v.bench[0]) return `${v.bench[0].name} is waiting while you read.`;
   return '';
 }
 function updateClock(v: View): void {
   const text = (selector: string, value: string) => {
     const el = root.querySelector(selector);
-    if (el && el.textContent !== value) el.textContent = value;
+    if (el && el.textContent !== plainText(value)) el.textContent = plainText(value);
   };
   text(
     '[data-date]',
@@ -754,7 +764,8 @@ function render(force = false): void {
   root.querySelector('.game')?.classList.toggle('has-city', city && !v.scene && !v.dayCard);
   root.querySelector('.game')?.classList.toggle('has-day-card', !!v.dayCard);
   const task = root.querySelector<HTMLElement>('.task span');
-  if (task) task.textContent = v.task.text.charAt(0).toLocaleUpperCase('en-GB') + v.task.text.slice(1);
+  if (task)
+    task.textContent = plainText(v.task.text.charAt(0).toLocaleUpperCase('en-GB') + v.task.text.slice(1));
   const phone = root.querySelector<HTMLButtonElement>('.phone-control');
   if (phone) {
     phone.textContent = v.phoneRinging ? `☎ ${v.phoneRinging.who} are calling · Answer` : '';
@@ -814,7 +825,7 @@ function render(force = false): void {
     content.innerHTML = dayHtml(v);
     setScreen('office');
   } else {
-    content.innerHTML = `<nav class="tabs lk-sheet-head" aria-label="Agency books">${(['Bench', 'Families', 'Placed'] as const).map((t) => `<button type="button" data-tab="${t}" aria-pressed="${tab === t}">${t}</button>`).join('')}</nav><section class="desk-content lk-sheet-body">${city && tab === 'Bench' ? cityHtml(v) : tab === 'Bench' ? benchHtml(v) + guestsHtml(v) : tab === 'Families' ? familiesHtml(v) : placedHtml(v)}</section>`;
+    content.innerHTML = `<nav class="tabs lk-sheet-head" aria-label="Agency books">${(['Bench', 'Families', 'Placed'] as const).map((t) => `<button type="button" data-tab="${t}" aria-pressed="${tab === t}">${t}</button>`).join('')}</nav><section class="desk-content lk-sheet-body">${city && tab === 'Bench' ? cityHtml(v) : tab === 'Bench' ? benchHtml(v) + guestsHtml(v) : tab === 'Families' ? familiesHtml(v) : placedHtml(v)}<button type="button" data-action="day-notes">The day’s notes</button></section>`;
     if (city) updateCity(v);
     setScreen(sheet ? 'menu' : city ? 'city' : 'office');
   }
@@ -867,7 +878,7 @@ function benchHtml(v: View): string {
     },
   ).join(
     '',
-  )}</div><h3>Experience</h3>${c.experience.length ? c.experience.map((e) => `<p>${h(e)}</p>`).join('') : '<p>She has not told you yet.</p>'}<h3>Referees</h3>${c.referees.map((r) => `<p>${h(r.name)} · ${r.reachable ? 'reachable' : h(r.why ?? 'Not reachable now; try later')}${r.called ? ' · already called' : ''}</p>`).join('') || '<p>No referee yet. Ask in the interview.</p>'}</details><button type="button" data-action="all-cards">Your books</button></article>`;
+  )}</div><h3>Experience</h3>${c.experience.length ? c.experience.map((e) => `<p>${h(e)}</p>`).join('') : '<p>She has not told you yet.</p>'}<h3>Former employers</h3>${c.referees.map((r) => `<p>${h(r.name)} · ${r.reachable ? 'reachable' : h(r.why ?? 'Not reachable now; try later')}${r.called ? ' · already called' : ''}</p>`).join('') || '<p>No referee yet. Ask in the interview.</p>'}</details><button type="button" data-action="all-cards">Your books</button></article>`;
   const chips = `<nav class="bench-strip" aria-label="Waiting bench" data-testid="bench">${v.bench.map((p) => `<button type="button" data-candidate="${h(p.id)}" aria-label="${h(p.name)}" aria-pressed="${selected === p.id}">${p.posture === 'leaving' ? '◌' : p.posture === 'restless' ? '◐' : '●'} ${h(p.name)}</button>`).join('')}</nav>`;
   return (
     chips +
@@ -915,7 +926,9 @@ function choiceHtml(c: NonNullable<View['scene']>['choices'][number], hint = tru
 function sceneHtml(v: View): string {
   const s = v.scene;
   if (!s) return '';
-  const endings = s.choices.filter((c) => ['wait-bench', 'send-home', 'finish', 'cancel'].includes(c.id));
+  const endings = s.choices.filter((c) =>
+    ['wait-bench', 'send-home', 'finish', 'cancel', 'done'].includes(c.id),
+  );
   const choices = s.choices.filter((c) => !endings.includes(c));
   const lastSpeech = s.lines.findLast((l) => l.kind === 'speech');
   const latest =
@@ -925,8 +938,10 @@ function sceneHtml(v: View): string {
         ? [lastSpeech]
         : s.lines.slice(-1);
   const visibleChoices = s.kind === 'negotiation' || s.kind === 'two-sides' ? 1 : 2;
-  const line = (l: (typeof s.lines)[number]) =>
-    `<p data-scene-line ${l.side ? `data-scene-side="${l.side}"` : ''} class="${l.kind === 'speech' ? 'speech' : l.kind === 'notice' ? 'notice-line' : ''} ${l.side ? `side-${l.side}` : ''}">${l.speaker ? `<strong>${h(l.speaker)}:</strong> ` : ''}${h(l.text)}</p>`;
+  const line = (l: (typeof s.lines)[number]) => {
+    const narration = !!l.speaker && l.text.startsWith(`${l.speaker} sat across from your desk.`);
+    return `<p data-scene-line ${l.side ? `data-scene-side="${l.side}"` : ''} class="${l.kind === 'speech' && !narration ? 'speech' : l.kind === 'notice' || narration ? 'notice-line' : ''} ${l.side ? `side-${l.side}` : ''}">${l.speaker && !narration ? `<strong>${h(l.speaker)}:</strong> ` : ''}${h(l.text)}</p>`;
+  };
   return `<section class="scene-sheet ${moreChoices ? 'all-questions' : ''} ${s.kind === 'interview' ? 'interview-sheet' : ''}" data-testid="scene" data-scene-id="${h(s.id)}" aria-label="${h(s.title)}"><header class="sheet-heading lk-sheet-head"><h2>${moreChoices ? `All ${s.kind === 'interview' ? 'questions' : 'choices'} · ${choices.length}` : h(s.title)}</h2>${moreChoices ? '<button type="button" data-action="fewer-choices">Fewer</button>' : ''}</header><div class="lk-sheet-body scene-reading"><div class="exchange" role="region" aria-label="Latest words">${(moreChoices ? latest.slice(-1) : s.lines).map(line).join('')}</div>${s.kind === 'negotiation' && s.negotiation ? `<p class="terms-summary">${h(termsLine(s.negotiation.terms))}</p>` : ''}${
     s.added?.length
       ? `<p class="added" role="status">Added to her card: ${s.added
@@ -1074,7 +1089,7 @@ function review(v: View): void {
     )
     .join(
       '',
-    )}<h2>Inside the houses</h2>${r.placements.map((p) => `<article>${p.story.map((line) => `<p>${h(line)}</p>`).join('')}</article>`).join('')}<h2>Where the talk went</h2><canvas id="review-city" role="img" aria-label="The city’s threads of talk at month end"></canvas>${r.threads.map((t) => `<p>${h(person(v, t.from))} → ${h(person(v, t.to))} · ${h(t.place)}${t.about ? ` · ${h(person(v, t.about))}` : ''}</p>`).join('')}<p class="review-question">${h(r.question)}</p></section><div class="review-actions lk-commit"><button type="button" data-action="send-run">Send word</button><button type="button" data-action="download">Download this run</button><button type="button" class="primary" data-action="new-month">A new month</button></div></main>`;
+    )}<h2>Inside the houses</h2>${r.placements.map((p) => `<article>${p.story.map((line) => `<p>${h(line)}</p>`).join('')}</article>`).join('')}<h2>Where the talk went</h2><canvas id="review-city" role="img" aria-label="The city’s threads of talk at month end"></canvas>${r.threads.map((t) => `<p>${h(person(v, t.from))} → ${h(person(v, t.to))} · ${h(t.place)}${t.about ? ` · ${h(person(v, t.about))}` : ''}</p>`).join('')}<p class="review-question">${h(r.question)}</p></section><div class="review-actions lk-commit"><button type="button" data-action="send-run">Feedback</button><button type="button" data-action="download">Download this run</button><button type="button" class="primary" data-action="new-month">New game</button></div></main>`;
   const canvas = root.querySelector<HTMLCanvasElement>('#review-city');
   if (canvas) drawCity(canvas, { ...v, city: { ...v.city, threads: r.threads } });
   gloss(root);
@@ -1130,23 +1145,33 @@ function openSheet(title: string, content: string, kind = 'inspect'): HTMLElemen
 function updateClockIfPlaying(): void {
   if (playing && state) updateClock(current());
 }
+function confirmNewGame(container: Element): void {
+  container.querySelector('.restart-confirm')?.remove();
+  const confirm = document.createElement('div');
+  confirm.className = 'restart-confirm';
+  confirm.innerHTML = '<p>A new month replaces your saved month after it starts successfully.</p>';
+  confirm.append(
+    button('Start new game', () => {
+      void newMonth();
+    }),
+    button('Cancel', () => confirm.remove()),
+  );
+  container.append(confirm);
+}
 function menu(): void {
   if (state) save();
   const d = openSheet(
     'Game menu',
-    `<p>The clock waits while this is open.</p>${state ? '<button type="button" data-action="day-notes">The day’s notes ▸</button>' : ''}<div class="page-setting">Page ${['System', 'Light', 'Dark'].map((theme) => `<button type="button" data-theme-choice="${theme.toLowerCase()}" aria-pressed="${(document.documentElement.dataset.theme ?? 'system') === theme.toLowerCase()}">${theme}</button>`).join('')}</div><div class="pace-setting"><span>Clock</span> ${['Automatic', 'Slow', 'Steady', 'Fast'].map((speed) => `<button type="button" data-pace-choice="${speed.toLowerCase()}" aria-pressed="${paceChoice === speed.toLowerCase()}">${speed}</button>`).join('')}</div><button type="button" data-action="people">People between games</button><button type="button" data-action="send-run">Send word ▸</button><button type="button" data-action="fullscreen">Full screen</button><button type="button" data-action="title">To the title page</button><a href="${ALL_GAMES}">All games</a><div class="recording-footer"></div>`,
+    `<button type="button" data-action="send-run">Feedback</button><button type="button" data-action="fullscreen">Full screen</button><a href="${ALL_GAMES}" target="_top">All games</a><div class="recording-footer"></div><button type="button" data-new-game>New game</button>${labTools ? `<details open><summary>Lab tools</summary><button type="button" data-action="title">To the title page</button>${state ? '<button type="button" data-action="day-notes">The day’s notes</button>' : ''}<div class="page-setting">Page ${['System', 'Light', 'Dark'].map((theme) => `<button type="button" data-theme-choice="${theme.toLowerCase()}">${theme}</button>`).join('')}</div><div class="pace-setting">${['Automatic', 'Slow', 'Steady', 'Fast'].map((speed) => `<button type="button" data-pace-choice="${speed.toLowerCase()}">${speed}</button>`).join('')}</div><button type="button" data-action="people">People between games</button><button type="button" data-action="import">Import a run</button>${state ? '<button type="button" data-action="download">Download this run</button>' : ''}</details>` : ''}`,
     'menu',
   );
   d.querySelector('.recording-footer')?.append(telemetryToggle(lab));
-  const privacy = document.createElement('a');
-  privacy.href = 'https://human.adamwhite.work/lab/privacy/';
-  privacy.textContent = 'Lab privacy';
-  d.querySelector('.recording-footer')?.append(privacy);
+  d.querySelector('[data-new-game]')?.addEventListener('click', () =>
+    confirmNewGame(d.querySelector('.sheet-content')!),
+  );
   const commit = document.createElement('div');
   commit.className = 'lk-commit';
-  commit.append(
-    button(playing ? 'Back to the desk' : 'Back to the title page', () => closeSheet(), 'primary'),
-  );
+  commit.append(button('Resume', () => closeSheet(), 'primary'));
   d.querySelector('.menu-sheet')?.append(commit);
 }
 function redraw(): void {
@@ -1178,7 +1203,7 @@ const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'
 function termsLine(t: EmploymentTerms): string {
   const clock = (hour: number) =>
     `${String(Math.floor(hour)).padStart(2, '0')}:${String(Math.round((hour % 1) * 60)).padStart(2, '0')}`;
-  return `${money(t.wage)} a month · ${clock(t.startHour)}–${clock(t.endHour)} · ${DAYS[t.dayOff]} off · ${t.trialDays}-day trial · fee ${money(t.fee)}`;
+  return `${money(t.wage)} a month · ${clock(t.startHour)}–${clock(t.endHour)} · ${DAYS[t.dayOff]} off · ${t.trialDays}-working-day trial · fee ${money(t.fee)}`;
 }
 function editTerms(): void {
   const scene = current().scene;
@@ -1189,7 +1214,7 @@ function editTerms(): void {
     ['fee', 'Agency fee', 100],
     ['startHour', 'Start hour', 0.5],
     ['endHour', 'Finish hour', 0.5],
-    ['trialDays', 'Trial days', 1],
+    ['trialDays', 'Trial working days', 1],
   ] as const;
   const d = openSheet(
     'Edit the offer',
@@ -1294,7 +1319,7 @@ function matchSheet(kind: 'trial' | 'place'): void {
   const requests = v.requests.filter((r) => r.status === 'open');
   const d = openSheet(
     kind === 'trial' ? 'Send for a trial morning' : `Negotiate for ${c.name}`,
-    `<div class="family-chips">${requests.map((r, i) => `<button type="button" data-match-family="${h(r.family)}" aria-pressed="${i === 0}">${h(person(v, r.family))} · ${h(r.role)}</button>`).join('')}</div><p ${kind === 'place' ? 'data-fee-terms' : ''}>${kind === 'trial' ? 'She will spend the next morning with the family. Their word comes back later.' : `${h(placementDepositWords(state?.version ?? 1))} The rest of the fee follows the trial week if they keep her. They will remember what you vouch for.`}</p>${!requests.length ? '<p>No open request. Answer a family’s call first.</p>' : ''}${kind === 'place' ? `<fieldset><legend>What will you put your word behind?</legend><div class="vouch-controls">${QUALITIES.map((q) => `<button type="button" class="vouch" data-vouch="${q}" aria-pressed="false">${h(vouchLabel(c, q))}</button>`).join('')}</div><details class="vouch-evidence"><summary>Read the evidence</summary>${QUALITIES.map((q) => `<p><strong>${q}</strong> — ${h(evidence(c, q))}</p>`).join('')}</details></fieldset>` : ''}<p id="match-reason" data-match-reason class="reason"></p><button type="button" data-confirm-match aria-describedby="match-reason" ${!requests.length ? 'disabled' : ''}>${kind === 'trial' ? 'Send for a trial' : (state?.version ?? 0) >= 3 ? 'Propose to this family' : 'Place with this family'}</button>`,
+    `<div class="family-chips">${requests.map((r, i) => `<button type="button" data-match-family="${h(r.family)}" aria-pressed="${i === 0}">${h(person(v, r.family))} · ${h(r.role)}</button>`).join('')}</div><p ${kind === 'place' ? 'data-fee-terms' : ''}>${kind === 'trial' ? 'She will spend the next morning with the family. The family reports back later.' : `${h(placementDepositWords(state?.version ?? 1))} The rest of the fee is paid after the trial if they keep her. The family remembers the qualities you promise.`}</p>${!requests.length ? '<p>No open request. Answer a family’s call first.</p>' : ''}${kind === 'place' ? `<fieldset><legend>Which qualities will you promise?</legend><div class="vouch-controls">${QUALITIES.map((q) => `<button type="button" class="vouch" data-vouch="${q}" aria-pressed="false">${h(vouchLabel(c, q))}</button>`).join('')}</div><details class="vouch-evidence"><summary>Read the evidence</summary>${QUALITIES.map((q) => `<p><strong>${q}</strong> — ${h(evidence(c, q))}</p>`).join('')}</details></fieldset>` : ''}<p id="match-reason" data-match-reason class="reason"></p><button type="button" data-confirm-match aria-describedby="match-reason" ${!requests.length ? 'disabled' : ''}>${kind === 'trial' ? 'Send for a trial' : (state?.version ?? 0) >= 3 ? 'Propose to this family' : 'Place with this family'}</button>`,
   );
   const commit = document.createElement('div');
   commit.className = 'lk-commit';
@@ -1315,7 +1340,7 @@ function matchSheet(kind: 'trial' | 'place'): void {
       terms.textContent = `${placementDepositWords(
         state?.version ?? 1,
         live.placements.some((p) => p.family === familyChoice),
-      )} The rest of the fee follows the trial week if they keep her. They will remember what you vouch for.`;
+      )} The rest of the fee is paid after the trial if they keep her. The family remembers the qualities you promise.`;
     if (confirm) {
       confirm.disabled = !request || !!reason;
       confirm.classList.add('primary');
@@ -1373,7 +1398,7 @@ function placementSheet(id: string): void {
           ? `No new answer yet. Check again ${clockLabels(placement.checkInAt).dateLabel}, ${clockLabels(placement.checkInAt).timeLabel}.`
           : '';
     const line = d.querySelector('[data-check-reason]');
-    if (line) line.textContent = reason;
+    if (line) line.textContent = plainText(reason);
     for (const control of d.querySelectorAll<HTMLButtonElement>('[data-check]')) control.disabled = !!reason;
   };
   updateInspection();
@@ -1557,6 +1582,7 @@ function handleClick(event: Event): void {
       peoplePanel();
       break;
     case 'other-ways':
+      if (!labTools) break;
       openSheet(
         'Other ways in',
         '<button type="button" data-action="import">Load a playtest run</button><button type="button" data-action="people">People between games</button>',
@@ -1593,7 +1619,7 @@ function handleClick(event: Event): void {
       menu();
       break;
     case 'new-month':
-      title();
+      confirmNewGame(root.querySelector('.review-actions') ?? root);
       break;
     case 'phone':
       send({ type: 'answer-phone' });
@@ -1640,7 +1666,7 @@ function handleClick(event: Event): void {
       feedback();
       break;
     case 'import':
-      importFile();
+      if (labTools) importFile();
       break;
   }
 }
@@ -1665,7 +1691,7 @@ function info(): void {
   const content = {
     start: [
       'Good Hands',
-      'You place women with families who need help at home. A family pays a fee when they keep her. What you vouch for, they remember. Rent comes every Friday.',
+      'You find workers for families who need help at home. Families pay an agency fee for a placement. They remember the qualities you promise. Rent is due every Friday.',
     ],
     office: [
       'The desk',
@@ -1677,7 +1703,7 @@ function info(): void {
     ],
     negotiate: [
       'Your word',
-      'Vouching for a quality you have only heard about is fast and usually fine, until it is not. Both sides must accept the terms. Half the agreed fee is paid on placement, the rest after the trial if they keep her.',
+      `To vouch for a quality is to promise the family that a worker has it. You can promise something you have only heard, but the family remembers if it proves false. Both sides must accept the terms. ${placementDepositWords(state?.version ?? 6)} The rest is paid after the trial if the family keeps the worker.`,
     ],
     day: [
       'Evenings',
@@ -1690,7 +1716,7 @@ function info(): void {
   }[phase];
   overlay = document.createElement('div');
   overlay.className = 'info-overlay';
-  overlay.innerHTML = `<section class="info-panel" aria-label="Information"><header><h2>${content[0]}</h2><button type="button" data-close-info aria-label="Close information">×</button></header><p>${content[1]}</p><h3>Words</h3></section>`;
+  overlay.innerHTML = `<section class="info-panel" aria-label="Information"><header><h2>${h(content[0] ?? '')}</h2><button type="button" data-close-info aria-label="Close information">×</button></header><p>${h(content[1] ?? '')}</p><h3>Words</h3></section>`;
   overlay.querySelector('.info-panel')?.append(glossaryPanel());
   const close = () => {
     overlay?.remove();
@@ -1708,7 +1734,7 @@ function info(): void {
 }
 function feedback(): void {
   closeSheet(false);
-  const d = openSheet('Send word', '', 'feedback');
+  const d = openSheet('Feedback', '', 'feedback');
   d.className = 'feedback-screen';
   const body = d.querySelector<HTMLElement>('.sheet-content');
   if (!body) return;
@@ -1724,7 +1750,7 @@ function feedback(): void {
     .map(([id, label]) => `<button type="button" data-verdict="${id}" aria-pressed="false">${label}</button>`)
     .join(
       '',
-    )}</div><div data-feedback-persona></div><label class="feedback-note"><span class="sr-only">Your note</span><textarea rows="4" placeholder="What happened at the desk, what you wanted, what got in the way"></textarea></label><details class="feedback-name"><summary>+ Add a name</summary><label>Your name or tester id (optional)<input data-feedback-name maxlength="60" value="${h(name)}" autocomplete="name"></label><p>It labels your earlier and later runs on this device.</p></details><details><summary>What is sent</summary><p>Your note and optional name label your pseudonymous player id. ${state ? 'While recording is on, your run can include its seed, choices, clock, saved month and log. Recording off sends only your note and optional name.' : ''}</p><a href="https://human.adamwhite.work/lab/privacy/">Lab privacy</a></details>${state ? '<button type="button" data-action="download">Keep a copy of this run ⤓</button>' : ''}`;
+    )}</div><div data-feedback-persona></div><label class="feedback-note"><span class="sr-only">Your note</span><textarea rows="4" placeholder="Tell us what happened and what got in your way."></textarea></label><details class="feedback-name"><summary>+ Add a name</summary><label>Your name or tester id (optional)<input data-feedback-name maxlength="60" value="${h(name)}" autocomplete="name"></label><p>It labels your earlier and later runs on this device.</p></details><details><summary>What is sent</summary><p>Your note and optional name label your pseudonymous player id. ${state ? 'While recording is on, your run can include its seed, choices, clock, saved month and log. Recording off sends only your note and optional name.' : ''}</p><a href="https://human.adamwhite.work/lab/privacy/">Lab privacy</a></details>${state ? '<button type="button" data-action="download">Keep a copy of this run ⤓</button>' : ''}`;
 
   let verdict = '';
   for (const chip of body.querySelectorAll<HTMLButtonElement>('[data-verdict]'))
@@ -1781,12 +1807,16 @@ function feedback(): void {
           } catch {}
           sent = true;
           status.textContent = noteOnly
-            ? 'Note and verdict queued without a run or history linkage.'
-            : 'Note queued with available run and linked play.';
+            ? 'Your feedback is queued. Your run and play history were not shared.'
+            : 'Your feedback is queued with your available run and play history.';
           sendButton.textContent = 'Back to the game';
           sendButton.disabled = false;
         } catch (error) {
-          status.textContent = error instanceof Error ? error.message : 'Could not send. Try again.';
+          console.error('Feedback failed', error);
+          status.textContent =
+            labTools && error instanceof Error
+              ? error.message
+              : 'Your feedback could not be sent. Your note is still here. Try Submit again.';
         } finally {
           busy = false;
           update();

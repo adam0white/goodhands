@@ -1,6 +1,6 @@
 /* Nermin’s notebook: state above the picture, decisions at the foot of the sheet. */
 :root {
-  font-size: 16px;
+  font-size: clamp(16px, 1.25vw + 6px, 20px);
 }
 html,
 body,
@@ -71,7 +71,7 @@ h3 {
 }
 small {
   display: block;
-  font-size: 13px;
+  font-size: clamp(14px, 1.15vw + 6px, 18px);
   line-height: 1.2;
   margin-top: 3px;
 }
@@ -117,14 +117,14 @@ button.primary {
   display: none;
 }
 .topbar .clock {
-  font-size: 14px;
+  font-size: clamp(14px, 1.15vw + 6px, 18px);
 }
 .topbar .hub {
   text-decoration: none;
-  font-size: 14px;
+  font-size: clamp(14px, 1.15vw + 6px, 18px);
 }
 .eyebrow {
-  font-size: 14px;
+  font-size: clamp(14px, 1.15vw + 6px, 18px);
   color: var(--ink-soft);
 }
 .subtitle {
@@ -164,7 +164,7 @@ button.primary {
   letter-spacing: 0.04em;
 }
 .title-goal {
-  font-size: 15px;
+  font-size: clamp(15px, 1.15vw + 6px, 19px);
   line-height: 1.4;
 }
 .title-body > button {
@@ -176,7 +176,7 @@ button.primary {
   display: flex;
   align-items: center;
   min-height: 0;
-  font-size: 12px;
+  font-size: clamp(14px, 1.15vw + 6px, 18px);
 }
 .title-notice > * {
   max-height: 100%;
@@ -193,12 +193,12 @@ button.primary {
 .title-actions p,
 .title-status,
 .continue-line {
-  font-size: 13px;
+  font-size: clamp(14px, 1.15vw + 6px, 18px);
   line-height: 1.25;
 }
 .title-credit {
   text-align: center;
-  font-size: 12px;
+  font-size: clamp(14px, 1.15vw + 6px, 18px);
 }
 .game.lk-stage,
 .game {
@@ -223,7 +223,7 @@ button.primary {
   gap: 6px;
   align-items: center;
   padding: 0 8px;
-  font-size: 12px;
+  font-size: clamp(14px, 1.15vw + 6px, 18px);
   min-width: 0;
   overflow: hidden;
 }
@@ -312,7 +312,7 @@ canvas {
   flex: 1;
   min-height: 44px;
   text-align: left;
-  font-size: 13px;
+  font-size: clamp(14px, 1.15vw + 6px, 18px);
   background: var(--paper);
 }
 .phone-reason {
@@ -330,7 +330,7 @@ canvas {
   top: 4px;
   background: var(--paper);
   padding: 2px 4px;
-  font-size: 13px;
+  font-size: clamp(14px, 1.15vw + 6px, 18px);
   line-height: 1.3;
   display: -webkit-box;
   -webkit-line-clamp: 2;
@@ -361,7 +361,7 @@ canvas {
   border: 0;
   border-left: 3px solid var(--rope);
   text-align: left;
-  font-size: 13px;
+  font-size: clamp(14px, 1.15vw + 6px, 18px);
   line-height: 1.2;
   overflow: hidden;
 }
@@ -374,7 +374,7 @@ canvas {
 .until-event {
   flex: 0 1 142px;
   padding: 2px 5px;
-  font-size: 13px;
+  font-size: clamp(14px, 1.15vw + 6px, 18px);
 }
 .until-event small {
   white-space: nowrap;
@@ -415,7 +415,7 @@ canvas {
 }
 .tabs button {
   padding: 4px;
-  font-size: 14px;
+  font-size: clamp(14px, 1.15vw + 6px, 18px);
 }
 .desk-content,
 .lk-sheet-body {
@@ -433,7 +433,7 @@ canvas {
 }
 .bench-strip button {
   flex: 1;
-  font-size: 14px;
+  font-size: clamp(14px, 1.15vw + 6px, 18px);
 }
 .bench-strip:empty {
   display: none;
@@ -443,7 +443,7 @@ canvas {
 }
 .empty-card p {
   margin-top: 5px;
-  font-size: 14px;
+  font-size: clamp(14px, 1.15vw + 6px, 18px);
 }
 .candidate-card {
   border-top: 1px solid var(--ink-soft);
@@ -919,11 +919,11 @@ legend {
   min-height: 52px;
   padding: 4px;
   text-align: left;
-  font-size: 13px;
+  font-size: clamp(14px, 1.15vw + 6px, 18px);
   line-height: 1.15;
 }
 .candidate-actions small {
-  font-size: 13px;
+  font-size: clamp(14px, 1.15vw + 6px, 18px);
   line-height: 1.1;
 }
 .candidate-actions > :nth-child(n + 3) small {
@@ -931,17 +931,17 @@ legend {
 }
 .question-cost,
 .held-scene {
-  font-size: 12px;
+  font-size: clamp(14px, 1.15vw + 6px, 18px);
   margin: 0;
   line-height: 1.25;
 }
 .scene-choices button {
   min-height: 52px;
-  font-size: 13px;
+  font-size: clamp(14px, 1.15vw + 6px, 18px);
 }
 .interview-finish button {
   min-height: 52px;
-  font-size: 13px;
+  font-size: clamp(14px, 1.15vw + 6px, 18px);
 }
 .all-questions .scene-reading {
   flex: 0 0 48px;
@@ -978,14 +978,14 @@ legend {
 .member-chips > button,
 .day-chips > button {
   flex-shrink: 0;
-  font-size: 13px;
+  font-size: clamp(14px, 1.15vw + 6px, 18px);
 }
 .stepper {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 44px 70px 44px;
   align-items: center;
   gap: 3px;
-  font-size: 13px;
+  font-size: clamp(14px, 1.15vw + 6px, 18px);
 }
 .stepper output {
   text-align: center;
@@ -1037,7 +1037,7 @@ legend {
   text-align: left;
 }
 .menu-sheet .sheet-content > p {
-  font-size: 12px;
+  font-size: clamp(14px, 1.15vw + 6px, 18px);
 }
 .menu-sheet .lk-commit {
   padding-top: 6px;
@@ -1047,14 +1047,14 @@ legend {
   align-items: center;
   gap: 4px;
   min-height: 48px;
-  font-size: 13px;
+  font-size: clamp(14px, 1.15vw + 6px, 18px);
 }
 .menu-row > span {
   margin-right: auto;
 }
 .menu-row button {
   padding: 4px;
-  font-size: 13px;
+  font-size: clamp(14px, 1.15vw + 6px, 18px);
 }
 .pace-control {
   display: grid;
@@ -1062,7 +1062,7 @@ legend {
   gap: 3px;
 }
 .pace-control button {
-  font-size: 12px;
+  font-size: clamp(14px, 1.15vw + 6px, 18px);
   padding: 3px;
 }
 .info-overlay {
@@ -1082,7 +1082,7 @@ legend {
   float: right;
 }
 .info-panel p {
-  font-size: 14px;
+  font-size: clamp(14px, 1.15vw + 6px, 18px);
   line-height: 1.4;
   margin-block: 8px;
 }
@@ -1106,7 +1106,7 @@ legend {
   margin-top: 9px;
 }
 .feedback-body > p {
-  font-size: 14px;
+  font-size: clamp(14px, 1.15vw + 6px, 18px);
   line-height: 1.35;
 }
 .verdicts {
@@ -1116,7 +1116,7 @@ legend {
 }
 .verdicts button {
   flex: 1;
-  font-size: 13px;
+  font-size: clamp(14px, 1.15vw + 6px, 18px);
 }
 .feedback-body textarea {
   width: 100%;
@@ -1134,7 +1134,7 @@ legend {
   padding: 6px;
 }
 .feedback-body label {
-  font-size: 14px;
+  font-size: clamp(14px, 1.15vw + 6px, 18px);
 }
 .feedback-body input[type="checkbox"] {
   min-width: 44px;
@@ -1142,7 +1142,7 @@ legend {
   vertical-align: middle;
 }
 .feedback-body details p {
-  font-size: 12px;
+  font-size: clamp(14px, 1.15vw + 6px, 18px);
   line-height: 1.35;
 }
 .review {
@@ -1180,7 +1180,7 @@ legend {
   .game.has-scene,
   .game.has-takeover,
   .game.has-day-card {
-    grid-template-columns: minmax(0, 1fr) 440px;
+    grid-template-columns: minmax(0, 1fr) clamp(440px, 44vw, 620px);
     grid-template-rows: 56px minmax(0, 1fr) 48px;
   }
   .game > .topbar {
@@ -1256,7 +1256,7 @@ legend {
   }
   .scene-choices button,
   .interview-finish button {
-    font-size: 14px;
+    font-size: clamp(14px, 1.15vw + 6px, 18px);
   }
   .overlay {
     inset: 56px 0 0;
@@ -1335,7 +1335,7 @@ progress.rent-meter.short {
   top: 4px;
   left: 12px;
   right: 12px;
-  font-size: 12px;
+  font-size: clamp(14px, 1.15vw + 6px, 18px);
   background: var(--paper);
   pointer-events: none;
 }
@@ -1343,7 +1343,7 @@ progress.rent-meter.short {
   display: none;
 }
 .title-body .goal {
-  font-size: 15px;
+  font-size: clamp(15px, 1.15vw + 6px, 19px);
   line-height: 1.4;
 }
 .recording-notice-slot {
@@ -1351,10 +1351,10 @@ progress.rent-meter.short {
   flex: 1;
   display: flex;
   align-items: center;
-  font-size: 12px;
+  font-size: clamp(14px, 1.15vw + 6px, 18px);
 }
 .recording-notice-slot > * {
-  font-size: 12px;
+  font-size: clamp(14px, 1.15vw + 6px, 18px);
   padding: 6px !important;
 }
 .title-page > .sheet.takeover {
@@ -1370,7 +1370,7 @@ progress.rent-meter.short {
   grid-template-columns: 1fr repeat(3, auto);
   align-items: center;
   gap: 4px;
-  font-size: 13px;
+  font-size: clamp(14px, 1.15vw + 6px, 18px);
 }
 .pace-setting {
   display: grid;
@@ -1381,21 +1381,21 @@ progress.rent-meter.short {
 }
 .pace-setting button {
   padding: 3px;
-  font-size: 12px;
+  font-size: clamp(14px, 1.15vw + 6px, 18px);
 }
 .recording-footer {
   display: flex;
   gap: 6px;
   align-items: center;
   justify-content: space-between;
-  font-size: 12px;
+  font-size: clamp(14px, 1.15vw + 6px, 18px);
 }
 .recording-footer label {
   display: flex;
   align-items: center;
 }
 .recording-footer a {
-  font-size: 12px;
+  font-size: clamp(14px, 1.15vw + 6px, 18px);
 }
 .info-panel header {
   display: flex;
@@ -1410,7 +1410,7 @@ progress.rent-meter.short {
   padding: 8px 12px;
 }
 .feedback-screen .sheet-content > p {
-  font-size: 14px;
+  font-size: clamp(14px, 1.15vw + 6px, 18px);
   line-height: 1.35;
 }
 .feedback-screen textarea {
@@ -1429,11 +1429,11 @@ progress.rent-meter.short {
   gap: 4px;
 }
 .feedback-screen .verdicts button {
-  font-size: 13px;
+  font-size: clamp(14px, 1.15vw + 6px, 18px);
   padding: 4px;
 }
 .feedback-screen label {
-  font-size: 14px;
+  font-size: clamp(14px, 1.15vw + 6px, 18px);
 }
 .feedback-screen input[type="checkbox"] {
   min-height: 44px;
@@ -1474,7 +1474,7 @@ progress.rent-meter.short {
 }
 .pace-setting > span {
   grid-column: 1 / -1;
-  font-size: 13px;
+  font-size: clamp(14px, 1.15vw + 6px, 18px);
 }
 
 .title-actions .continue-line {
@@ -1489,7 +1489,7 @@ progress.rent-meter.short {
 }
 .feedback-screen .verdict-chips button {
   flex: 1;
-  font-size: 13px;
+  font-size: clamp(14px, 1.15vw + 6px, 18px);
   padding: 4px;
 }
 .restart-confirm {
@@ -1533,4 +1533,208 @@ progress.rent-meter.short {
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
+}
+
+/* Space follows viewport width. The footer keeps the actual SDK notice node alive. */
+body {
+  display: flex;
+  flex-direction: column;
+  height: 100dvh;
+}
+#app {
+  flex: 1 1 0;
+  min-height: 0;
+  height: auto;
+}
+.lab-notice-footer {
+  flex: 0 0 auto;
+  max-height: 22dvh;
+  overflow: auto;
+}
+.lab-notice-footer > * {
+  position: static !important;
+  transform: none !important;
+  margin: 0 auto !important;
+  font-size: clamp(14px, 1vw + 6px, 18px) !important;
+  padding: 4px 12px !important;
+}
+.title-page,
+.game,
+.game.lk-stage,
+.review {
+  height: 100%;
+}
+.title-body {
+  overflow: auto;
+}
+.title-actions .continue-line {
+  white-space: normal;
+  overflow: visible;
+}
+.scene-sheet > .lk-commit {
+  max-height: 68%;
+  overflow: auto;
+}
+.all-questions .scene-reading {
+  flex: 0 1 auto;
+  max-height: 30%;
+  min-height: 3rem;
+  overflow: auto;
+}
+.all-questions > .lk-commit {
+  max-height: none;
+}
+.sheet-heading,
+.lk-sheet-head {
+  flex-basis: auto;
+  min-height: 44px;
+  height: auto;
+  padding-block: 5px;
+}
+.sheet-heading h2 {
+  overflow-wrap: anywhere;
+}
+.stepper {
+  grid-template-columns: minmax(0, 1fr) 44px minmax(3.5rem, auto) 44px;
+}
+.city-person {
+  display: block;
+  overflow: auto;
+  max-height: 35%;
+}
+.feedback-screen {
+  top: var(--viewport-offset, 0px);
+  height: var(--viewport-height, 100dvh);
+}
+.feedback-screen .sheet-content {
+  overscroll-behavior: contain;
+}
+@media (min-width: 768px) {
+  .candidate-actions button,
+  .candidate-actions small,
+  .scene-choices button,
+  .interview-finish button,
+  .question-cost,
+  .held-scene,
+  .stepper,
+  .day-chips > button,
+  .sheet-content .vouch,
+  .feedback-screen label,
+  .feedback-screen .sheet-content > p,
+  .feedback-screen .verdict-chips button {
+    font-size: clamp(17px, 1.5vw + 5px, 20px);
+    line-height: 1.4;
+  }
+  .candidate-actions button,
+  .scene-choices button,
+  .interview-finish button {
+    padding: 8px;
+  }
+  .info-panel p,
+  .title-body .goal {
+    font-size: clamp(18px, 1.5vw + 5px, 22px);
+  }
+  .title-page {
+    max-width: 720px;
+  }
+  .sheet-content .vouch,
+  .vouch-evidence p {
+    font-size: 1rem;
+  }
+}
+@media (min-width: 768px) {
+  :root {
+    font-size: clamp(18px, 1.25vw + 6px, 20px);
+  }
+  .sheet-content .vouch,
+  .vouch-evidence p,
+  .exchange,
+  .look,
+  .note-claim,
+  .reason,
+  .sheet-content > p,
+  .sheet-status,
+  .question-cost,
+  .held-scene {
+    font-size: clamp(17px, 1.5vw + 5px, 20px);
+    line-height: 1.4;
+  }
+}
+/* Keep money and rent readable rather than fitting them beside the date. */
+.state-strip {
+  display: grid;
+  grid-template-columns: auto minmax(24px, 1fr) auto;
+  padding-block: 4px;
+}
+[data-money],
+[data-rent-due] {
+  white-space: nowrap;
+}
+[data-pace] {
+  grid-column: 1 / -1;
+  max-width: none;
+  font-size: clamp(14px, 1vw + 4px, 18px);
+}
+[data-pace]:empty {
+  display: none;
+}
+.phone-reason {
+  font-size: clamp(14px, 1vw + 6px, 18px);
+}
+.scene-status {
+  display: block;
+  max-height: 45%;
+  overflow: auto;
+  pointer-events: auto;
+}
+.task {
+  overflow: auto;
+}
+.task span {
+  display: block;
+  overflow: visible;
+}
+@media (max-width: 899px) {
+  .game,
+  .game.has-day-card {
+    grid-template-rows: 44px auto 150px 48px minmax(0, 1fr);
+  }
+  .game.has-scene,
+  .game.has-takeover {
+    grid-template-rows: 44px auto 100px 0 minmax(0, 1fr);
+  }
+}
+@media (min-width: 900px) {
+  .game.lk-stage,
+  .game,
+  .game.has-scene,
+  .game.has-takeover,
+  .game.has-day-card {
+    grid-template-rows: 56px auto minmax(0, 1fr) 48px;
+  }
+  .game > .state-strip {
+    grid-row: 2;
+    grid-column: 1 / -1;
+    margin: 0;
+    pointer-events: auto;
+  }
+  .game > .office-front {
+    grid-row: 3;
+  }
+  .game > .caption-row {
+    grid-row: 4;
+  }
+  .game > .desk-sheet,
+  .game > .sheet.takeover {
+    grid-row: 3 / 5;
+  }
+  [data-pace] {
+    grid-column: auto;
+  }
+  .state-strip {
+    grid-template-columns: auto minmax(24px, 1fr) auto minmax(0, 1fr);
+  }
+}
+.menu-sheet .sheet-content > button[data-action="fullscreen"] {
+  display: flex;
 }
