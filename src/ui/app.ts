@@ -51,7 +51,7 @@ import {
   validateContinuity,
   verifyImport,
 } from './export.ts';
-import { lab, notebookRunOptions } from './lab.ts';
+import { lab } from './lab.ts';
 import { cityFigurePositions, drawCity, MAP_HEIGHT, MAP_WIDTH } from './map.ts';
 import { drawOffice, officeSeats } from './office.ts';
 import {
@@ -1664,17 +1664,6 @@ function feedback(): void {
   try {
     name = localStorage.getItem('hf-lab-feedback-name') ?? '';
   } catch {}
-  const recordingOff = () => {
-    try {
-      return (
-        localStorage.getItem('hf-lab-recording-off') === '1' ||
-        localStorage.getItem('hf-lab-recording-off') === 'true'
-      );
-    } catch {
-      return false;
-    }
-  };
-  const privacy = lab.privacySignalOn;
   body.innerHTML = `<p>Recording follows your choice in the menu. Keep a local copy or send feedback when you choose.</p><div class="verdict-chips">${[
     ['keep', 'I’d keep playing'],
     ['mixed', 'Not sure'],
@@ -1683,7 +1672,7 @@ function feedback(): void {
     .map(([id, label]) => `<button type="button" data-verdict="${id}" aria-pressed="false">${label}</button>`)
     .join(
       '',
-    )}</div><div class="recording-off" hidden><p>Recording is off or this history has no recording linkage approval. Nothing is sent. People between games contains the linkage choice.</p><div data-feedback-toggle></div></div><label class="feedback-note"><span class="sr-only">Your note</span><textarea rows="4" placeholder="What happened at the desk, what you wanted, what got in the way"></textarea></label><details class="feedback-name"><summary>+ Add a name</summary><label>Your name or tester id (optional)<input data-feedback-name maxlength="60" value="${h(name)}" autocomplete="name"></label><p>It labels your earlier and later runs on this device.</p></details>${privacy ? '<label class="privacy-consent"><input type="checkbox" data-run-consent> Send this run with my note</label>' : ''}<details><summary>What is sent</summary><p>Your note and optional name label your pseudonymous player id. ${state ? 'Your run includes its seed, choices, clock, saved month and log.' : ''}</p><a href="https://human.adamwhite.work/lab/privacy/">Lab privacy</a></details>${state ? '<button type="button" data-action="download">Keep a copy of this run ⤓</button>' : ''}`;
+    )}</div><details><summary>Optional recording and people between games</summary><p>Your note can be sent while recording is off.</p><div data-feedback-toggle></div><div data-feedback-persona></div></details><label class="feedback-note"><span class="sr-only">Your note</span><textarea rows="4" placeholder="What happened at the desk, what you wanted, what got in the way"></textarea></label><details class="feedback-name"><summary>+ Add a name</summary><label>Your name or tester id (optional)<input data-feedback-name maxlength="60" value="${h(name)}" autocomplete="name"></label><p>It labels your earlier and later runs on this device.</p></details><details><summary>What is sent</summary><p>Your note and optional name label your pseudonymous player id. ${state ? 'While recording is on, your run can include its seed, choices, clock, saved month and log. Recording off sends only your note and optional name.' : ''}</p><a href="https://human.adamwhite.work/lab/privacy/">Lab privacy</a></details>${state ? '<button type="button" data-action="download">Keep a copy of this run ⤓</button>' : ''}`;
   body.querySelector('[data-feedback-toggle]')?.append(telemetryToggle(lab));
   let verdict = '';
   for (const chip of body.querySelectorAll<HTMLButtonElement>('[data-verdict]'))
@@ -1697,6 +1686,39 @@ function feedback(): void {
   const status = document.createElement('p');
   status.setAttribute('role', 'status');
   let sent = false;
+  let busy = false;
+  if (lab.personaRecordingRequired)
+    body.querySelector('[data-feedback-persona]')?.append(
+      personaControls({
+        enabled: shelf.enabled,
+        setEnabled(value) {
+          generation++;
+          continuitySession.invalidate();
+          shelf.setEnabled(value);
+        },
+        recordingAllowed: !continuity.heads.length || lab.personaRecordingAllowed,
+        allowRecording(value) {
+          if (!lab.telemetryOn) {
+            if (!value) {
+              continuity.fileUnlinked = true;
+              continuitySession.invalidate();
+              lab.allowPersonaRecording(false);
+              save();
+            }
+            status.textContent = value
+              ? 'Recording is off. Your note still sends without history linkage.'
+              : 'This history stays local. Your note can still be sent.';
+            return;
+          }
+          void continuitySession
+            .allow(continuity, value)
+            .then(save)
+            .catch((error) => {
+              status.textContent = errorText(error);
+            });
+        },
+      }),
+    );
   const sendButton = button(
     'Send',
     () => {
@@ -1704,7 +1726,9 @@ function feedback(): void {
         closeSheet();
         return;
       }
+      if (busy) return;
       void (async () => {
+        busy = true;
         const who = (body.querySelector<HTMLInputElement>('[data-feedback-name]')?.value ?? '')
           .trim()
           .slice(0, 60);
@@ -1717,32 +1741,27 @@ function feedback(): void {
         sendButton.disabled = true;
         status.textContent = 'Sending…';
         try {
-          if (privacy) {
-            if (!state) throw new Error('Open a month before sending a run.');
-            const run = runExport();
-            try {
-              await lab.sendRun(run, { note, name: who || undefined });
-            } catch {
-              lab.openSendDialog({
-                getRun: () => run,
-                note,
-                name: who || undefined,
-                ...notebookRunOptions,
-              });
-              status.textContent = 'Complete the send in the run window.';
-              sendButton.disabled = false;
-              return;
-            }
-          } else await lab.sendFeedback(note, { name: who || undefined });
+          let run: unknown;
+          try {
+            run = state ? runExport() : undefined;
+          } catch {
+            // An unavailable optional run does not block the note.
+          }
+          const noteOnly = !lab.telemetryOn || (lab.privacySignalOn && !lab.privacyOverride);
+          await lab.sendFeedback(note, { name: who || undefined, run });
           try {
             localStorage.setItem('hf-lab-feedback-name', who);
           } catch {}
           sent = true;
-          status.textContent = 'Sent. Thank you.';
+          status.textContent = noteOnly
+            ? 'Note and verdict queued without a run or history linkage.'
+            : 'Note queued; run included when available. Persona history linked only if approved.';
           sendButton.textContent = 'Back to the game';
           sendButton.disabled = false;
         } catch (error) {
           status.textContent = error instanceof Error ? error.message : 'Could not send. Try again.';
+        } finally {
+          busy = false;
           update();
         }
       })();
@@ -1753,13 +1772,7 @@ function feedback(): void {
   d.querySelector('.takeover-inner')?.append(commit);
   const update = () => {
     if (sent) return;
-    const off = recordingOff() || (!!continuity.heads.length && !lab.personaRecordingAllowed);
-    const offNotice = body.querySelector<HTMLElement>('.recording-off');
-    if (offNotice) offNotice.hidden = !off;
-    const chips = body.querySelector<HTMLElement>('.verdict-chips');
-    if (chips) chips.hidden = off;
-    sendButton.disabled =
-      off || (!!privacy && !body.querySelector<HTMLInputElement>('[data-run-consent]')?.checked);
+    sendButton.disabled = busy;
   };
   body.addEventListener('change', update);
   update();

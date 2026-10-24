@@ -2,7 +2,7 @@
 
 What remains: owner play accepts the canonical-cast increment by 2026-11-03. Technical delivery receipts and any pending live checks are in /Users/abdul/code/.lab-scratch/cast/goodhands.md. Adam accepts the result by playing it.
 
-Current months use edition6, exact HF2.18.0 (engine2.17.0), client0.4.0 and kit0.5.0. All seven allocated canonical profiles come from the released cast artifact. Old namesake roles are retired; docs/cast-census.md records their disposition. Versions1–4 retain frozen modules and the exact HF2.9.0 alias. Edition5 saves refuse plainly rather than relabeling old people.
+Current months use edition6, exact HF2.18.0 (engine2.17.0), client0.4.2 and kit0.5.2. All seven allocated canonical profiles come from the released cast artifact. Old namesake roles are retired; docs/cast-census.md records their disposition. Versions1–4 retain frozen modules and the exact HF2.9.0 alias. Edition5 saves refuse plainly rather than relabeling old people.
 
 Fresh continuity awaits the shelf and atomically claims every applicable head after semantic preflight. Unknown, old or closed heads refuse the whole start; explicit local fresh play remains available. Current exports pin complete initial actors, source claims, life inputs and results. Loaded runs never fetch newer heads. Current local ownership receipts survive reload. File provenance persists independently of recording permission. Mixed histories require group permission for every carried branch, a current epoch and unchanged generation. Recording closes before bootstrap waits.
 
