@@ -621,7 +621,10 @@ function peoplePanel(): void {
           await shelf.request({ action: 'put', envelope: fork, fork: true });
           pendingFork = undefined;
           await newMonth(false, fork);
-        } else await checkpoint(true);
+        } else {
+          await checkpoint(true);
+          update();
+        }
       } catch (e) {
         continuityStatus = errorText(e);
         update();
