@@ -339,7 +339,7 @@ test('the real SDK gated player getter does not invalidate our own gate changes'
   expect(requests[1]?.allowRecording).toBe(true);
 });
 
-test('identity preference events invalidate replies even while the SDK player getter stays null', async () => {
+test('recording preferences do not cancel an in-flight history association', async () => {
   const events = new EventTarget();
   vi.stubGlobal('addEventListener', events.addEventListener.bind(events));
   try {
@@ -374,13 +374,13 @@ test('identity preference events invalidate replies even while the SDK player ge
     events.dispatchEvent(new Event('hf-lab-preference'));
     resolve({ sameEpoch: true, branchId: source.branchId, revision: source.revision });
     await pending;
-    expect(allowed).toBe(false);
+    expect(allowed).toBe(true);
   } finally {
     vi.unstubAllGlobals();
   }
 });
 
-test('a preference change before bootstrap finishes still leaves an imported run gated', async () => {
+test('a recording preference change preserves imported file provenance while bootstrap waits', async () => {
   const events = new EventTarget();
   vi.stubGlobal('addEventListener', events.addEventListener.bind(events));
   try {
@@ -418,7 +418,6 @@ test('a preference change before bootstrap finishes still leaves an imported run
     ready(true);
     await pending;
     expect(key).not.toBeNull();
-    expect(allowed).toBe(false);
     expect(book.fileUnlinked).toBe(true);
   } finally {
     vi.unstubAllGlobals();

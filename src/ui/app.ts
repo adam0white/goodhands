@@ -1890,11 +1890,16 @@ window.addEventListener('pagehide', () => {
     putNow('run', run);
   }
 });
-for (const name of ['hf-lab-preference', 'storage'])
-  window.addEventListener(name, () => {
+window.addEventListener('hf-persona-preference', () => {
+  generation++;
+  continuitySession.invalidate();
+});
+window.addEventListener('storage', (event) => {
+  if (event.key === null || event.key === 'hf-persona-opt-in') {
     generation++;
     continuitySession.invalidate();
-  });
+  }
+});
 window.addEventListener('resize', redraw);
 window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', redraw);
 title();

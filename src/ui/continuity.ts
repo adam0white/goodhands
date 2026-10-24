@@ -88,15 +88,6 @@ export class ContinuitySession {
     this.shelf = shelf;
     this.lab = lab;
     this.build = build;
-    const events = globalThis as unknown as EventTarget;
-    if (typeof events.addEventListener === 'function') {
-      const invalidate = () => {
-        this.recordingGeneration++;
-        this.lab.allowPersonaRecording(false);
-      };
-      events.addEventListener('hf-lab-preference', invalidate);
-      events.addEventListener('storage', invalidate);
-    }
   }
   invalidate() {
     this.recordingGeneration++;
