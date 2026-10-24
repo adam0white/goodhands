@@ -72,3 +72,51 @@ test('closed branches cannot be prepared as a living person', async () => {
   const closed = await closePersonaBranch(parent, parent.source, 510);
   expect(() => preparePersonaLife(closed, 3600000)).toThrow(/closed/);
 });
+
+test('seven carried heads can save and reload without an obsolete recording scope or consent query', async () => {
+  const book = emptyContinuity();
+  book.chapter = await prepareAgencyChapter([], 1);
+  book.heads = await Promise.all(
+    ALLOCATION.map((p) =>
+      createPersona({
+        format: 'hf-persona/1',
+        castId: p.castId,
+        castRevision: p.revision,
+        branchId: crypto.randomUUID(),
+        parentRevision: null,
+        source: { game: 'goodhands', build: 'test', engine: '2.17.0', rules: 'goodhands-6' },
+        transfer: { recordingEpochProvenance: 'old-immutable-epoch' },
+        limitations: [],
+      }),
+    ),
+  );
+  const before = structuredClone(book.heads);
+  const keys: (string | null)[] = [];
+  const session = new ContinuitySession(
+    {
+      enabled: true,
+      ready: Promise.resolve(true),
+      setEnabled() {},
+      async request<T>(): Promise<T> {
+        throw Error('No recording query.');
+      },
+    },
+    {
+      setPersonaRecording(key) {
+        keys.push(key);
+        if (key !== null) throw Error('Per-person recording scope is obsolete.');
+      },
+      allowPersonaRecording() {
+        throw Error('No separate recording permission.');
+      },
+    },
+  );
+  await session.recording(book);
+  session.invalidate();
+  await session.recording(book, true);
+  await session.recording(book);
+  expect(book.fileOrigin).toBe(true);
+  expect(book.fileUnlinked).toBe(true);
+  expect(book.heads).toEqual(before);
+  expect(keys).toEqual([null, null, null, null]);
+});

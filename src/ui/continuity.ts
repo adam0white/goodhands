@@ -22,6 +22,9 @@ export type OneCastRow = {
   parentRevision: string | null;
   stage: string;
   outcome: string;
+  /** Agency clock at publication; an idle person's HF clock can be earlier. */
+  sourceMinute?: number;
+  sourceInputCount?: number;
 };
 export type Arrival = {
   source: PersonaEnvelope;
@@ -82,17 +85,14 @@ export class ContinuitySession {
   readonly shelf: Shelf;
   private readonly lab: RecordingLab;
   private readonly build: string | (() => string);
-  private recordingGeneration = 0;
   constructor(shelf: Shelf, lab: RecordingLab, build: string | (() => string) = 'unknown') {
     this.shelf = shelf;
     this.lab = lab;
     this.build = build;
   }
   invalidate() {
-    this.recordingGeneration++;
-    this.recordingKey = 'goodhands:pending';
+    this.recordingKey = null;
     this.lab.setPersonaRecording(this.recordingKey);
-    this.lab.allowPersonaRecording(false);
   }
   /** Bind metadata without consulting recording identity or historical consent. */
   async recording(book: ContinuityBook, fromFile = false): Promise<void> {
@@ -100,11 +100,8 @@ export class ContinuitySession {
       book.fileOrigin = true;
       book.fileUnlinked = true;
     }
-    this.recordingKey =
-      book.heads
-        .map((p) => p.branchId)
-        .sort()
-        .join(':') || null;
+    // F-491 removed per-person recording scopes. Even seven UUID branch ids exceed the old key limit.
+    this.recordingKey = null;
     this.lab.setPersonaRecording(this.recordingKey);
   }
   async allow(_book: ContinuityBook, _allow: boolean): Promise<void> {

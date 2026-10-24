@@ -6,10 +6,10 @@ import {
 } from '@adam0white/lab-client';
 import { expect, test } from 'vitest';
 import { CAST } from '../src/sim/cast.ts';
-import { agencyTransfer } from '../src/sim/cast-chapter.ts';
-import { apply, newGame } from '../src/sim/index.ts';
+import { agencyTransfer, prepareAgencyChapter } from '../src/sim/cast-chapter.ts';
+import { advance, apply, newGame } from '../src/sim/index.ts';
 import { publishNativeCheckpoint } from '../src/ui/checkpoint.ts';
-import { emptyContinuity } from '../src/ui/continuity.ts';
+import { continuityRow, emptyContinuity } from '../src/ui/continuity.ts';
 
 test('first native checkpoint publishes with recording OFF, no parent and no recording query', async () => {
   const state = newGame(7);
@@ -67,4 +67,40 @@ test('first native checkpoint publishes with recording OFF, no parent and no rec
   await expect(publishNativeCheckpoint(shelf, book, next, envelope, false, () => true)).rejects.toThrow(
     /explicit new branch/,
   );
+});
+
+test('native ownership replay pins the agency boundary while retaining an idle person clock', async () => {
+  const chapter = await prepareAgencyChapter([], 7);
+  const state = newGame(7, 6, chapter.guests, chapter);
+  advance(state, 15);
+  apply(state, { type: 'pause-cast' });
+  expect(state.people.hulya!.now).toBeLessThan(state.now);
+  const envelope = await createPersona({
+    format: 'hf-persona/1',
+    castId: CAST.hulya.castId,
+    castRevision: CAST.hulya.revision,
+    branchId: 'idle-native',
+    parentRevision: null,
+    source: { game: 'goodhands', build: 'test', engine: '2.17.0', rules: 'goodhands-6' },
+    transfer: {
+      ...(await agencyTransfer(state, 'hulya')),
+      life: initialPersonaLife(CAST.hulya.castId, 'idle-native', 0),
+    },
+    limitations: [],
+  });
+  const book = emptyContinuity();
+  book.chapter = chapter;
+  book.heads = [envelope];
+  book.rows = [
+    Object.assign(continuityRow(envelope, 'checkpoint', 'shared', 'fresh'), {
+      sourceMinute: state.now,
+      sourceInputCount: state.inputs.length,
+    }),
+  ];
+  const { validateContinuity } = await import('../src/ui/export.ts');
+  await validateContinuity(book, state, state.inputs);
+  apply(state, { type: 'resume-cast' });
+  await validateContinuity(book, state, state.inputs);
+  book.rows[0]!.sourceMinute = state.people.hulya!.now;
+  await expect(validateContinuity(book, state, state.inputs)).rejects.toThrow(/prefix|boundary/);
 });

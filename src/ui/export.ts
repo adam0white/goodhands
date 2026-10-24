@@ -442,15 +442,15 @@ export async function validateContinuity(
       const cp = head.transfer.checkpoint as { sourceNow?: number; checkpointDigest?: string } | undefined;
       if (!cp || typeof cp.sourceNow !== 'number' || cp.sourceNow > savedState.now)
         throw new Error('Owned receipt has no source boundary.');
-      const at = cp.sourceNow;
-      const source = replay(
-        savedState.seed,
-        inputs.filter((i) => i.at <= at),
-        at,
-        6,
-        book.chapter.guests,
-        book.chapter,
-      );
+      const at = row.sourceMinute ?? cp.sourceNow;
+      if (!Number.isFinite(at) || at < cp.sourceNow || at > savedState.now)
+        throw new Error('Owned receipt has an invalid agency boundary.');
+      const count = row.sourceInputCount;
+      if (count !== undefined && (!Number.isInteger(count) || count < 0 || count > inputs.length))
+        throw new Error('Owned receipt has an invalid input prefix.');
+      const prefix = count === undefined ? inputs.filter((i) => i.at <= at) : inputs.slice(0, count);
+      if (prefix.some((i) => i.at > at)) throw new Error('Owned receipt input prefix exceeds its boundary.');
+      const source = replay(savedState.seed, prefix, at, 6, book.chapter.guests, book.chapter);
       const { agencyTransfer } = await import('../sim/cast-chapter.ts');
       const expected = await agencyTransfer(source, (await import('../sim/cast.ts')).castKey(head.castId));
       if (

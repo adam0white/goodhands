@@ -412,6 +412,7 @@ async function begin(
 function checkpoint(fork = false): Promise<void> {
   const activeGeneration = generation;
   const pinned = state ? structuredClone(state) : null;
+  const sourceInputCount = inputs.length;
   checkpointQueue = checkpointQueue
     .catch(() => {})
     .then(async () => {
@@ -503,14 +504,16 @@ function checkpoint(fork = false): Promise<void> {
           const idx = continuity.heads.findIndex((p) => p.castId === cast.castId);
           if (idx < 0) continuity.heads.push(envelope);
           else continuity.heads[idx] = envelope;
-          continuity.rows.push(
-            continuityRow(
+          continuity.rows.push({
+            ...continuityRow(
               envelope,
               'checkpoint',
               continuity.fileOrigin ? 'file' : 'shared',
               parent ? 'continuing' : 'fresh',
             ),
-          );
+            sourceMinute: pinned.now,
+            sourceInputCount,
+          });
           dispositions.push(
             `${cast.name}: accepted ${envelope.terminal ? 'terminal closure' : 'paused chapter checkpoint'}.`,
           );
