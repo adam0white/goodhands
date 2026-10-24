@@ -25,6 +25,8 @@ import '@adam0white/lab-kit/stage.css';
 import {
   defineTerms,
   downloadJson,
+  feedbackPersonaControl,
+  feedbackSharePlay,
   glossaryPanel,
   personaControls,
   telemetryNotice,
@@ -84,7 +86,11 @@ recordingNotice?.querySelector('button')?.addEventListener('click', () => {
   recordingNoticeDone = true;
 });
 if (recordingNotice)
-  Object.assign(recordingNotice.style, { position: 'static', transform: 'none', margin: '0 auto' });
+  Object.assign(recordingNotice.style, {
+    position: 'static',
+    transform: 'none',
+    margin: '0 auto',
+  });
 let state: State | null = null;
 let inputs: LoggedInput[] = [];
 let saved: ReturnType<typeof verifyImport> | null = null;
@@ -98,12 +104,21 @@ let shown = '';
 let lastHour = -1;
 let sheet: HTMLElement | null = null;
 
-const sheetOrigins: { node: HTMLElement; kind: string; inspection: (() => void) | null }[] = [];
+const sheetOrigins: {
+  node: HTMLElement;
+  kind: string;
+  inspection: (() => void) | null;
+}[] = [];
 let modal = '';
 let updateInspection: (() => void) | null = null;
 let screen = '';
 let notice = '';
-let waitAnimation: { before: View; start: number; end: number; label: string } | null = null;
+let waitAnimation: {
+  before: View;
+  start: number;
+  end: number;
+  label: string;
+} | null = null;
 let transcriptKey = '';
 let saveReady = false;
 let moreChoices = false;
@@ -314,7 +329,12 @@ async function newMonth(fresh = false, file?: unknown): Promise<void> {
       const batch = await claimCastChapterBatch(
         shelf,
         ALLOCATION.map((p) => p.castId),
-        { game: 'goodhands', build: lab.build().c || 'development', engine: '2.17.0', rules: 'goodhands-6' },
+        {
+          game: 'goodhands',
+          build: lab.build().c || 'development',
+          engine: '2.17.0',
+          rules: 'goodhands-6',
+        },
         async (inputs) => {
           const prepared = await prepareAgencyChapter(inputs, seed);
           sim.newGame(seed, 6, prepared.guests, prepared);
@@ -582,7 +602,11 @@ function peoplePanel(): void {
           const original = await validatePersona(pendingFork);
           await prepareGuest(original);
           const { revision: _revision, ...body } = original;
-          const fork = await createPersona({ ...body, branchId: crypto.randomUUID(), parentRevision: null });
+          const fork = await createPersona({
+            ...body,
+            branchId: crypto.randomUUID(),
+            parentRevision: null,
+          });
           await shelf.request({ action: 'put', envelope: fork, fork: true });
           pendingFork = undefined;
           await newMonth(false, fork);
@@ -932,7 +956,13 @@ function updateCity(v: View): void {
   }
   drawCity(canvas, v, cityPerson ?? undefined);
   // Groups share a target and a labelled list, so dense meetings never stack hit areas.
-  const groups: { x: number; y: number; right: number; bottom: number; ids: string[] }[] = [];
+  const groups: {
+    x: number;
+    y: number;
+    right: number;
+    bottom: number;
+    ids: string[];
+  }[] = [];
   for (const p of positions) {
     const x = Math.min(Math.max((p.x / MAP_WIDTH) * canvas.clientWidth - 22, 0), canvas.clientWidth - 44);
     const y = Math.min(Math.max((p.y / MAP_HEIGHT) * canvas.clientHeight - 22, 0), canvas.clientHeight - 44);
@@ -1056,7 +1086,11 @@ function closeSheet(restore = true): void {
 }
 function openSheet(title: string, content: string, kind = 'inspect'): HTMLElement {
   if (sheet) {
-    sheetOrigins.push({ node: sheet, kind: modal, inspection: updateInspection });
+    sheetOrigins.push({
+      node: sheet,
+      kind: modal,
+      inspection: updateInspection,
+    });
     sheet.remove();
   }
   const d = document.createElement('section');
@@ -1469,7 +1503,11 @@ function handleClick(event: Event): void {
   }
   if (b.dataset.referee && selected) {
     closeSheet(false);
-    send({ type: 'call-reference', candidate: selected, referee: b.dataset.referee });
+    send({
+      type: 'call-reference',
+      candidate: selected,
+      referee: b.dataset.referee,
+    });
     return;
   }
   if (b.dataset.check && b.dataset.placementId) {
@@ -1672,8 +1710,8 @@ function feedback(): void {
     .map(([id, label]) => `<button type="button" data-verdict="${id}" aria-pressed="false">${label}</button>`)
     .join(
       '',
-    )}</div><details><summary>Optional recording and people between games</summary><p>Your note can be sent while recording is off.</p><div data-feedback-toggle></div><div data-feedback-persona></div></details><label class="feedback-note"><span class="sr-only">Your note</span><textarea rows="4" placeholder="What happened at the desk, what you wanted, what got in the way"></textarea></label><details class="feedback-name"><summary>+ Add a name</summary><label>Your name or tester id (optional)<input data-feedback-name maxlength="60" value="${h(name)}" autocomplete="name"></label><p>It labels your earlier and later runs on this device.</p></details><details><summary>What is sent</summary><p>Your note and optional name label your pseudonymous player id. ${state ? 'While recording is on, your run can include its seed, choices, clock, saved month and log. Recording off sends only your note and optional name.' : ''}</p><a href="https://human.adamwhite.work/lab/privacy/">Lab privacy</a></details>${state ? '<button type="button" data-action="download">Keep a copy of this run ⤓</button>' : ''}`;
-  body.querySelector('[data-feedback-toggle]')?.append(telemetryToggle(lab));
+    )}</div><div data-feedback-persona></div><label class="feedback-note"><span class="sr-only">Your note</span><textarea rows="4" placeholder="What happened at the desk, what you wanted, what got in the way"></textarea></label><details class="feedback-name"><summary>+ Add a name</summary><label>Your name or tester id (optional)<input data-feedback-name maxlength="60" value="${h(name)}" autocomplete="name"></label><p>It labels your earlier and later runs on this device.</p></details><details><summary>What is sent</summary><p>Your note and optional name label your pseudonymous player id. ${state ? 'While recording is on, your run can include its seed, choices, clock, saved month and log. Recording off sends only your note and optional name.' : ''}</p><a href="https://human.adamwhite.work/lab/privacy/">Lab privacy</a></details>${state ? '<button type="button" data-action="download">Keep a copy of this run ⤓</button>' : ''}`;
+
   let verdict = '';
   for (const chip of body.querySelectorAll<HTMLButtonElement>('[data-verdict]'))
     chip.onclick = () => {
@@ -1687,40 +1725,10 @@ function feedback(): void {
   status.setAttribute('role', 'status');
   let sent = false;
   let busy = false;
-  if (lab.personaRecordingRequired)
-    body.querySelector('[data-feedback-persona]')?.append(
-      personaControls({
-        enabled: shelf.enabled,
-        setEnabled(value) {
-          generation++;
-          continuitySession.invalidate();
-          shelf.setEnabled(value);
-        },
-        recordingAllowed: !continuity.heads.length || lab.personaRecordingAllowed,
-        allowRecording(value) {
-          if (!lab.telemetryOn) {
-            if (!value) {
-              continuity.fileUnlinked = true;
-              continuitySession.invalidate();
-              lab.allowPersonaRecording(false);
-              save();
-            }
-            status.textContent = value
-              ? 'Recording is off. Your note still sends without history linkage.'
-              : 'This history stays local. Your note can still be sent.';
-            return;
-          }
-          void continuitySession
-            .allow(continuity, value)
-            .then(save)
-            .catch((error) => {
-              status.textContent = errorText(error);
-            });
-        },
-      }),
-    );
+  const share = feedbackPersonaControl(lab);
+  if (share) body.querySelector('[data-feedback-persona]')?.append(share);
   const sendButton = button(
-    'Send',
+    'Submit',
     () => {
       if (sent) {
         closeSheet();
@@ -1747,15 +1755,20 @@ function feedback(): void {
           } catch {
             // An unavailable optional run does not block the note.
           }
-          const noteOnly = !lab.telemetryOn || (lab.privacySignalOn && !lab.privacyOverride);
-          await lab.sendFeedback(note, { name: who || undefined, run });
+          const sharePlay = feedbackSharePlay(share);
+          const noteOnly = !lab.telemetryOn && !sharePlay;
+          await lab.sendFeedback(note, {
+            name: who || undefined,
+            run,
+            sharePlay,
+          });
           try {
             localStorage.setItem('hf-lab-feedback-name', who);
           } catch {}
           sent = true;
           status.textContent = noteOnly
             ? 'Note and verdict queued without a run or history linkage.'
-            : 'Note queued; run included when available. Persona history linked only if approved.';
+            : 'Note queued with available run and linked play.';
           sendButton.textContent = 'Back to the game';
           sendButton.disabled = false;
         } catch (error) {
