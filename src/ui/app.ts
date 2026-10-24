@@ -14,6 +14,7 @@ import {
 import { ALLOCATION, CAST, CAST_KEYS, castKey } from '../sim/cast.ts';
 import { type AgencyChapter, agencyTransfer, prepareAgencyChapter } from '../sim/cast-chapter.ts';
 import { type GuestAction, type GuestId, prepareGuest } from '../sim/guests.ts';
+import { publishNativeCheckpoint } from './checkpoint.ts';
 import {
   type ContinuityBook,
   ContinuitySession,
@@ -429,10 +430,14 @@ function checkpoint(fork = false): Promise<void> {
           'Pause the agency chapter before saving eligible people. Active placements must be released through play.';
         return;
       }
+      const dispositions: string[] = [];
       for (const id of CAST_KEYS) {
         const cast = CAST[id],
           person = pinned.people[id];
-        if (!person) continue;
+        if (!person) {
+          dispositions.push(`${cast.name}: no person in this chapter.`);
+          continue;
+        }
         const parent = continuity.heads.find((p) => p.castId === cast.castId);
         try {
           const stamps = {
@@ -443,7 +448,10 @@ function checkpoint(fork = false): Promise<void> {
           };
           let envelope: PersonaEnvelope;
           if (!person.body.alive) {
-            if (!parent) continue;
+            if (!parent) {
+              dispositions.push(`${cast.name}: dead, with no owned branch to close.`);
+              continue;
+            }
             envelope = await closePersonaBranch(parent, stamps, person.now);
           } else {
             const transfer: Record<string, unknown> = await agencyTransfer(pinned, id);
@@ -483,18 +491,14 @@ function checkpoint(fork = false): Promise<void> {
             });
           }
           if (activeGeneration !== generation) return;
-          const query = await shelf.request<{ recordingEpoch?: string }>({
-            action: 'recordingBatch',
-            envelopes: parent ? [parent] : [],
-          });
-          if (activeGeneration !== generation) return;
-          await shelf.request({
-            action: 'put',
+          await publishNativeCheckpoint(
+            shelf,
+            continuity,
             envelope,
+            parent,
             fork,
-            authored: !parent && !fork && !continuity.fileOrigin && !continuity.chapter?.inputs.length,
-            recordingEpoch: query.recordingEpoch,
-          });
+            () => activeGeneration === generation,
+          );
           if (activeGeneration !== generation) return;
           const idx = continuity.heads.findIndex((p) => p.castId === cast.castId);
           if (idx < 0) continuity.heads.push(envelope);
@@ -507,11 +511,15 @@ function checkpoint(fork = false): Promise<void> {
               parent ? 'continuing' : 'fresh',
             ),
           );
-          continuityStatus = `${cast.name}: accepted ${envelope.terminal ? 'terminal closure' : 'paused chapter checkpoint'}.`;
+          dispositions.push(
+            `${cast.name}: accepted ${envelope.terminal ? 'terminal closure' : 'paused chapter checkpoint'}.`,
+          );
           await continuitySession.recording(continuity);
           save();
         } catch (e) {
-          continuityStatus = `${cast.name}: ${errorText(e)}`;
+          dispositions.push(`${cast.name}: refused — ${errorText(e)}`);
+        } finally {
+          if (activeGeneration === generation) continuityStatus = dispositions.join('\n');
         }
       }
     });
