@@ -1,4 +1,4 @@
-/** Compatibility wording for frozen editions and semantic state labels. Current prose is written at source. */
+/** Display wording for agency accounts and frozen-edition semantic state labels. */
 const replacements: readonly (readonly [string, string])[] = [
   ['Next Friday, then.', 'I will expect the rent next Friday, then.'],
   [
@@ -207,8 +207,33 @@ const replacements: readonly (readonly [string, string])[] = [
   ['Your books hold the people you have met.', 'Your agency records list the people you have met.'],
 ];
 
-export function plainText(value: string): string {
+/** Only a household speaker owns these words; observations keep report voice. */
+export function familySpeech(value: string): string {
+  const replacements: readonly (readonly [string, string])[] = [
+    ['let the household member finish explaining.', 'let us finish explaining.'],
+    ['asked the person receiving help what help was wanted.', 'asked us what help we wanted.'],
+    [
+      'spoke about the person without asking that person.',
+      'talked about us without asking us what we wanted.',
+    ],
+    ['a private household matter.', 'a private matter about our family.'],
+    [
+      'interrupted and argued before the explanation finished.',
+      'interrupted and argued before we could finish explaining.',
+    ],
+    ['The household had to change the routine.', 'We had to change our routine.'],
+    ['The household could follow the agreed routine.', 'We could follow the agreed routine.'],
+  ];
   let text = value;
+  for (const [before, after] of replacements) text = text.split(before).join(after);
+  return text;
+}
+
+export function plainText(value: string): string {
+  let text = value
+    .replace(/^At the office: /u, '')
+    .replace(/“([^”]+)”/gu, (_match, words: string) => `“${familySpeech(words)}”`)
+    .replace(/^(Selin|Zeynep): (?=\1(?:,| ))/u, '');
   for (const [before, after] of replacements) text = text.split(before).join(after);
   // Project after the copy table, including any addresses its replacements introduce.
   text = text
@@ -257,5 +282,13 @@ export function plainText(value: string): string {
       /(^|[“]\s*)A (nanny|carer|driver|cook|housekeeper) for the agreed hours\./gu,
       '$1We need a $2 for the agreed hours.',
     )
-    .replace(/^(.+?) placed with (.+?)\. /u, '$1 was placed with $2. ');
+    .replace(/^(.+?) placed with (.+?)\. /u, '$1 was placed with $2. ')
+    .replace(
+      /(We need a (?:nanny|carer|driver|cook|housekeeper)) for the agreed hours/gu,
+      '$1 for the hours we discuss',
+    )
+    .replace(
+      /₺(\d[\d,]*)/gu,
+      (_match, digits: string) => `₺${Number(digits.replaceAll(',', '')).toLocaleString('en-GB')}`,
+    );
 }

@@ -57,7 +57,7 @@ import {
 import { lab } from './lab.ts';
 import { cityFigurePositions, drawCity, MAP_HEIGHT, MAP_WIDTH } from './map.ts';
 import { drawOffice, officeSeats } from './office.ts';
-import { plainText } from './plain-english.ts';
+import { familySpeech, plainText } from './plain-english.ts';
 import {
   addedEvidence,
   automaticPace,
@@ -915,7 +915,7 @@ function placedHtml(v: View): string {
     v.placements
       .map((p) => {
         const active = ['trial', 'kept'].includes(p.status);
-        const content = `<strong>${h(person(v, p.candidate))} · ${h(person(v, p.family))}</strong><span>${placementLabel(p)}</span>${p.arrangement ? `<span class="placement-arrangement">${h(p.arrangement)}</span>` : ''}${p.pending ? `<span class="placement-pending">${h(p.pending.dateLabel)}: ${h(p.pending.text)}</span>` : ''}<span>${h(p.lastWord ?? 'The family has not reported back yet.')}</span>`;
+        const content = `<strong>${h(person(v, p.candidate))} · ${h(person(v, p.family))}</strong><span>${placementLabel(p)}</span>${p.arrangement ? `<span class="placement-arrangement">${h(p.arrangement)}</span>` : ''}${p.pending ? `<span class="placement-pending">${h(p.pending.dateLabel)}: ${h(p.pending.text)}</span>` : ''}<span>${h(p.lastWord ? `${person(v, p.family).replace(/^the /, 'The ')} says: “${familySpeech(p.lastWord)}”` : 'The family has not reported back yet.')}</span>`;
         return active
           ? `<button type="button" class="placement-card card-target" data-placement="${h(p.id)}" aria-label="${h(person(v, p.candidate))} at ${h(person(v, p.family))}">${content}</button>`
           : `<article class="placement-card">${content}</article>`;
@@ -942,8 +942,15 @@ function sceneHtml(v: View): string {
         : s.lines.slice(-1);
   const visibleChoices = s.kind === 'negotiation' || s.kind === 'two-sides' ? 1 : 2;
   const line = (l: (typeof s.lines)[number]) => {
-    const narration = !!l.speaker && l.text.startsWith(`${l.speaker} sat across from your desk.`);
-    return `<p data-scene-line ${l.side ? `data-scene-side="${l.side}"` : ''} class="${l.kind === 'speech' && !narration ? 'speech' : l.kind === 'notice' || narration ? 'notice-line' : ''} ${l.side ? `side-${l.side}` : ''}">${l.speaker && !narration ? `<strong>${h(l.speaker)}:</strong> ` : ''}${h(l.text)}</p>`;
+    const narration =
+      !!l.speaker &&
+      (l.text.startsWith(`${l.speaker} sat across from your desk.`) ||
+        l.text.startsWith(`${l.speaker},`) ||
+        l.text.startsWith(`${l.speaker} phones `));
+    const householdSpeaker =
+      l.side === 'family' ||
+      v.families.some((f) => f.name === l.speaker || f.household.some((member) => member.name === l.speaker));
+    return `<p data-scene-line ${l.side ? `data-scene-side="${l.side}"` : ''} class="${l.kind === 'speech' && !narration ? 'speech' : l.kind === 'notice' || narration ? 'notice-line' : ''} ${l.side ? `side-${l.side}` : ''}">${l.speaker && !narration ? `<strong>${h(l.speaker)}:</strong> ` : ''}${h(householdSpeaker ? familySpeech(l.text) : l.text)}</p>`;
   };
   return `<section class="scene-sheet ${moreChoices ? 'all-questions' : ''} ${s.kind === 'interview' ? 'interview-sheet' : ''}" data-testid="scene" data-scene-id="${h(s.id)}" aria-label="${h(s.title)}"><header class="sheet-heading lk-sheet-head"><h2>${moreChoices ? `All ${s.kind === 'interview' ? 'questions' : 'choices'} · ${choices.length}` : h(s.title)}</h2>${moreChoices ? '<button type="button" data-action="fewer-choices">Fewer</button>' : ''}</header><div class="lk-sheet-body scene-reading"><div class="exchange" role="region" aria-label="Latest words">${(moreChoices ? latest.slice(-1) : s.lines).map(line).join('')}</div>${s.kind === 'negotiation' && s.negotiation ? `<p class="terms-summary">${h(termsLine(s.negotiation.terms))}</p>` : ''}${
     s.added?.length ? `<p class="added" role="status">${h(addedEvidence(s.added))}</p>` : ''
@@ -1389,7 +1396,7 @@ function placementSheet(id: string): void {
   if (!p) return;
   const d = openSheet(
     `${person(v, p.candidate)} at ${person(v, p.family)}`,
-    `<p>${h(p.lastWord ?? 'The family has not reported back yet.')}</p>${p.terms ? `<p>${h(termsLine(p.terms))}</p>` : ''}${(state?.version ?? 0) >= 3 ? `<button type="button" data-phone-family="${h(p.family)}">Speak to someone in the house</button>` : ''}${p.arrangement ? `<p>${h(p.arrangement)}</p>` : ''}${p.pending ? `<p>${h(p.pending.dateLabel)}: ${h(p.pending.text)}</p>` : ''}<p data-check-reason class="reason"></p><button type="button" data-check="phone" data-placement-id="${h(id)}">Check in by phone<small>This takes about 15 minutes.</small></button><button type="button" data-check="visit" data-placement-id="${h(id)}">Visit the house<small>The visit takes an hour, plus the journey.</small></button><button type="button" data-check="drop-by" data-placement-id="${h(id)}">Ask the worker to drop by<small>After work</small></button><details><summary>Bring the worker back</summary><p>The worker will leave this house and return to your agency records. The family loses its worker.</p><button type="button" data-withdraw="${h(id)}">Withdraw this worker</button></details>`,
+    `<p>${h(p.lastWord ? `${person(v, p.family).replace(/^the /, 'The ')} says: “${familySpeech(p.lastWord)}”` : 'The family has not reported back yet.')}</p>${p.terms ? `<p>${h(termsLine(p.terms))}</p>` : ''}${(state?.version ?? 0) >= 3 ? `<button type="button" data-phone-family="${h(p.family)}">Speak to someone in the house</button>` : ''}${p.arrangement ? `<p>${h(p.arrangement)}</p>` : ''}${p.pending ? `<p>${h(p.pending.dateLabel)}: ${h(p.pending.text)}</p>` : ''}<p data-check-reason class="reason"></p><button type="button" data-check="phone" data-placement-id="${h(id)}">Check in by phone<small>This takes about 15 minutes.</small></button><button type="button" data-check="visit" data-placement-id="${h(id)}">Visit the house<small>The visit takes an hour, plus the journey.</small></button><button type="button" data-check="drop-by" data-placement-id="${h(id)}">Ask the worker to drop by<small>After work</small></button><details><summary>Bring the worker back</summary><p>The worker will leave this house and return to your agency records. The family loses its worker.</p><button type="button" data-withdraw="${h(id)}">Withdraw this worker</button></details>`,
   );
   updateInspection = () => {
     const live = current();

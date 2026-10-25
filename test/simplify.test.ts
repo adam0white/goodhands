@@ -1,13 +1,15 @@
 import { readFileSync } from 'node:fs';
 import { expect, it } from 'vitest';
 import { workerNeed } from '../src/sim/dialogue.ts';
+import { advance, apply, fingerprint, newGame, view } from '../src/sim/index.ts';
+import type { LogEntry } from '../src/sim/types.ts';
 import { CANDIDATES } from '../src/sim/world.ts';
-import { plainText } from '../src/ui/plain-english.ts';
+import { familySpeech, plainText } from '../src/ui/plain-english.ts';
 
 it('keeps frozen-edition dialogue readable', () => {
-  expect(plainText('₺18000 a month.')).toBe('I need ₺18000 a month.');
+  expect(plainText('₺18000 a month.')).toBe('I need ₺18,000 a month.');
   expect(plainText('Nanny applicant 01: “₺8000 a month.”')).toBe(
-    'Nanny applicant 01: “I need ₺8000 a month.”',
+    'Nanny applicant 01: “I need ₺8,000 a month.”',
   );
   expect(plainText('Still unsure: straight about money')).toBe(
     'Nermin is still unsure whether this person is honest about money.',
@@ -75,4 +77,32 @@ it('translates generated addresses without changing people or places', () => {
   );
   expect(plainText('Nermin abla is here.')).toBe('Ms Nermin is here.');
   expect(plainText('Rıza Efendi asked Selin Hanım.')).toBe('Mr Rıza asked Ms Selin.');
+});
+
+it('projects family accounts as speech while preserving agreed placement terms', () => {
+  expect(
+    familySpeech(
+      'Nurgül let the household member finish explaining. The household could follow the agreed routine.',
+    ),
+  ).toBe('Nurgül let us finish explaining. We could follow the agreed routine.');
+  expect(plainText('We need a carer for the agreed hours. We can pay ₺10000.')).toBe(
+    'We need a carer for the hours we discuss. We can pay ₺10,000.',
+  );
+  expect(plainText('Please keep the agreed hours clear.')).toBe('Please keep the agreed hours clear.');
+  expect(plainText('At the office: Hatice says: “Please keep my phone number.”')).toBe(
+    'Hatice says: “Please keep my phone number.”',
+  );
+  expect(plainText('Selin: Selin phones after office work.')).toBe('Selin phones after office work.');
+});
+
+it('names the quiet-office caller without rewriting replay state', () => {
+  const state = newGame(1);
+  for (const candidate of [...view(state).bench])
+    apply(state, { type: 'take-number', candidate: candidate.id });
+  while (state.now < 570) advance(state, 1);
+  const before = fingerprint(state);
+  const account = view(state).log.find((line) => line.kind === 'city');
+  expect(account?.text).toMatch(/^Mr Hüsnü says: “/);
+  expect((state.log as LogEntry[]).find((line) => line.kind === 'city')?.text).toMatch(/^At the office: /);
+  expect(fingerprint(state)).toBe(before);
 });

@@ -1815,7 +1815,7 @@ export function view(state: State): View {
       ? { text: s.scene.title, target: { kind: 'scene', id: s.scene.id } }
       : phone
         ? {
-            text: `${cap(phone.who)}: Someone is waiting on the phone.`,
+            text: `${cap(name(phone.who))} is calling.`,
             target: { kind: 'phone', id: 'phone' },
           }
         : departing
@@ -1880,7 +1880,14 @@ export function view(state: State): View {
         ...p
       }) => ({ ...p, status: reportedStatus }),
     ),
-    log: s.log,
+    log: s.log.map((line, index) => {
+      // The queue records its named caller immediately before the office account.
+      // Project that attribution without changing persisted narration or replay hashes.
+      const caller = s.log[index - 1]?.text.match(/^There is a call from (.+)\.$/u)?.[1];
+      return line.kind === 'city' && line.text.startsWith('At the office: ') && caller
+        ? { ...line, text: `${caller} says: “${line.text.slice('At the office: '.length)}”` }
+        : line;
+    }),
     city: {
       figures: [
         ...families.map((f) => {
