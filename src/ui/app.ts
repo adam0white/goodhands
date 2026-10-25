@@ -1793,7 +1793,6 @@ function feedback(): void {
             // An unavailable optional run does not block the note.
           }
           const sharePlay = feedbackSharePlay(share);
-          const noteOnly = !lab.telemetryOn && !sharePlay;
           await lab.sendFeedback(note, {
             name: who || undefined,
             run,
@@ -1803,9 +1802,7 @@ function feedback(): void {
             localStorage.setItem('hf-lab-feedback-name', who);
           } catch {}
           sent = true;
-          status.textContent = noteOnly
-            ? 'Your feedback is queued. Your run and play history were not shared.'
-            : 'Your feedback is queued with your available run and play history.';
+          status.textContent = 'Sent. Your note is stored.';
           sendButton.textContent = 'Back to the game';
           sendButton.disabled = false;
         } catch (error) {

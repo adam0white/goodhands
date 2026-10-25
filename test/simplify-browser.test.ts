@@ -84,6 +84,17 @@ async function fixture(context: BrowserContext, reject: () => boolean, carry = f
   });
   await context.route('**/*', async (route) => {
     const url = new URL(route.request().url());
+    if (
+      route.request().method() === 'POST' &&
+      url.origin === 'https://human.adamwhite.work' &&
+      url.pathname.startsWith('/lab/api/')
+    )
+      return route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        headers: { 'Access-Control-Allow-Origin': '*' },
+        body: JSON.stringify({ id: 'local-stored-receipt', ok: true }),
+      });
     if (route.request().method() === 'POST' && url.hostname.endsWith('adamwhite.work')) return route.abort();
     if (url.origin === origin && url.pathname === '/@vite/client')
       return route.fulfill({
@@ -254,9 +265,9 @@ for (const [name, engine] of [
           await readable(page, '.feedback-screen textarea, [data-feedback-name]');
           await readable(page, '.feedback-screen .lk-commit button');
           await page.getByRole('button', { name: 'Submit', exact: true }).click();
-          expect(await page.locator('.feedback-screen').innerText()).toContain(
-            'Your run and play history were not shared.',
-          );
+          await expect
+            .poll(() => page.locator('.feedback-screen').innerText())
+            .toContain('Sent. Your note is stored.');
           expect(
             await page.evaluate(
               () =>
