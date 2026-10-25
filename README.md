@@ -18,7 +18,7 @@ The first-visit notice covers recording and linking play across games on this de
 
 Current full and compact exports replay from their pinned inputs and starting state. Frozen editions 1–4 retain their original runtime and text. Edition 5 and incompatible older edition-6 exports may refuse with a start-new-game message. File-origin histories retain their provenance and require an explicit branch before native publication.
 
-Current finite receiving routes include actual Murmur Aylin from signed source `92cdebd` on engine 2.23.0. Voice guards still accept only their supported 2.17.0/2.21.0 dialects. A fresh agency Selin export is not a continued Voice return. Export fixtures, complete raw-state/RNG comparisons and replay checks do not establish a human journey or shared-shelf ownership receipt.
+Current finite receiving routes include actual Murmur Aylin from signed source `92cdebd` on engine 2.23.0. The generic Voice `cast-1`/`site-cast/1` Selin receiver also admits engine 2.23.0 at supported after-work boundaries. Its actual source checkpoint at minute 2525 (18:05) passes; the earlier 03:59 checkpoint still refuses. Full and compact receiving replays and two retained agency claim/reentry cycles pass source controls. The dedicated historical `voice-4` guard is unchanged. A fresh agency Selin export is not a continued Voice return. Export fixtures, complete raw-state/RNG comparisons and replay checks do not establish a human journey or shared-shelf ownership receipt.
 
 ## What Human Framework supplies
 
