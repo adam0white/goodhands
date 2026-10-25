@@ -1346,17 +1346,6 @@ progress.rent-meter.short {
   font-size: clamp(15px, 1.15vw + 6px, 19px);
   line-height: 1.4;
 }
-.recording-notice-slot {
-  min-height: 0;
-  flex: 1;
-  display: flex;
-  align-items: center;
-  font-size: clamp(14px, 1.15vw + 6px, 18px);
-}
-.recording-notice-slot > * {
-  font-size: clamp(14px, 1.15vw + 6px, 18px);
-  padding: 6px !important;
-}
 .title-page > .sheet.takeover {
   position: absolute;
   inset: 44px 0 0;
@@ -1548,15 +1537,6 @@ body {
 }
 .lab-notice-footer {
   flex: 0 0 auto;
-  max-height: 22dvh;
-  overflow: auto;
-}
-.lab-notice-footer > * {
-  position: static !important;
-  transform: none !important;
-  margin: 0 auto !important;
-  font-size: clamp(14px, 1vw + 6px, 18px) !important;
-  padding: 4px 12px !important;
 }
 .title-page,
 .game,
