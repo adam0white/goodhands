@@ -1,5 +1,28 @@
 # Good Hands handoff
 
+## Current handoff — 2026-10-25
+
+What remains: Adam’s readiness, cast and recording acceptance on 2026-11-03; root’s separate current Voice engine-2.23 receiving followup; and the unverified WebKit IndexedDB row probe. The bounded HF3 delivery is technically complete. Documentation delivery does not establish owner acceptance.
+
+Current source and deployed baseline: signed `509386298dfd89026c10bc6011d4f29e3323fb0c`, exact green CI `40241308344`. Live `release.json` reports app0.1.0, HF package3.0.0 and dirty:false. Source uses engine2.23.0, simulation edition6, immutable client0.4.10 and kit0.5.11; editions1–4 retain the exact HF2.9.0 alias. TypeScript support is7+, pinned7.0.2 here. See [README.md](README.md) for current controls and how to play.
+
+The final delivery report is `/Users/abdul/code/.lab-scratch/v3/goodhands/report.md`; its STATUS is TECHNICAL_COMPLETE / CLEANED. Normal deployment passed249tests42files and produced Cloudflare version257a0bdf-be70-48a0-9fcc-64030448148e. All3 live JS/CSS assets matched the clean build byte for byte.
+
+Actual signed Murmur92cdebd Aylin file admission through the deployed UI and UI Download full+compact replay passed with controlled transport. This is not a shared-shelf CAS receipt or human journey. Whole raw-state/RNG and complete replay controls remain separate evidence. Voice source guards still retain2.17/2.21; the root’s2.23 followup remains unshipped at this baseline. Fresh agency Selin has the fresh arm and no Voice calendar origin; it is not a continued Voice return.
+
+Existing signed-in Chrome checks covered title/menu controls at360×690,1280×800 and820×1180. They preserved the owner save and Recording setting without opening the office. Live WebKit checked four layouts with controlled shelf/POST fixtures. The extra IndexedDB row poll returned null and remains unverified; it is not a confirmed product persistence bug. Do not turn these bounded checks into a whole played journey.
+
+The owner’s recording policy quoted below remains in force. Ordinary continuity and pacing are automatic; diagnostic controls require exactly `?lab=1`. Loaded months keep their pinned people. File provenance remains an ownership restriction. Current exports must replay; frozen editions keep exact replay text. New Feedback labels are authorized shared work but are not exposed by this host’s current source. SDK11/12 publication elsewhere does not replace this host’s adopted10/11 artifacts.
+
+Lab-panel rounds on HF3 builds are allowed under the playtest director. Docsweb runs no rounds. Friends’ playtests and Show HN remain paused. This latest policy supersedes the historical no-new-rounds restriction below.
+
+Use Node≥24 and `/opt/homebrew/bin` first on PATH. Run `npm run check:lane` before every signed commit; it takes the normal shared full-suite lock. Do not add another lock or bypass it. Include the Codex trailer. Use one independent reviewer arranged by the director. Fetch/rebase, inspect new source facts and require exact green CI. Source-only docs need no app deploy. Application changes require a fresh clean managed deployment, exact live manifest and touched-surface browser checks. Preserve owner saves and preferences. Remove owned merged worktrees and branches after push.
+
+## Historical delivery notes — through 2026-10-25
+
+The sections below preserve owner policy, receipts and earlier delivery context. Their stack, controls, pending-check and playtest restrictions describe their respective increments. The current handoff above supersedes those current-state claims. Design/Deferred work remains with its assigned owner.
+
+
 ## Frictionless feedback (owner, 2026-10-23)
 
 Owner 2026-10-23: recorded play links across games on this device automatically. The first-visit notice covers recording and linking. One menu recording switch controls both. Browser DNT/GPC sets only the default off. Send word offers one unticked “Share this run and my play with the lab” checkbox when recording is off; Submit opts in if ticked and otherwise sends the note alone. No separate continuing-person recording consent or gate applies. Character analysis still needs its separate opt-in.
