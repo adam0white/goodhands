@@ -287,6 +287,14 @@ const replacements: readonly (readonly [string, string])[] = [
 export function plainText(value: string): string {
   let text = value;
   for (const [before, after] of replacements) text = text.split(before).join(after);
+  // Project after the copy table, including any addresses its replacements introduce.
+  text = text
+    .replace(/([\p{L}]+) Hanım(?=$|[^\p{L}])/gu, 'Ms $1')
+    .replace(/([\p{L}]+) (?:Bey|Efendi)(?=$|[^\p{L}])/gu, 'Mr $1')
+    .replace(/([\p{L}]+) abla(?=$|[^\p{L}])/gu, 'Ms $1')
+    .replace(/\bHanım(?=$|[^\p{L}])/gu, 'Ms')
+    .replace(/\bBey(?=$|[^\p{L}])/gu, 'Mr')
+    .replace(/\b[Aa]bla(?=$|[^\p{L}])/gu, (address) => (address === 'Abla' ? 'My friend' : 'my friend'));
   const note = text.match(
     /^(Doubt: |Still unsure: )?(patient when someone needs time|straight about money|comes when promised|puts people at ease|finishes the work|keeps a household’s business private)$/u,
   );

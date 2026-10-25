@@ -155,9 +155,6 @@ function attachRecording(): void {
 }
 const ALL_GAMES = 'https://human.adamwhite.work/games/';
 const TERMS = {
-  Hanım: 'a respectful title for a woman',
-  Bey: 'a respectful title for a man',
-  abla: 'older sister; also a warm form of address',
   Kültürpark: 'the city park in central Izmir',
   Alsancak: 'the neighbourhood around your office',
   Karşıyaka: 'the district across the bay',
@@ -168,7 +165,7 @@ defineTerms(TERMS);
 function button(label: string, fn: () => void, className = ''): HTMLButtonElement {
   const b = document.createElement('button');
   b.type = 'button';
-  b.textContent = label;
+  b.textContent = plainText(label);
   b.className = className;
   b.onclick = fn;
   return b;
@@ -1856,13 +1853,13 @@ function gloss(element: HTMLElement): void {
     const n = walker.currentNode as Text;
     if (
       !n.parentElement?.closest('button, a, option, .lk-term, script, style') &&
-      /\b(Hanım|Bey|abla|Kültürpark|Alsancak|Karşıyaka|lira)\b/u.test(n.data)
+      /\b(Kültürpark|Alsancak|Karşıyaka|lira)\b/u.test(n.data)
     )
       nodes.push(n);
   }
   for (const n of nodes) {
     const fragment = document.createDocumentFragment();
-    for (const part of n.data.split(/(Hanım|Bey|abla|Kültürpark|Alsancak|Karşıyaka|lira)/u))
+    for (const part of n.data.split(/(Kültürpark|Alsancak|Karşıyaka|lira)/u))
       fragment.append(Object.hasOwn(TERMS, part) ? term(part) : document.createTextNode(part));
     n.replaceWith(fragment);
   }

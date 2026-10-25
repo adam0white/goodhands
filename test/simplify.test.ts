@@ -65,3 +65,14 @@ it('keeps the garden-cover arrangement and the patience clue, and expands uncert
     'One evening Gül stood by my coat rack and asked me to count the wages. I resented that after everything we had done.',
   );
 });
+
+it('translates generated addresses without changing people or places', () => {
+  expect(plainText('Nermin abla, Aylin Hanım and Halil Bey are in Alsancak.')).toBe(
+    'Ms Nermin, Ms Aylin and Mr Halil are in Alsancak.',
+  );
+  expect(plainText('Abla, I live in Karşıyaka near Kültürpark.')).toBe(
+    'My friend, I live in Karşıyaka near Kültürpark.',
+  );
+  expect(plainText('Nermin abla is here.')).toBe('Ms Nermin is here.');
+  expect(plainText('Rıza Efendi asked Selin Hanım.')).toBe('Mr Rıza asked Ms Selin.');
+});
