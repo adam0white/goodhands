@@ -45,13 +45,13 @@ const TERMS: Record<string, Terms> = Object.fromEntries(
       {
         moment: 'finish',
         minute: need.finishBy,
-        request: `Keep ${c.name}’s agreed finish and duties.`,
-        terms: need.words,
+        request: `Keep ${c.name}’s agreed finish time and duties.`,
+        terms: `${c.name} asks for these terms: “${need.words}”`,
         test: `Will ${c.name} finish at the agreed time without extra duties?`,
         workerKept: 'I finished the agreed duties and left on time.',
-        workerBroken: 'They added work after the agreed finish; that was not our agreement.',
+        workerBroken: 'They added work after the agreed finish time. That was not our agreement.',
         familyKept: 'We covered the extra work ourselves.',
-        familyBroken: 'We asked the worker to stay after the agreed finish.',
+        familyBroken: 'We asked the worker to stay after the agreed finish time.',
       },
     ];
   }),

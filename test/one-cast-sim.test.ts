@@ -65,7 +65,7 @@ describe('one cast guest edition', () => {
       transfer,
       limitations: transfer.person.limitations,
     });
-    await expect(prepareGuest(envelope)).rejects.toThrow(/cast revision/);
+    await expect(prepareGuest(envelope)).rejects.toThrow(/This saved version of the person is not supported/);
     expect(transfer.person.skills.cold).toBeDefined();
   });
 
@@ -119,7 +119,9 @@ describe('one cast guest edition', () => {
   });
   it('returns only an actual attended encounter with checkpoint digest', async () => {
     const { s } = trial(9, 0.9, 'continuing');
-    await expect(exportGuest(s, 'zeynep-pass')).rejects.toThrow(/attended completed/);
+    await expect(exportGuest(s, 'zeynep-pass')).rejects.toThrow(
+      /Finish the guest’s visit before exporting this person/,
+    );
     runTo(s, 2100);
     const out = await exportGuest(s, 'zeynep-pass');
     expect(out.checkpoint.checkpointDigest).toMatch(/^[a-f0-9]{64}$/);
@@ -139,7 +141,9 @@ describe('one cast guest edition', () => {
       importance: 0.5,
       status: 'pending',
     });
-    await expect(exportGuest(s, 'zeynep-pass')).rejects.toThrow(/unreleased guest duty/);
+    await expect(exportGuest(s, 'zeynep-pass')).rejects.toThrow(
+      /End the guest’s current agency duty before exporting this person/,
+    );
   });
   it('preserves the cook as actor in her own completed work outcome', async () => {
     const { s } = trial(9, 0.9, 'continuing');
@@ -280,7 +284,9 @@ describe('one cast guest edition', () => {
     expect(admission.person.will.voices.find((v) => v.voiceId === 'nermin')?.trust).toBe(0.5);
     const unhealthy = structuredClone(body);
     unhealthy.transfer.person.health.health = 0.5;
-    await expect(prepareGuest(await createPersona(unhealthy))).rejects.toThrow(/health compatibility/);
+    await expect(prepareGuest(await createPersona(unhealthy))).rejects.toThrow(
+      /The saved body state is not compatible with this game/,
+    );
     const blocked = structuredClone(source);
     blocked.agenda.goals.push({
       id: 'project',

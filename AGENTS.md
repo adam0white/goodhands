@@ -5,3 +5,5 @@ Start with HANDOFF.md and docs/design.md. Each saved simulation edition keeps it
 The owner authorized the One cast increment, signed commit, push main, exact-commit CI, deployment and browser verification. Done and acceptance are in HANDOFF.md. Use one independent reviewer with a game-design lens. Preserve loaded runs and offer fresh play. Record limitations and actual receipts; a synthetic fixture is not a deployed source journey.
 
 All player text follows [the plain-English policy](docs/lab/plain-english.md). Copy changes belong in the display layer when simulation editions must remain replayable.
+
+The owner authorized the 2026-10-25 source-level plain-English rewrite. Rewrite current-edition prose at source and prove rules with explicit prose-free state hashes. Frozen editions 1–4 keep exact replay text. Current exports must replay; older current-edition exports may refuse with a plain start-new-game message.

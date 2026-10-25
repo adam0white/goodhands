@@ -254,14 +254,16 @@ export function verifyImport(text: string): {
   const inputs = structuredClone(data.inputs) as LoggedInput[];
   const simulation = data.simulation ?? 1;
   if (simulation === 5)
-    throw new Error('This month uses the older cast. Start fresh; keep its export for inspection.');
+    throw new Error(
+      'This month uses the older cast. Start a new game. You can keep the exported file for inspection.',
+    );
   if (simulation !== 1 && simulation !== 2 && simulation !== 3 && simulation !== 4 && simulation !== 6)
     throw new Error('Unsupported simulation version.');
   if (simulation === 6 && data.castEdition !== CAST_EDITION)
-    throw new Error('Unsupported cast edition. Start fresh.');
+    throw new Error('This version cannot load that cast. Start a new game.');
   const continuity = readContinuity(data.continuity, data.oneCast);
   if (simulation === 6 && data.framework !== '2.18.0')
-    throw new Error('Older framework edition. Start fresh.');
+    throw new Error('This file uses an older version of the Human Framework. Start a new game.');
   if (data.chapter !== undefined) {
     boundedPersonaJson(data.chapter);
     if (
@@ -290,7 +292,9 @@ export function verifyImport(text: string): {
   if (visible.now !== data.minute || visible.seed !== data.seed)
     throw new Error('The run clock or seed did not match the replay.');
   if (fingerprint(state) !== data.fingerprint)
-    throw new Error('Replay did not match this run. Your current office is unchanged.');
+    throw new Error(
+      'This file does not replay the same way in this version of Good Hands. It may come from an older version. The file was not loaded. Start a new game instead.',
+    );
   if (Object.hasOwn(data, 'state')) {
     if (!record(data.state) || fingerprint(data.state as State) !== data.fingerprint)
       throw new Error('The saved state did not match this run.');

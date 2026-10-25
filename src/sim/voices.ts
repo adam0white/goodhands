@@ -21,7 +21,7 @@ const LABELS: Record<Role, Six> = {
     'What if you break something?',
     'Can you get here before school?',
     'How do you meet a shy child?',
-    'What happens after the children sleep?',
+    'What do you do after the children fall asleep?',
     'What would you tell another nanny about the family?',
   ],
   cook: [
@@ -33,7 +33,7 @@ const LABELS: Record<Role, Six> = {
     'What would you tell a neighbour about the household?',
   ],
   carer: [
-    'What if the old man throws his plate?',
+    'What do you do if the older man throws his plate?',
     'What if you make a mistake with his routine?',
     'Can the family depend on your morning visit?',
     'How do you get to know someone in your care?',
@@ -46,15 +46,15 @@ const LABELS: Record<Role, Six> = {
     'Can you manage an early airport pickup?',
     'How do you help an anxious passenger?',
     'What do you do between journeys?',
-    'What about conversations you hear in the car?',
+    'What do you do with private conversations you hear in the car?',
   ],
   housekeeper: [
     'What if they ask you to clean the room again?',
     'What if you find money under a chair?',
     'Can they depend on you on laundry day?',
     'How do you work around people at home?',
-    'What if the whole house needs doing?',
-    'What about things you see in the bedrooms?',
+    'What do you do if the whole house needs cleaning?',
+    'What do you do with private things you see in the bedrooms?',
   ],
 };
 
@@ -82,7 +82,7 @@ function lines(q: Quality, grade: Grade, role: Role): Six {
   const pools: Record<Quality, Record<Grade, Six>> = {
     patient: {
       good: [
-        'I give it a moment. Getting cross makes it worse.',
+        'I wait a moment. Getting angry makes it worse.',
         'I lower my voice and try again.',
         'I can wait. There is usually a reason.',
         'First I listen. We can sort the rest out slowly.',
@@ -93,16 +93,16 @@ function lines(q: Quality, grade: Grade, role: Role): Six {
         'I manage, unless it goes on all morning.',
         'I try again. Sometimes I need a minute outside.',
         'It depends how tired I am that day.',
-        'I can put up with a fair amount.',
+        'I can stay patient through quite a lot.',
         'I am better if someone explains what is wrong.',
-        'I keep my voice down. Mostly.',
+        'I usually keep my voice down.',
       ],
       poor: [
         'Once I have explained, I expect to be listened to.',
         'I cannot keep having the same argument.',
         'I would tell them to stop making a fuss.',
         'There is work to do. We cannot wait all day.',
-        'I get sharp if it keeps happening.',
+        'I speak angrily if it keeps happening.',
         'I can do the work, but I will answer back.',
       ],
     },
@@ -121,7 +121,7 @@ function lines(q: Quality, grade: Grade, role: Role): Six {
         'I would explain, once I had put it right.',
         'A small mistake is sometimes better fixed quietly.',
         'I do not like being questioned over every coin.',
-        'I would want to know how they might take it first.',
+        'I would first want to know how they might react.',
       ],
       poor: [
         'If no harm is done, why upset everyone?',
@@ -142,7 +142,7 @@ function lines(q: Quality, grade: Grade, role: Role): Six {
         'They will know ahead of time if I cannot come.',
       ],
       uncertain: [
-        'Usually, though the buses can be difficult.',
+        'I usually arrive on time, though the buses can be difficult.',
         'I can manage if the hours stay the same.',
         'I would try to telephone if I was running late.',
         'I need a little notice for an early start.',
@@ -153,7 +153,7 @@ function lines(q: Quality, grade: Grade, role: Role): Six {
         'They will have to allow a little flexibility.',
         'I cannot promise the same time every morning.',
         'Sometimes something more urgent comes up.',
-        'I do not like being tied to the clock.',
+        'I do not like having to keep exact hours.',
         'If I am late, they can wait a few minutes.',
         'I might need to leave early without much notice.',
       ],
@@ -164,20 +164,20 @@ function lines(q: Quality, grade: Grade, role: Role): Six {
         'I ask how they like things before I start.',
         'I sit and listen if someone needs company.',
         'I remember the little things they tell me.',
-        'I leave room for people to get used to me.',
+        'I give people time to get used to me.',
         'I notice when someone has gone quiet.',
       ],
       uncertain: [
         'I am friendly once I know people.',
         'I do the work first. We get acquainted later.',
         'I am not always sure what to say.',
-        'Some people take to me, some need time.',
+        'Some people like me straight away. Others need time.',
         'I help if they ask me.',
         'I prefer them to tell me what they need.',
       ],
       poor: [
         'I am there to work, not to make friends.',
-        'I prefer everyone to leave me to it.',
+        'I prefer everyone to let me work alone.',
         'I do not have time to sit and listen.',
         'They must say what they want. I cannot guess.',
         'I keep my distance. It is easier that way.',
@@ -213,10 +213,10 @@ function lines(q: Quality, grade: Grade, role: Role): Six {
     discreet: {
       good: [
         'I say I cannot discuss another household.',
-        'What happens there stays there.',
+        'I keep what happens in the household private.',
         'I would talk to the family, not the neighbours.',
         'I would ask before passing on a private message.',
-        'Their troubles are not mine to tell.',
+        'I do not share their private troubles.',
         'I can talk about my work without naming people.',
       ],
       uncertain: [
@@ -225,7 +225,7 @@ function lines(q: Quality, grade: Grade, role: Role): Six {
         'I sometimes talk to my sister about a difficult day.',
         'I would need to know what they consider private.',
         'People ask questions. I try not to say much.',
-        'I have let something slip before. I regretted it.',
+        'I have shared private information by mistake before. I regretted it.',
       ],
       poor: [
         'People find out anyway. It is a small city.',
@@ -296,7 +296,7 @@ function notice(person: Person, variant: number): string {
       'They rub their eyes before continuing.',
       'Their shoulders settle lower in the chair.',
       'They blink slowly, then sit up again.',
-      'They stop to gather themselves before the next sentence.',
+      'They pause before starting the next sentence.',
     ];
   } else if (signs.fear > 0.2) {
     pool = [
@@ -322,12 +322,12 @@ function notice(person: Person, variant: number): string {
       'They look down at their hands for a moment.',
       'The last words come out quietly.',
       'They let out a long breath.',
-      'Their face stays drawn as they wait.',
+      'Their face still looks tired as they wait.',
       'They look away before the next question.',
     ];
   } else if ((signs.mood ?? 0) > 0.15) {
     pool = [
-      'A small smile stays after the answer.',
+      'They keep a small smile after answering.',
       'Their face brightens as they speak.',
       'They settle easily into the chair.',
       'They meet Nermin’s eyes and smile.',
@@ -337,7 +337,7 @@ function notice(person: Person, variant: number): string {
   } else {
     pool = [
       'Nermin cannot read much from their expression.',
-      'Their face gives little away.',
+      'Their expression does not show much.',
       'They finish speaking and wait.',
       'Their expression stays much the same.',
       'Nermin watches, but sees no clear change.',

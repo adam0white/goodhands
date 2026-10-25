@@ -4,8 +4,11 @@ import { termsWords } from '../src/sim/negotiation.ts';
 import { compactRun, exportRun, verifyImport } from '../src/ui/export.ts';
 
 const terms = { wage: 9000, startHour: 8, endHour: 17, dayOff: 6, trialDays: 3, fee: 4000 };
-test('the offer names working days before a trial is agreed', () => {
-  expect(termsWords(terms)).toContain('3 working days');
+test.each([
+  [1, '1 working day.'],
+  [3, '3 working days.'],
+] as const)('the offer names %i working days before a trial is agreed', (trialDays, words) => {
+  expect(termsWords({ ...terms, trialDays })).toContain(words);
 });
 test('phase 1 compact histories keep simulation 2 and its fingerprint', () => {
   const state = newGame(37, 2);

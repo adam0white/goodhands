@@ -13,7 +13,7 @@ export function prepareSiteSelin(envelope: PersonaEnvelope): GuestAdmission {
     | { schema?: unknown; sourceMinute?: unknown; rng?: unknown; sha256?: unknown }
     | undefined;
   const fail = (): never => {
-    throw new Error('Unsupported Voice general Selin calendar passport.');
+    throw new Error('This saved version of Selin from Voice has calendar details this game cannot use.');
   };
   if (
     envelope.castId !== 'hf.cast.selin.voice' ||

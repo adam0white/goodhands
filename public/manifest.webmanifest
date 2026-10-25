@@ -1,5 +1,6 @@
 {
   "name": "Good Hands",
+  "description": "Run a small placement agency in Izmir. Find workers for families for a month.",
   "short_name": "Good Hands",
   "start_url": "/",
   "display": "standalone",

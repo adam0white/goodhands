@@ -30,7 +30,7 @@ const accounts: Record<string, ReferenceAccount> = Object.fromEntries(
   CANDIDATES.map((c) => [
     c.id,
     {
-      opening: `I can speak about a finished ${c.roles[0]} engagement, not every part of ${c.name}’s life.`,
+      opening: `I can tell you about ${c.name}’s past job as a ${c.roles[0]}. I do not know every part of ${c.name}’s life.`,
       patient: story(
         'patient',
         '{worker} listened when the instructions were repeated.',
@@ -44,12 +44,12 @@ const accounts: Record<string, ReferenceAccount> = Object.fromEntries(
       reliable: story(
         'reliable',
         '{worker} arrived at the agreed time.',
-        '{worker} missed the agreed arrival without calling.',
+        '{worker} did not arrive at the agreed time and did not call.',
       ),
       leaving: story(
         'reliable',
-        '{worker} completed the agreed handover.',
-        '{worker} left without the agreed handover.',
+        '{worker} passed on the work as agreed before leaving.',
+        '{worker} left without passing on the work as agreed.',
       ),
     },
   ]),
@@ -69,12 +69,12 @@ export function referenceChoices(ref: Referee, asked: string[]): SceneChoice[] {
     {
       id: 'distrust',
       label: `I'm not sure I believe ${ref.name.startsWith('Mr ') ? 'him' : 'her'}`,
-      hint: 'Their claims will count less.',
+      hint: 'You will give less weight to what this former employer says.',
     },
     {
       id: 'finish',
       label: 'End the call',
-      hint: 'Ask what you need before hanging up. This employer has no new account to give on another call.',
+      hint: 'Ask what you need before ending the call. This employer will have nothing new to report if you call again.',
     },
   ].filter((choice) => !asked.includes(choice.id));
 }
@@ -110,7 +110,7 @@ export function referenceReply(
   const worker = CANDIDATES.find((candidate) => candidate.id === ref.candidate)!.name;
   let text = (good ? claim.good : claim.bad).replaceAll('{worker}', worker);
   if (question === 'ref-return')
-    text = `${good ? 'Yes, if the hours suited us both.' : 'I would look for someone else.'} ${text}`;
+    text = `${good ? 'Yes, I would hire again if the hours suited us both.' : 'I would look for someone else.'} ${text}`;
   return { text, quality: claim.quality, value, ...(claim.wageDispute ? { wageDispute: true } : {}) };
 }
 
@@ -129,17 +129,23 @@ const workerReferenceAccounts: Record<string, WorkerReferenceAccount> = Object.f
   CANDIDATES.map((c) => [
     c.id,
     {
-      opening: 'That reference concerns a finished work engagement; we may remember it differently.',
+      opening: 'That reference is about a job that has ended. We may remember it differently.',
       patient: [
         'I listened to the repeated instructions.',
-        'I argued about the instructions; I should have checked what was needed.',
+        'I argued about the instructions. I should have checked what was needed.',
       ],
       honest: [
         'I kept the change and receipts together.',
         'We need to compare the receipts before deciding what happened.',
       ],
-      reliable: ['I arrived at the agreed time.', 'I missed the arrival; I should have called.'],
-      leaving: ['I completed the handover.', 'We had not settled the handover before I left.'],
+      reliable: [
+        'I arrived at the agreed time.',
+        'I did not arrive at the agreed time. I should have called.',
+      ],
+      leaving: [
+        'I passed on the work as agreed before leaving.',
+        'We had not agreed how I would pass on the work before I left.',
+      ],
     },
   ]),
 );
@@ -185,9 +191,12 @@ const moments: Record<Quality, [string, string]> = {
   ],
   honest: [
     '{worker} counted the change against the receipts.',
-    '{worker} could not account for the shopping change.',
+    '{worker} could not explain what happened to the shopping change.',
   ],
-  reliable: ['{worker} arrived for the agreed start.', '{worker} missed the start without warning.'],
+  reliable: [
+    '{worker} arrived at the agreed start time.',
+    '{worker} did not arrive at the agreed start time and gave no warning.',
+  ],
   warm: [
     '{worker} asked the person receiving help what they wanted.',
     '{worker} spoke about the person without asking them.',
@@ -204,7 +213,7 @@ const households: Record<string, HouseholdAccount> = Object.fromEntries(
     {
       moments,
       disagreement:
-        'Household contact: “We asked {worker} to add work after the agreed finish. We need to settle the hours.”',
+        'Household contact: “We asked {worker} to do more work after the agreed finish time. We need to agree on the hours.”',
     },
   ]),
 );

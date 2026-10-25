@@ -24,7 +24,7 @@ export function evidence(candidate: CandidateView, quality: Quality): string {
   const notes = candidate.notes.filter((n) => n.quality === quality && !n.crossedOut);
   return notes.length
     ? notes.map((n) => `${n.source}: ${plainText(n.phrase)} (${n.from})`).join('; ')
-    : 'No note yet. You have not checked this.';
+    : 'You have not made a note or checked this yet.';
 }
 
 export function vouchLabel(candidate: CandidateView, quality: Quality): string {
@@ -42,9 +42,10 @@ export function phoneAvailability(v: View): string | undefined {
 
 export function candidateAvailability(candidate: CandidateView): string | undefined {
   if (candidate.busy) return candidate.busy;
-  if (candidate.status === 'gone') return 'She has left. She is no longer on your books.';
-  if (candidate.status === 'placed') return 'She is working. Use Placed to check in or withdraw her.';
-  if (candidate.status === 'trial') return 'She is at a trial. Wait for the family’s word.';
+  if (candidate.status === 'gone') return 'This applicant has left and is no longer in your agency records.';
+  if (candidate.status === 'placed')
+    return 'This worker is working. Use Placed to check in or bring them back.';
+  if (candidate.status === 'trial') return 'This worker is on a trial. Wait for the family’s report.';
   return undefined;
 }
 
@@ -52,7 +53,7 @@ export function placementLabel(placement: PlacementView): string {
   return {
     trial: 'During the trial',
     kept: 'Kept on',
-    returned: 'Returned to the books',
+    returned: 'Returned to agency records',
     quit: 'Left the house',
     withdrawn: 'Brought back',
     dismissed: 'Dismissed',
@@ -119,7 +120,7 @@ export function matchingReason(
 export function referenceReason(referee: CandidateView['referees'][number]): string | undefined {
   if (referee.called)
     return referee.why ?? 'You already heard this reference. Read the account in Nermin’s notes.';
-  return referee.reachable ? undefined : (referee.why ?? 'Not reachable now. Try later.');
+  return referee.reachable ? undefined : (referee.why ?? 'You cannot reach this person now. Try later.');
 }
 
 export function requestGroups(requests: RequestView[]): { open: RequestView[]; lost: RequestView[] } {
@@ -135,7 +136,7 @@ export function monthTally(v: View): string {
   const kept = v.placements.filter((p) => p.status === 'kept').length;
   const ended = v.placements.filter((p) => ['returned', 'quit', 'dismissed'].includes(p.status)).length;
   const trust = v.review.trustedBy.length;
-  return `<details data-month-tally><summary>See tally</summary><h2>Nermin’s closing tally</h2><p>The game’s own reckoning of agency outcomes, not a measure of people.</p><p>TOTAL: ${kept + trust - ended} = kept placements (${kept}) + households that trust Nermin (${trust}) − returned, quit or dismissed placements (${ended}). Each placement record counts once; trials and withdrawals do not count.</p></details>`;
+  return `<details data-month-tally><summary>See tally</summary><h2>Nermin’s closing tally</h2><p>This tally counts agency outcomes. It does not measure people’s worth.</p><p>TOTAL: ${kept + trust - ended} = kept placements (${kept}) + households that trust Nermin (${trust}) − returned, quit or dismissed placements (${ended}). Each placement record counts once. Trials and withdrawals do not count.</p></details>`;
 }
 
 /** Money language follows the run's rules edition, including imported months. */

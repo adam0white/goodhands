@@ -87,20 +87,20 @@ function projection(person: Person, offset: number) {
 export async function agencyTransfer(state: State, id: CastKey) {
   if (!state.castPaused) throw new Error('Pause the agency chapter before saving a person.');
   const p = state.people[id];
-  if (p && p.now > state.now) throw new Error('This guest has not arrived at the current source clock.');
+  if (p && p.now > state.now) throw new Error('This guest has not arrived yet.');
   if (
     (id === 'zeynep-pass' || id === 'selin-voice') &&
     !(state.guests as { id: string; status: string }[]).some((g) => g.id === id && g.status === 'complete')
   )
-    throw new Error('Complete the actual guest encounter before departure.');
-  if (!p?.body.alive) throw new Error('A dead person needs a terminal closure.');
+    throw new Error('Finish the guest’s visit before departure.');
+  if (!p?.body.alive) throw new Error('This person has died. Their story must be closed.');
   const placements = state.placements as { candidate: string; status: string }[];
   if (
     placements.some(
       (x) => (x.candidate === id || id === 'nermin') && ['trial', 'placed', 'kept'].includes(x.status),
     )
   )
-    throw new Error('Release the active placement through play before departure.');
+    throw new Error('End the active placement in the game before departure.');
   const raw = snapshot(p);
   const agencyPerson = projection(p, 0); // HF refuses activities, unresolved projects and unsupported body state.
   return {
@@ -115,13 +115,13 @@ export async function agencyTransfer(state: State, id: CastKey) {
     },
     limitations: [
       ...agencyPerson.person.limitations,
-      'Raw source snapshot stays in the agency export. Only explicit agency calendar meanings return to this host.',
+      'The full source save stays in the agency export. Only the supported calendar records return to this game.',
     ],
   };
 }
 export async function prepareAgencyChapter(inputs: LifePreparation[], seed: number): Promise<AgencyChapter> {
   if (inputs.length > 7 || new Set(inputs.map((x) => x.parent.castId)).size !== inputs.length)
-    throw new Error('Invalid bounded cast batch.');
+    throw new Error('Choose up to seven different people.');
   const base = makePeople(seed);
   for (const key of ['zeynep-pass', 'selin-voice'] as const) base[key] = freshGuest(key, seed).person;
   const chapter: AgencyChapter = {
@@ -137,13 +137,13 @@ export async function prepareAgencyChapter(inputs: LifePreparation[], seed: numb
       key = castKey(parent.castId),
       cast = CAST[key];
     if (parent.terminal)
-      throw new Error(
-        'This person’s branch is closed. Inspect/export it or explicitly start a different story.',
-      );
+      throw new Error('This person’s story has ended. Inspect or export it, or start a different story.');
     if (parent.castRevision !== cast.revision)
-      throw new Error('Older cast revision. Inspect/export the old head and explicitly start fresh.');
+      throw new Error(
+        'This saved person uses an older version. Inspect or export that save, or start fresh.',
+      );
     if (!same(preparePersonaLife(parent, input.clockMs).life, input.life))
-      throw new Error('Pinned life does not match its clock and parent.');
+      throw new Error('The saved life does not match its date and earlier save.');
     const facts = lifeAdmission(input, 'goodhands');
     let person: Person;
     if (parent.source.game === 'voice' && key === 'selin-voice') {
@@ -183,16 +183,16 @@ export async function prepareAgencyChapter(inputs: LifePreparation[], seed: numb
         typeof receipt.checkpointDigest !== 'string' ||
         !/^[a-f0-9]{64}$/.test(receipt.checkpointDigest)
       )
-        throw new Error('Agency source identity or full-source receipt conflict.');
+        throw new Error('The person’s identity does not match the agency save or its verification record.');
       if (portable.calendar.norms.some((n) => !DEFAULT_NORMS.some((k) => same(k, n))))
-        throw new Error('Unsupported calendar norm meaning.');
+        throw new Error('This calendar rule is not supported.');
       const opening = restore(snapshot(base[key]!));
       // Preserve the guest's local hour; the declared map changes only whole host-calendar days.
       if (key === 'selin-voice' || key === 'zeynep-pass') opening.now = 1440 + (p.source.now % 1440);
       const offset = opening.now - p.source.now;
       const age = p.source.now - p.life.bornAt;
       if (age < cast.age * 365 * 1440 || age > (cast.age + 200) * 365.25 * 1440)
-        throw new Error('Canonical age conflict.');
+        throw new Error('The saved age does not match this person’s age.');
       opening.body.fitness = p.health.fitness;
       opening.life.bornAt = p.life.bornAt + offset;
       const shifted = structuredClone(portable);
@@ -238,7 +238,7 @@ export async function prepareAgencyChapter(inputs: LifePreparation[], seed: numb
             host.ramadanDays < 1 ||
             host.ramadanDays > 30
           )
-            throw new Error('Unsupported guest calendar metadata.');
+            throw new Error('This guest’s calendar details are not supported.');
           copied.calendar.returnCalendarHost ??= structuredClone(host);
           host.sourceDayOffset -= offset / 1440;
         }
@@ -246,7 +246,7 @@ export async function prepareAgencyChapter(inputs: LifePreparation[], seed: numb
       }
     } else
       throw new Error(
-        `${cast.name}: no registered semantic adapter for ${parent.source.game}/${String(parent.transfer.castPassport ?? 'dedicated passport')}. Export the source or choose fresh local play.`,
+        `${cast.name}: this game cannot continue this person from ${parent.source.game}/${String(parent.transfer.castPassport ?? 'dedicated passport')}. Export the source save or start fresh in this game.`,
       );
     // Actual supported Person survives admission. Coarse opportunities only affect new opening work and contacts.
     for (const event of input.life.events.filter((e) => e.kind === 'contact'))
@@ -256,7 +256,7 @@ export async function prepareAgencyChapter(inputs: LifePreparation[], seed: numb
         kind: 'cast-notice',
         valence: 0,
         salience: 0.4,
-        summary: `${person.name} read a public work note from ${facts.contacts.join(', ')}. No reciprocal acquaintance is recorded.`,
+        summary: `${person.name} read a public work note from ${facts.contacts.join(', ')}. The note does not show that they know each other.`,
         tags: ['work'],
       });
     chapter.actors[key] = structuredClone(person);
@@ -265,10 +265,11 @@ export async function prepareAgencyChapter(inputs: LifePreparation[], seed: numb
   return chapter;
 }
 export async function validateAgencyChapter(chapter: AgencyChapter) {
-  if (chapter.version !== 'goodhands-chapter/1') throw new Error('Unsupported agency chapter. Start fresh.');
+  if (chapter.version !== 'goodhands-chapter/1')
+    throw new Error('This agency chapter is not supported. Start fresh.');
   const rebuilt = await prepareAgencyChapter(chapter.inputs, chapter.seed);
   if (!same(chapter, rebuilt))
-    throw new Error('Pinned multi-person initial state differs from source preflight.');
+    throw new Error('The saved starting state for these people does not match their source saves.');
 }
 export function installAgencyChapter(state: State, chapter: AgencyChapter) {
   state.castChapter = structuredClone(chapter);

@@ -31,7 +31,7 @@ it('requires an actual encounter before a private conversation and replays the c
   apply(s, { type: 'cast-talk', person: 'nermin', choice: 'invite' });
   expect(view(s).castContacts?.find((c) => c.id === 'nermin')?.text).toContain('unpaid nights');
   apply(s, { type: 'cast-talk', person: 'nermin', choice: 'respect' });
-  expect(view(s).log.at(-1)?.text).toContain('Nothing has been sent or paid');
+  expect(view(s).log.at(-1)?.text).toContain('She has not sent the letter or paid anything yet.');
   for (const run of [exportRun(s, s.inputs), compactRun(exportRun(s, s.inputs))]) {
     const loaded = verifyImport(JSON.stringify(run));
     expect(fingerprint(loaded.state)).toBe(fingerprint(s));
@@ -60,9 +60,9 @@ it('lets Hülya disclose the seed envelopes after an interview without granting 
   const scene = view(s).scene;
   expect(scene).toBeTruthy();
   if (scene) apply(s, { type: 'close-scene', scene: scene.id });
-  expect(JSON.stringify(view(s))).not.toContain('portable garden');
+  expect(JSON.stringify(view(s))).not.toContain('I can take my garden with me');
   apply(s, { type: 'cast-talk', person: 'hulya', choice: 'invite' });
-  expect(view(s).castContacts?.find((c) => c.id === 'hulya')?.text).toContain('portable garden');
+  expect(view(s).castContacts?.find((c) => c.id === 'hulya')?.text).toContain('I can take my garden with me');
   apply(s, { type: 'cast-talk', person: 'hulya', choice: 'defer' });
   expect(view(s).log.at(-1)?.text).toContain('keeps the seeds');
   expect(fingerprint(replay(s.seed, s.inputs, s.now))).toBe(fingerprint(s));

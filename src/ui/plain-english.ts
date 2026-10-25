@@ -1,21 +1,5 @@
-/** Display-only wording. Saved simulation editions, lookup keys and replay bytes stay unchanged. */
+/** Compatibility wording for frozen editions and semantic state labels. Current prose is written at source. */
 const replacements: readonly (readonly [string, string])[] = [
-  [
-    'Zeynep still keeps her daily family window.',
-    'Zeynep still keeps her agreed daily time at home with her family.',
-  ],
-  [
-    'Her two sons and daily home window remain part of the agreement.',
-    'The agreement still protects her daily time at home with her two sons.',
-  ],
-  [
-    'Offer a paid half-hour of agency menu costing before her home window',
-    'Offer a paid half-hour to calculate menu costs before she goes home',
-  ],
-  [
-    'The completed cold-supper trial and home window remain unchanged.',
-    'Her completed cold-supper trial and agreed time at home remain unchanged.',
-  ],
   ['Next Friday, then.', 'I will expect the rent next Friday, then.'],
   [
     'That is a missed rent. I cannot carry two.',
@@ -31,29 +15,15 @@ const replacements: readonly (readonly [string, string])[] = [
   ],
   ['Fifteen years teaches patience, mostly.', 'Fifteen years mostly taught me patience.'],
   ['Term ended.', 'The term ended.'],
-  ['₺6000 if the worker agrees.', 'You receive ₺6000 if the worker agrees.'],
   ['₺1800. The worker trusted you with this.', 'You receive ₺1800. The worker trusted you with this.'],
-  ['Her family window stays free.', 'Her time at home with her family stays free.'],
   ['I keep my voice down. Mostly.', 'I usually keep my voice down.'],
   ['After everything we had done.', 'I resented that after everything we had done.'],
   [
     'I will do the room again if they show me what they want. Not if they just keep saying it is wrong.',
     'I will do the room again if they show me what they want. I will not do it again if they just keep saying it is wrong.',
   ],
-  [
-    'There is a tomato taste I have never quite grown again.',
-    'I have never managed to grow tomatoes with that same taste again.',
-  ],
-  [
-    'I keep making calls into inspections since Mum died.',
-    'Since Mum died, I turn ordinary calls into checks on the person I am calling.',
-  ],
   ['An empty stomach changes its mind soon enough.', 'They change their mind when they become hungry.'],
   ['I will hold my judgment.', 'I will wait before deciding.'],
-  [
-    'Seasonal cover at the garden is arranged for this bounded month.',
-    'Someone will cover her seasonal work at the garden for this month only.',
-  ],
   [
     'A carefully mended cuff; she waits for you to finish.',
     'Her cuff has been carefully mended. She waits for you to finish.',
@@ -78,33 +48,6 @@ const replacements: readonly (readonly [string, string])[] = [
   [
     'Someone steady. There will be two children asking at once.',
     'We need someone patient. There will be two children asking at once.',
-  ],
-  ['Is that earlier engagement finished?', 'Has that job ended?'],
-  ['What work can this reference speak about?', 'What work did you do for this former employer?'],
-  ['Waiting with an application form.', 'This applicant is waiting with an application form.'],
-  [
-    'Baking and meal preparation only, with paid hours in writing.',
-    'I only offer baking and meal preparation. I need the paid hours in writing.',
-  ],
-  [
-    'A defined cooking or housekeeping trial; garden cover lasts this month only.',
-    'I need a trial with clear cooking or housekeeping duties. Someone is covering my garden work for this month only.',
-  ],
-  [
-    'Agreed duties, wages on the written date, and a six o’clock finish.',
-    'I need agreed duties, wages on the written date, and a six o’clock finish.',
-  ],
-  [
-    'Oven cook; bounded baking and meal preparation.',
-    'She is an oven cook. She offers baking and meal preparation with agreed limits.',
-  ],
-  [
-    'School kitchen cook; private meal preparation.',
-    'She has worked as a school kitchen cook. She offers private meal preparation.',
-  ],
-  [
-    'Tea-garden keeper and competent household cook.',
-    'She has run a tea garden and can cook for a household.',
   ],
   [
     'A bright scarf; she greets everyone on the bench.',
@@ -261,27 +204,7 @@ const replacements: readonly (readonly [string, string])[] = [
     'Two missed rents. Mr Hüsnü took back the office key. The month ended early.',
     'You missed two rent payments. Mr Hüsnü took back the office key. The month ended early.',
   ],
-  [
-    'She is at a trial. Wait for the family’s word.',
-    'She is working a trial morning. Wait for the family’s report.',
-  ],
-  [
-    'No one placed yet. Your word will go with them.',
-    'You have not placed anyone yet. Families will remember the qualities you promise.',
-  ],
-  ['What you vouch for, they remember.', 'The family remembers the qualities you promise.'],
-  ['The rent bar fills with fees.', 'Agency fees help you pay the rent.'],
-  [
-    'What she says goes on her card as says; what others say is heard; what you watch on a trial is seen.',
-    'Her card labels her own claims as “says”. Reports from others are “heard”. What you watch during a trial is “seen”.',
-  ],
-  ['A doubted note is crossed out.', 'A note you doubt is crossed out.'],
   ['Your books hold the people you have met.', 'Your agency records list the people you have met.'],
-  ['No word from the house yet.', 'The family has not reported back yet.'],
-  [
-    'The game’s own reckoning of agency outcomes, not a measure of people.',
-    'This tally counts agency outcomes. It does not measure people’s worth.',
-  ],
 ];
 
 export function plainText(value: string): string {
@@ -310,6 +233,7 @@ export function plainText(value: string): string {
     return `${note[1] === 'Doubt: ' ? 'Nermin doubts that' : note[1] ? 'Nermin is still unsure whether' : 'Nermin thinks'} ${claims[note[2]!]}.`;
   }
   return text
+    .replace(/(^|[“]\s*)₺6000 if the worker agrees\./gu, '$1You receive ₺6000 if the worker agrees.')
     .replace(/(^|[“]\s*)Has ([^.]+)\./gu, '$1This person has $2.')
     .replace(
       /(^|[“]\s*)Reports experience in (nanny|driver|carer|housekeeper|cook) work; check the reference and trial\./gu,

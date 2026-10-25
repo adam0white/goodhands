@@ -21,69 +21,71 @@ const STORY: Record<
   nermin: {
     invite: 'Ask Nermin whether she wants to review an earlier agency decision',
     disclosure:
-      'Nermin agrees to review her own account, with client identifiers covered. “I called it a mismatch. I softened a worker’s warning about unpaid nights, then refunded the client before checking the worker’s loss.”',
-    choice: 'Help her correct the agency account and write the worker first',
+      'Nermin agrees to review her own account. She covers the details that identify the client. “I said the worker and client were not suited to each other. The worker had warned me about unpaid nights. I made the warning sound less serious, then refunded the client before checking how much the worker had lost.”',
+    choice: 'Help her correct the agency record and write to the worker first',
     outcome:
-      'Nermin corrects “mismatch” to her own failure to record the unpaid-night warning. She drafts a private letter asking the worker to check the dates before any substantiated payment offer. Nothing has been sent or paid yet.',
-    defer: 'Nermin closes the covered file. The old account remains uncorrected today.',
+      'Nermin corrects the record. She writes that she failed to record the warning about unpaid nights. She drafts a private letter asking the worker to check the dates before she offers a payment based on those dates. She has not sent the letter or paid anything yet.',
+    defer:
+      'Nermin closes the file with the client’s details still covered. She has not corrected the old account today.',
   },
   hulya: {
-    invite: 'Ask what would make the baking placement workable beyond its paid hours',
+    invite: 'Ask what else would help her take the baking job',
     disclosure:
-      'Hülya asks for a sunny ledge. “I kept seeds from the hotel windowsills. My adult stepdaughter calls them my portable garden. There is a tomato taste I have never quite grown again.”',
+      'Hülya asks for a sunny ledge. “I kept seeds from the plants on the hotel windowsills. My adult stepdaughter says I can take my garden with me. I have never managed to grow tomatoes with that same taste again.”',
     choice: 'Keep a sunny office ledge free for her seedlings, with her agreement',
     outcome:
-      'Hülya agrees to leave two labelled pots on the office ledge during the agency’s open hours. She keeps the seed envelopes. This is a small experiment, not a promise of a harvest or reconciliation.',
+      'Hülya agrees to leave two labelled pots on the office ledge during the agency’s open hours. She keeps the seed envelopes. She will try growing the plants. This does not promise a harvest or a closer relationship with her stepdaughter.',
     defer:
-      'Hülya keeps the seeds with her. Any future cooking agreement need not include her private garden.',
+      'Hülya keeps the seeds with her. Her private garden does not need to be part of any future cooking agreement.',
   },
   aylin: {
     invite: 'Ask whether she would consider evening work',
     disclosure:
-      'Aylin declines evening work. “I have a dance class above a tyre shop. I count too hard and get it wrong. It is nice being somewhere I am not the dependable sister.” She has not invited Dilan or made this family news.',
+      'Aylin declines evening work. “I have a dance class above a tyre shop. I concentrate so hard on counting that I get the steps wrong. It is nice being somewhere I do not have to be the sister everyone depends on.” She has not invited Dilan or told her family about the class.',
     choice: 'Keep the evening free without passing on her reason',
     outcome:
-      'Nermin records Aylin’s finish time on her application. Any later offer will still need her agreement. The class stays private. She makes no family invitation.',
+      'Nermin records Aylin’s finish time on her application. Any later offer will still need her agreement. The class stays private. She does not invite her family.',
     defer: 'Nermin makes no evening offer. Aylin has not accepted extra work, and her class remains private.',
   },
   hatice: {
-    invite: 'Ask Hatice to define what she expects from this paid exchange',
+    invite: 'Ask Hatice what she expects from this paid work',
     disclosure:
-      'Hatice asks for a defined trial and says her garden has temporary cover, then volunteers an older mistake. “I called a wedding contribution a gift, but expected the reception at my garden. I complained about ingratitude without saying what I expected.”',
-    choice: 'Invite her to separate the gift from the business expectation',
+      'Hatice asks for a trial with clear duties. She says someone is covering her garden work for now. Then she chooses to tell you about an older mistake. “I gave money for a wedding and called it a gift, but I expected them to hold the reception at my garden. I complained that they were ungrateful without saying what I expected.”',
+    choice: 'Invite her to explain that she expected business in return for the gift',
     outcome:
       'Hatice writes a correction to the complaint in her own words. She keeps it to take back to those who heard it. She has not spoken to them yet.',
     defer:
       'Hatice leaves the older complaint unresolved. Any future trial still needs written duties and an end date.',
   },
   derya: {
-    invite: 'Call Derya after her morning sleep to discuss the boundary of agency care',
+    invite: 'Call Derya after her morning sleep to discuss what care the agency can arrange',
     disclosure:
-      'Derya, a night nurse, distinguishes household company from skilled care without offering to cover the gap. When asked about boundaries she volunteers: “I reported a scheduling error before anyone was harmed. Training stopped being offered afterwards. I kept the letters; I do not know whether those things were connected.” She does not discuss any patient or her family’s private circumstances.',
+      'Derya is a night nurse. She explains that keeping someone company differs from care that needs training. She does not offer to provide that care herself. When asked about the limits of her work, she chooses to share this: “I reported a scheduling error before anyone was harmed. They stopped offering me training afterwards. I kept the letters. I do not know whether those things were connected.” She does not discuss any patient or her family’s private circumstances.',
     choice: 'Help her draft a precise question about the training decision',
     outcome:
-      'Derya drafts a dated request for the training criteria and keeps it for a colleague to review. She will check it with a colleague before sending it. Nermin cannot arrange skilled care through this call.',
-    defer: 'Derya ends the call with the care boundary clear. She has not submitted a training request.',
+      'Derya drafts and dates a request asking how training decisions are made. She keeps it for a colleague to review before she sends it. Nermin cannot arrange care that needs training through this call.',
+    defer:
+      'Derya ends the call after explaining what care the agency can arrange. She has not sent a training request.',
   },
   'zeynep-pass': {
     invite: 'After the cold-supper trial, ask whether she wants paid time to price another menu',
     disclosure:
-      'Zeynep chooses to show her unsigned daytime meal-service application. “I can price the ingredients. I left my own salary blank.” Her two sons and daily home window remain part of the agreement.',
-    choice: 'Offer a paid half-hour of agency menu costing before her home window',
+      'Zeynep chooses to show her unsigned application to provide meals during the day. “I can work out the ingredient costs. I left my own salary blank.” The agreement still protects her daily time at home with her two sons.',
+    choice: 'Offer a paid half-hour to calculate menu costs before she goes home',
     outcome:
-      'Nermin offers ₺150 for a future half-hour of menu costing, with menu credit and a stated leaving time. Zeynep takes the written offer to consider. She has not accepted or booked the half-hour, and her application stays unsigned.',
+      'Nermin offers ₺150 for a future half-hour to calculate menu costs. The offer names Zeynep as the menu’s creator and states when she can leave. Zeynep takes the written offer to consider. She has not accepted it or booked the half-hour. Her application stays unsigned.',
     defer:
-      'Zeynep puts the application away. The completed cold-supper trial and home window remain unchanged.',
+      'Zeynep puts the application away. Her completed cold-supper trial and agreed time at home remain unchanged.',
   },
   'selin-voice': {
-    invite: 'Ask whether she wants the enquiry answer in words she can take home',
+    invite: 'Ask whether she wants a written answer to take home',
     disclosure:
-      'Selin asks Nermin to write the limit plainly. “I keep making calls into inspections since Mum died. I deleted an ordinary message from her before I knew it would matter. There is no copy to recover.” She is sharing this herself; it does not grant knowledge of Halil’s health.',
-    choice: 'Write only the actual service limit; let her choose the next family conversation',
+      'Selin asks Nermin to write clearly what help the agency can arrange. “Since Mum died, I turn ordinary calls into checks on the person I am calling. I deleted an ordinary message from her before I knew it would matter. There is no copy to recover.” Selin chooses to share this herself. It tells Nermin nothing about Halil’s health.',
+    choice: 'Write what help the agency can arrange. Let her choose what to discuss with her family next.',
     outcome:
-      'Selin keeps the written answer: no suitable service or placement has been confirmed. She says she wants to ask Halil what visit he would welcome. She has not called him yet; the message is still gone.',
+      'Selin keeps the written answer. The agency has not confirmed a suitable service or arranged a job. She says she wants to ask Halil what kind of visit he would like. She has not called him yet. The message is still gone.',
     defer:
-      'Selin ends the conversation. The enquiry remains an enquiry, and the deleted message remains private.',
+      'Selin ends the conversation. The agency has not arranged help. The deleted message remains private.',
   },
 };
 function eligible(s: CastState, id: CastKey): boolean {
@@ -115,7 +117,7 @@ export function castContacts(state: State): CastContact[] {
         role: `${CAST[id].age} · ${CAST[id].role}`,
         text:
           stage?.text ??
-          `${life?.line ?? ''} ${CAST[id].name} can choose whether to discuss something beyond the immediate work.`,
+          `${life?.line ?? ''} ${CAST[id].name} can choose whether to discuss something besides the current work.`,
         choices:
           stage?.step === 2
             ? []

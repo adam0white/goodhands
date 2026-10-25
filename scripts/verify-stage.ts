@@ -64,7 +64,7 @@ try {
     assert.equal(await page.locator('.candidate-actions button').count(), 5);
     assert.equal(
       await page.locator('[data-action="references"]').getAttribute('aria-description'),
-      'About 15 minutes',
+      'This takes about 15 minutes.',
     );
     await page.locator('[data-action="interview"]').click();
     await fits('interview');

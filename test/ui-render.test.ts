@@ -49,7 +49,7 @@ describe('player-facing render helpers', () => {
     expect(
       evidence({ ...candidate, notes: [{ ...note, source: 'says', crossedOut: true }, note] }, 'patient'),
     ).toBe('seen: waited with the twins (Nermin)');
-    expect(evidence(candidate, 'honest')).toContain('not checked');
+    expect(evidence(candidate, 'honest')).toContain('checked this yet');
   });
   it('uses the known circumstance when an action is unavailable', () => {
     expect(candidateAvailability({ ...candidate, busy: 'At the Arslans until 18:00' })).toBe(
@@ -199,7 +199,7 @@ it('keeps the optional agency tally off until a finished review and explains its
   expect(monthTally(view)).toContain('TOTAL: 3 = kept placements (2)');
   expect(monthTally(view)).toContain('households that trust Nermin (2)');
   expect(monthTally(view)).toContain('dismissed placements (1)');
-  expect(monthTally(view)).toContain('not a measure of people');
+  expect(monthTally(view)).toContain('does not measure people’s worth');
   expect(JSON.stringify(view)).toBe(before);
 });
 

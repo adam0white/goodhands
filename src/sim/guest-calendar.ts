@@ -36,15 +36,17 @@ function fail(message: string): never {
   throw new Error(`Good Hands calendar: ${message}`);
 }
 function object(value: unknown): Record<string, unknown> {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) fail('expected object');
+  if (!value || typeof value !== 'object' || Array.isArray(value))
+    fail('The saved details must be an object.');
   return value as Record<string, unknown>;
 }
 function exact(value: Record<string, unknown>, keys: string[]) {
-  if (Object.keys(value).sort().join(',') !== keys.sort().join(',')) fail('unsupported metadata fields');
+  if (Object.keys(value).sort().join(',') !== keys.sort().join(','))
+    fail('Some saved calendar fields are not supported.');
 }
 function integer(value: unknown, min: number, max: number): number {
   if (typeof value !== 'number' || !Number.isInteger(value) || value < min || value > max)
-    fail('invalid calendar metadata');
+    fail('The saved calendar details are invalid.');
   return value;
 }
 /** Caller validates envelope SHA256 and common history/checkpoint semantics before invoking this. */
@@ -63,7 +65,7 @@ export function prepareCalendarGuest(
     envelope.source.rules !== 'voice-4' ||
     envelope.source.engine !== '2.17.0'
   )
-    fail('unsupported source');
+    fail('This source save is not supported.');
   const projection = validateCalendarPersona(envelope.transfer.person);
   const p = projection.person;
   if (
@@ -77,16 +79,17 @@ export function prepareCalendarGuest(
     p.episodes[0]?.action !== 'voice-office-work' ||
     p.episodes[0]?.actorId !== 'selin-voice'
   )
-    fail('unsupported Selin mapping');
-  if (p.health.health !== 1 || p.health.circadianPeak !== 960) fail('health compatibility conflict');
+    fail('This saved version of Selin cannot be continued here.');
+  if (p.health.health !== 1 || p.health.circadianPeak !== 960)
+    fail('The saved body state is not compatible with this game.');
   const age = (p.source.now - p.life.bornAt) / (365 * DAY);
-  if (age < 32 || age >= 33) fail('canonical age conflict');
+  if (age < 32 || age >= 33) fail('The saved age does not match this person’s age.');
   const arrival = integer(envelope.transfer.targetOpening, 1440, 2879);
   if (arrival !== (p.source.now % DAY) + DAY || arrival % DAY < 1080)
-    fail('after-work chapter clock conflict');
+    fail('This chapter must start after Selin finishes work.');
   const raw = object(envelope.transfer.calendarHost);
   exact(raw, ['version', 'originSourceNow', 'sourceDayOffset', 'ramadanFirstDay', 'ramadanDays']);
-  if (raw.version !== 'voice-spring/1') fail('unsupported fictional calendar');
+  if (raw.version !== 'voice-spring/1') fail('This fictional calendar is not supported.');
   const host: CalendarHost = {
     version: 'voice-spring/1',
     originSourceNow: integer(raw.originSourceNow, 0, 1e9),
@@ -99,10 +102,11 @@ export function prepareCalendarGuest(
     host.sourceDayOffset !== Math.floor(p.source.now / DAY) - Math.floor(arrival / DAY) ||
     projection.calendar.offset !== arrival - p.source.now
   )
-    fail('calendar provenance/offset conflict');
+    fail('The saved calendar does not match its source dates.');
   const checkpoint = object(envelope.transfer.checkpoint);
   const digest = checkpoint.checkpointDigest;
-  if (typeof digest !== 'string' || !/^[a-f0-9]{64}$/.test(digest)) fail('checkpoint digest missing');
+  if (typeof digest !== 'string' || !/^[a-f0-9]{64}$/.test(digest))
+    fail('The verification code for this save is missing.');
   const target = structuredClone(opening);
   target.now = arrival;
   target.life.bornAt = p.life.bornAt + arrival - p.source.now;
@@ -123,9 +127,9 @@ export function prepareCalendarGuest(
       c.kind === 'duty' ||
       (c.kind === 'job' && c.actions.join(',') !== 'voice-office-work')
     )
-      fail('unsupported role commitment');
+      fail('This saved work commitment is not supported.');
   if (person.agenda.owed?.some((d) => !['abstain', 'worship'].includes(d.kind)))
-    fail('unsupported owed calendar meaning');
+    fail('This saved duty that still needs to be made up is not supported.');
   returnReferences(person);
   return {
     person,
@@ -159,12 +163,12 @@ function returnReferences(person: Person): PersonaCalendarMap['references'] {
   };
   const action = (id: string) => {
     const supported = ['voice-office-work', 'eat', 'drink', 'tea', 'pray', 'pray-qada', 'pray-eid'];
-    if (!supported.includes(id)) fail(`unsupported calendar action ${id}`);
+    if (!supported.includes(id)) fail(`The saved calendar action “${id}” is not supported.`);
     refs.actions[id] = id === 'voice-office-work' ? 'work' : id;
   };
   const entity = (id: string) => {
     if (!['self', 'selin-voice', 'god'].includes(id) && !DEFAULT_NORMS.some((n) => n.id === id))
-      fail(`unsupported calendar entity ${id}`);
+      fail(`The saved calendar reference “${id}” is not supported.`);
     refs.entities[id] = id === 'selin-voice' ? 'selin' : id;
   };
   for (const c of person.agenda.commitments) {
@@ -176,7 +180,7 @@ function returnReferences(person: Person): PersonaCalendarMap['references'] {
     if (c.targetId) entity(c.targetId);
     if (c.chain) {
       if (c.chain !== 'voice-office' && !c.chain.startsWith('sawm:') && !c.chain.startsWith('salah:'))
-        fail('unsupported calendar chain');
+        fail('This series of saved calendar commitments is not supported.');
       refs.chains[c.chain] = c.chain === 'voice-office' ? 'job' : c.chain;
     }
   }
@@ -203,7 +207,7 @@ export function returnCalendarGuest(
 } {
   const episode = person.memory.episodes.find((e) => e.id === episodeId);
   if (!episode || episode.actorId !== 'nermin' || episode.targetId !== 'selin-voice')
-    fail('actual received Nermin answer required');
+    fail('Selin must receive Nermin’s answer before this save can return.');
   const targetOpening = (metadata.returnCalendarHost ?? metadata.calendarHost).originSourceNow;
   const projection = projectCalendarPersona(person, {
     version: 'goodhands-selin-calendar/1',
@@ -274,7 +278,7 @@ export function maintainCalendarGuest(person: Person, host: CalendarHost, lastSc
       reserved.add(d);
       const times = calendar(d);
       scheduleMakeUp(person, owed.ofId, { from: d * DAY + times.fajr, until: d * DAY + times.maghrib });
-    } else fail('unsupported owed calendar meaning');
+    } else fail('This saved duty that still needs to be made up is not supported.');
   }
   applyExemptions(person, person.now, { catalog: DEFAULT_NORMS });
   return day;

@@ -81,7 +81,13 @@ describe('Selin quiet calendar', () => {
       if (kind === 'entity') job.targetId = 'unsupported-entity';
       if (kind === 'chain') job.chain = 'unsupported-chain';
       if (kind === 'role') job.kind = 'promise';
-      await expect(prepareGuest(await rehash(envelope))).rejects.toThrow(/unsupported/);
+      await expect(prepareGuest(await rehash(envelope))).rejects.toThrow(
+        kind === 'entity'
+          ? /unsupported/
+          : kind === 'chain'
+            ? /This series of saved calendar commitments is not supported/
+            : /This saved work commitment is not supported/,
+      );
     },
   );
 
@@ -279,10 +285,14 @@ describe('Selin quiet calendar', () => {
     await expect(prepareGuest(await rehash(wrongNorm))).rejects.toThrow(/norm semantic/);
     const wrongOffset = fixture();
     (wrongOffset.transfer.person as CalendarPersonaSnapshot).calendar.offset += 1440;
-    await expect(prepareGuest(await rehash(wrongOffset))).rejects.toThrow(/offset/);
+    await expect(prepareGuest(await rehash(wrongOffset))).rejects.toThrow(
+      /The saved calendar does not match its source dates/,
+    );
     const wrongHost = fixture();
     (wrongHost.transfer.calendarHost as { originSourceNow: number }).originSourceNow += 1;
-    await expect(prepareGuest(await rehash(wrongHost))).rejects.toThrow(/provenance/);
+    await expect(prepareGuest(await rehash(wrongHost))).rejects.toThrow(
+      /The saved calendar does not match its source dates/,
+    );
     const missingReference = fixture();
     (missingReference.transfer.person as CalendarPersonaSnapshot).calendar.owed[0]!.scheduledAs =
       'unproven-history';

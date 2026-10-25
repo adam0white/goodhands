@@ -31,3 +31,9 @@ The review fix pass makes ordinary Resume clear saved or pending departure pause
 ## Compact shared footer — 2026-10-24
 
 Adopt immutable kit0.5.7 with unchanged client0.4.6 and engine pins. Keep the actual shared notice node in its stable footer. Remove obsolete host font, padding and height overrides so the shared sentence fits at normal phone size and enlarged text can wrap naturally. Existing review and copy dispositions remain valid. Exact CI and fresh deployment/live receipts are recorded in the external worker report.
+
+## Source English — 2026-10-25
+
+What remains: Adam accepts the wording by playing it. Technical delivery ends with the signed main commit, green exact-commit CI and a clean live release. The external delivery report is `/Users/abdul/code/.lab-scratch/plain2/goodhands-report.md`.
+
+Current-edition story and UI prose now live at source. Frozen editions1–4 keep their exact text and replay behavior. The remaining display adapter supports those editions, stored semantic labels and honorifics. Current exports replay; pre-rewrite current-edition files may be refused with a plain new-game message. The rules proof replays exact baseline input tapes and blanks explicit prose paths, including narration-only HF memory summaries, while preserving every other state field. HF lexicon output remains out of scope.

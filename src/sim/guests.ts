@@ -140,7 +140,8 @@ export function freshGuest(id: GuestId, seed = 1): GuestAdmission {
   return { id, person, arm: 'fresh', history: [] };
 }
 function checkCommitments(projection: PersonaProjectionSnapshot, id: GuestId, opening: number) {
-  if (projection.commitments.length !== 1) fail('exactly one supported recurring obligation required');
+  if (projection.commitments.length !== 1)
+    fail('The save must contain exactly one supported repeating commitment.');
   const c = projection.commitments[0]!;
   const z = id === 'zeynep-pass';
   const action = z ? 'leave-for-home' : 'voice-office-work';
@@ -158,22 +159,22 @@ function checkCommitments(projection: PersonaProjectionSnapshot, id: GuestId, op
     (z && (c.toId !== 'sons' || c.targetId !== undefined)) ||
     (!z && (c.toId !== undefined || c.targetId !== undefined))
   )
-    fail('unsupported obligation mapping');
+    fail('This saved commitment cannot be continued here.');
 }
 function history(value: unknown): GuestHistory[] {
-  if (!Array.isArray(value) || value.length > 8) fail('invalid history');
+  if (!Array.isArray(value) || value.length > 8) fail('The saved history is invalid.');
   return value.map((row) => {
     if (
       !row ||
       typeof row !== 'object' ||
       Object.keys(row).sort().join(',') !== 'at,id,sourceEpisodeId,sourceGame,summary'
     )
-      fail('invalid history fields');
+      fail('The fields in the saved history are invalid.');
     const r = row as GuestHistory;
     for (const k of ['id', 'summary', 'sourceGame', 'sourceEpisodeId'] as const)
       if (typeof r[k] !== 'string' || !r[k].length || r[k].length > (k === 'summary' ? 512 : 128))
-        fail('invalid history text');
-    if (!Number.isFinite(r.at)) fail('invalid history time');
+        fail('The text in the saved history is invalid.');
+    if (!Number.isFinite(r.at)) fail('A date in the saved history is invalid.');
     return clone(r);
   });
 }
@@ -181,9 +182,10 @@ function history(value: unknown): GuestHistory[] {
 export async function prepareGuest(input: unknown): Promise<GuestAdmission> {
   const envelope = await validatePersona(input);
   const id = (Object.keys(IDENTITY) as GuestId[]).find((key) => IDENTITY[key].cast === envelope.castId);
-  if (!id || envelope.castRevision !== '2') fail('unsupported cast revision');
+  if (!id || envelope.castRevision !== '2') fail('This saved version of the person is not supported.');
   const info = IDENTITY[id];
-  if (envelope.source.game !== info.source || envelope.source.engine !== '2.17.0') fail('unsupported source');
+  if (envelope.source.game !== info.source || envelope.source.engine !== '2.17.0')
+    fail('This source save is not supported.');
   if (
     id === 'selin-voice' &&
     (envelope.transfer.person as { format?: string } | undefined)?.format === 'hf-persona-calendar/1'
@@ -193,7 +195,7 @@ export async function prepareGuest(input: unknown): Promise<GuestAdmission> {
         (key) => !['person', 'history', 'checkpoint', 'calendarHost', 'targetOpening', 'life'].includes(key),
       )
     )
-      fail('unsupported calendar transfer fields');
+      fail('Some fields in the saved calendar transfer are not supported.');
     const admitted = prepareCalendarGuest(envelope, freshGuest(id).person);
     const p = admitted.projection.person;
     const facts = history(envelope.transfer.history);
@@ -208,7 +210,7 @@ export async function prepareGuest(input: unknown): Promise<GuestAdmission> {
           f.at !== p.episodes[0]!.at,
       )
     )
-      fail('unsupported source history');
+      fail('This source history is not supported.');
     const checkpoint = envelope.transfer.checkpoint as Record<string, unknown> | undefined;
     if (
       !checkpoint ||
@@ -217,7 +219,7 @@ export async function prepareGuest(input: unknown): Promise<GuestAdmission> {
       checkpoint.sourceNow !== p.source.now ||
       canonicalPersona(checkpoint.sourceRng) !== canonicalPersona(p.rng)
     )
-      fail('missing source checkpoint provenance');
+      fail('The verification record for the source save is missing.');
     return { id, person: admitted.person, arm: 'continuing', history: facts, calendar: admitted.metadata };
   }
   if (
@@ -228,11 +230,11 @@ export async function prepareGuest(input: unknown): Promise<GuestAdmission> {
         ),
     )
   )
-    fail('unsupported transfer fields');
+    fail('Some fields in the saved transfer are not supported.');
   if (envelope.source.game === 'pass' && !['pass-12', '12'].includes(envelope.source.rules))
-    fail('unsupported source edition');
+    fail('This edition of the source game is not supported.');
   if (envelope.source.game === 'voice' && envelope.source.rules !== 'voice-3')
-    fail('unsupported source edition');
+    fail('This edition of the source game is not supported.');
   const p = validatePersonaProjection(envelope.transfer.person);
   if (
     p.mappingVersion !== info.mapping ||
@@ -240,24 +242,26 @@ export async function prepareGuest(input: unknown): Promise<GuestAdmission> {
     p.name !== info.name ||
     p.life.sex !== 'female'
   )
-    fail('identity or mapping conflict');
+    fail('The saved person’s identity or transfer details do not match.');
   if (Object.keys(p.skills).sort().join(',') !== (id === 'zeynep-pass' ? 'cold' : ''))
-    fail('unsupported skill mapping');
-  if (p.episodes.length !== 1) fail('one attended source fact required');
+    fail('These saved skills cannot be continued here.');
+  if (p.episodes.length !== 1)
+    fail('The save must include exactly one event the person experienced in the source game.');
   if (p.episodes.some((e) => e.voiceId === 'nermin' || e.actorId === 'nermin'))
-    fail('source cannot grant Nermin prior history');
+    fail('The source save cannot add earlier experiences for Nermin.');
   const sourceClock = local(p.source.now);
-  if (id === 'selin-voice' && sourceClock < 1080) fail('enquiry requires after-work source boundary');
+  if (id === 'selin-voice' && sourceClock < 1080)
+    fail('The enquiry must begin after Selin finishes work in the source game.');
   // Preserve local clock and exact source age. Whole-day offset models no travel or recovery.
   const age = (p.source.now - p.life.bornAt) / (365 * DAY);
-  if (age < info.age || age >= info.age + 1) fail('unsupported canonical age');
+  if (age < info.age || age >= info.age + 1) fail('This saved age is not supported for this person.');
   const arrivalPolicy = envelope.transfer.admission as Record<string, unknown> | undefined;
   if (
     arrivalPolicy &&
     (Object.keys(arrivalPolicy).some((key) => !['adapter', 'targetOpening', 'familyHistory'].includes(key)) ||
       arrivalPolicy.adapter !== info.mapping)
   )
-    fail('unsupported source admission policy');
+    fail('This source save uses transfer rules that are not supported.');
   const now = arrivalPolicy?.targetOpening ?? envelope.transfer.targetOpening;
   if (
     typeof now !== 'number' ||
@@ -266,8 +270,9 @@ export async function prepareGuest(input: unknown): Promise<GuestAdmission> {
     now > 3 * DAY ||
     local(now) !== sourceClock
   )
-    fail('unsupported target opening');
-  if (p.health.health !== 1 || p.health.circadianPeak !== 960) fail('health compatibility conflict');
+    fail('This starting date or time is not supported.');
+  if (p.health.health !== 1 || p.health.circadianPeak !== 960)
+    fail('The saved body state is not compatible with this game.');
   const base = freshGuest(id).person;
   base.now = now;
   // Exercise-related fitness is portable stable state, not clinical healing.
@@ -293,7 +298,7 @@ export async function prepareGuest(input: unknown): Promise<GuestAdmission> {
         fact.at !== retained.at,
     )
   )
-    fail('unsupported source history');
+    fail('This source history is not supported.');
   const checkpoint = envelope.transfer.checkpoint as Record<string, unknown> | undefined;
   if (
     !checkpoint ||
@@ -304,7 +309,7 @@ export async function prepareGuest(input: unknown): Promise<GuestAdmission> {
     typeof checkpoint.checkpointDigest !== 'string' ||
     !/^[a-f0-9]{64}$/.test(checkpoint.checkpointDigest)
   )
-    fail('missing source checkpoint provenance');
+    fail('The verification record for the source save is missing.');
   let familyHistory: GuestAdmission['familyHistory'];
   if (id === 'zeynep-pass') {
     const old = (arrivalPolicy?.familyHistory ??
@@ -320,23 +325,24 @@ export async function prepareGuest(input: unknown): Promise<GuestAdmission> {
       old.until - old.from !== 40 ||
       old.until > p.source.now
     )
-      fail('unsupported family history');
+      fail('This saved family history is not supported.');
     familyHistory = {
       status: old.status,
       from: old.from + now - p.source.now,
       until: old.until + now - p.source.now,
     };
-  } else if (envelope.transfer.familyHistory !== undefined) fail('unsupported family history');
+  } else if (envelope.transfer.familyHistory !== undefined)
+    fail('This saved family history is not supported.');
   return { id, person, arm: 'continuing', history: facts, ...(familyHistory ? { familyHistory } : {}) };
 }
 export function initGuests(state: State, admissions: GuestAdmission[]) {
   const supplied = new Map(admissions.map((a) => [a.id, a]));
-  if (supplied.size !== admissions.length) fail('duplicate admission');
+  if (supplied.size !== admissions.length) fail('The same guest was added more than once.');
   const guests: Guest[] = [];
   for (const id of Object.keys(IDENTITY) as GuestId[]) {
     const admission = clone(supplied.get(id) ?? freshGuest(id, state.seed));
     if (admission.person.id !== id || admission.person.name !== IDENTITY[id].name)
-      fail('invalid pinned admission');
+      fail('The saved guest’s identity does not match.');
     state.people[id] = admission.person;
     const { person, ...fields } = admission;
     let arrival = Math.max(DAY + (id === 'zeynep-pass' ? 570 : 1081), person.now);
@@ -398,14 +404,14 @@ export function stepGuests(state: State) {
               ? { sleep: 0.8 }
               : {},
         summary: trial
-          ? `Prepared the cold supper: ${g.trial?.succeeded ? 'ready as agreed' : 'needed correction'}.`
+          ? `She prepared the cold supper. ${g.trial?.succeeded ? 'The dishes were ready as agreed.' : 'The dishes needed correction.'}`
           : a.label,
       });
       advanceAgenda(p, p.now);
       if (trial) {
         g.status = 'complete';
         g.encounterEpisode = p.memory.episodes.at(-1)?.id;
-        g.text = `The daytime cold-supper preparation is finished. ${g.trial?.succeeded ? 'The cold dishes were ready as agreed.' : 'The cold dishes needed correction.'} Nermin released this guest duty. Zeynep still keeps her daily family window.`;
+        g.text = `The daytime cold-supper preparation is finished. ${g.trial?.succeeded ? 'The cold dishes were ready as agreed.' : 'The cold dishes needed correction.'} Nermin has ended her duty for this trial. Zeynep still keeps her agreed daily time at home with her family.`;
         const account = `Nermin: The household reports that the cold dishes ${g.trial?.succeeded ? 'were ready as agreed' : 'needed correction'}. Your short trial is finished; you have no further agency duty.`;
         // A bounded account of this host-resolved trial, heard by the cook herself.
         g.encounterEpisode = attendAnswer(p, account) ?? g.encounterEpisode;
@@ -418,9 +424,9 @@ export function stepGuests(state: State) {
       g.status = 'available';
       g.text =
         g.id === 'zeynep-pass'
-          ? 'Zeynep, 45, spent twenty years in a school canteen. This short daytime stint is within reach of home and her sons. She offers cold-supper preparation only. She leaves for home at 21:30.'
+          ? 'Zeynep, 45, spent twenty years in a school canteen. This short daytime job is close enough to her home and sons. She offers cold-supper preparation only. She leaves for home at 21:30.'
           : 'Selin phones after office work about practical help for her father Halil in his Anatolian town. Nermin must check whether a suitable service reaches his address. This is an enquiry.';
-      if (g.history.length) g.text += ` Her retained account: “${g.history.at(-1)!.summary}”`;
+      if (g.history.length) g.text += ` Her saved account says: “${g.history.at(-1)!.summary}”`;
       record(s, `${IDENTITY[g.id].name}: ${g.text}`, 'arrival');
     }
     if (p.activity || state.castPauseRequested) continue;
@@ -507,20 +513,21 @@ export function applyGuest(state: State, input: Extract<Input, { type: 'guest-ac
     });
     begin(p, a, decision);
     g.status = 'working';
-    g.text = 'Zeynep agreed to the ninety-minute cold-supper preparation. Her family window stays free.';
+    g.text =
+      'Zeynep agreed to the ninety-minute cold-supper preparation. Her time at home with her family stays free.';
     record(s, g.text);
   } else if (g.id === 'selin-voice' && (input.action === 'ask-service' || input.action === 'end-enquiry')) {
     if (t < 1080 || (!g.calendar && p.activity)) return;
     if (g.calendar && p.activity) {
       if (g.pendingEnquiry) return;
       g.pendingEnquiry = input.action;
-      g.text = `Selin is finishing ${p.activity.affordance.label.toLowerCase()}. Nermin will reply when she is free.`;
+      g.text = `Selin is still busy. Her current activity is “${p.activity.affordance.label}”. Nermin will reply when she is free.`;
       record(s, g.text);
       return;
     }
     answerEnquiry(s, g, p, input.action);
   } else if (g.id === 'zeynep-pass' && input.action === 'decline') {
-    g.text = 'Nermin declined the guest trial. No placement took place.';
+    g.text = 'Nermin declined the guest trial. The agency did not arrange a job.';
     g.status = 'complete';
     g.encounterEpisode = attendAnswer(p, g.text);
     record(s, g.text);
@@ -560,7 +567,7 @@ export function guestViews(state: State): GuestView[] {
                   label:
                     g.calendar && state.people[g.id]?.activity
                       ? 'Reply after Selin finishes'
-                      : 'Check the limits of this enquiry',
+                      : 'Check what help the agency can arrange',
                   ...(local(state.now) < 1080 ||
                   (g.calendar ? !!g.pendingEnquiry : state.people[g.id]?.activity)
                     ? {
@@ -572,7 +579,7 @@ export function guestViews(state: State): GuestView[] {
                 },
                 {
                   action: 'end-enquiry',
-                  label: 'End without a placement',
+                  label: 'End the enquiry without arranging help',
                   ...(local(state.now) < 1080 ||
                   (g.calendar ? !!g.pendingEnquiry : state.people[g.id]?.activity)
                     ? {
@@ -604,7 +611,7 @@ export async function exportGuest(
 }> {
   const g = (state as GuestState).guests?.find((row) => row.id === id);
   if (!g || g.status !== 'complete' || !g.encounterEpisode)
-    fail('an attended completed encounter is required');
+    fail('Finish the guest’s visit before exporting this person.');
   const p = state.people[id]!;
   const z = id === 'zeynep-pass';
   if (g.calendar) {
@@ -648,7 +655,7 @@ export async function exportGuest(
   > = {};
   for (const c of p.agenda.commitments.filter((c) => c.status === 'pending')) {
     const supported = z ? c.actions[0] === 'leave-for-home' : c.actions[0] === 'voice-office-work';
-    if (!supported) fail('unreleased guest duty');
+    if (!supported) fail('End the guest’s current agency duty before exporting this person.');
     bindings[c.id] = {
       id: c.id,
       actions: [z ? 'home' : 'work'],
@@ -660,11 +667,11 @@ export async function exportGuest(
     };
   }
   const e = p.memory.episodes.find((episode) => episode.id === g.encounterEpisode);
-  if (!e) fail('encounter episode no longer retained');
+  if (!e) fail('The record of this visit is no longer in the saved history.');
   const personReference = (reference: string): string => {
     if (reference === 'nermin') return 'nermin-goodhands';
     if (reference === id) return z ? 'zeynep' : 'selin';
-    return fail(`unsupported encounter person reference ${reference}`);
+    return fail(`The person reference “${reference}” in this visit is not supported.`);
   };
   const projection = projectPersona(p, {
     version: z ? 'goodhands-zeynep/1' : 'goodhands-selin/1',

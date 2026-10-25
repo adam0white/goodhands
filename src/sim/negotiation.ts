@@ -30,7 +30,7 @@ export const weekdays = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday',
 export const hourWords = (hour: number) =>
   `${String(Math.floor(hour)).padStart(2, '0')}:${String(Math.round((hour % 1) * 60)).padStart(2, '0')}`;
 export const termsWords = (t: EmploymentTerms) =>
-  `₺${t.wage} a month, ${hourWords(t.startHour)}–${hourWords(t.endHour)}, ${weekdays[t.dayOff]} off, a trial of ${t.trialDays} working days; agency fee ₺${t.fee}.`;
+  `The wage is ₺${t.wage} a month. The hours are ${hourWords(t.startHour)}–${hourWords(t.endHour)}. The day off is ${weekdays[t.dayOff]}. The trial lasts ${t.trialDays} working ${t.trialDays === 1 ? 'day' : 'days'}. The agency fee is ₺${t.fee}.`;
 export function responses(
   c: Candidate,
   f: Family,
@@ -67,25 +67,25 @@ export function responses(
     worker,
     familyResponse,
     workerWords: workerRefuses
-      ? 'No. I cannot take a job on those terms. Offer a fair wage and a day I can manage.'
+      ? 'No. I cannot take a job on those terms. Offer a fair wage and working hours I can manage.'
       : low
-        ? `I need ₺${c.wage} a month. Will you put that to them?`
+        ? `I need ₺${c.wage} a month. Will you offer them that wage?`
         : late
           ? `I need to leave by ${String(Math.floor(finish)).padStart(2, '0')}:00. ${workerNeed(c.id).words}`
           : long
-            ? 'Those hours leave no time to recover. Shorten the day.'
+            ? 'Those hours leave no time to rest. Shorten the working day.'
             : harsh
-              ? 'I cannot wait that long for a settled job. Try seven working days first.'
-              : `I can agree to that. ${weekdays[t.dayOff]} off, and we keep those hours.`,
+              ? 'I cannot wait that long for a confirmed job. Try seven working days first.'
+              : `I can agree to that. I will have ${weekdays[t.dayOff]} off, and we will keep those hours.`,
     familyWords: familyRefuses
-      ? 'No. We cannot commit to that wage and fee. Bring us an offer within our means.'
+      ? 'No. We cannot commit to that wage and fee. Bring us an offer we can afford.'
       : costly
         ? `We offered ₺${f.wage}. Ask for less${t.trialDays > 3 ? ', or give us three working days before we commit' : ''}.`
         : fee
           ? `That fee is too much. Lower it before we agree.`
           : short
-            ? 'We need at least six hours of cover, through four. Can you arrange those hours?'
-            : `Agreed. We will pay ₺${t.wage} and keep those hours. We will decide after ${t.trialDays} working days.`,
+            ? 'We need at least six hours of help, until at least four. Can you arrange those hours?'
+            : `Agreed. We will pay ₺${t.wage} and keep those hours. We will decide after ${t.trialDays} working ${t.trialDays === 1 ? 'day' : 'days'}.`,
   };
 }
 export function negotiationChoices(n: NegotiationView, c: Candidate): SceneChoice[] {

@@ -1,8 +1,10 @@
 import { readFileSync } from 'node:fs';
 import { expect, it } from 'vitest';
+import { workerNeed } from '../src/sim/dialogue.ts';
+import { CANDIDATES } from '../src/sim/world.ts';
 import { plainText } from '../src/ui/plain-english.ts';
 
-it('projects dialogue and state without changing stored simulation text', () => {
+it('keeps frozen-edition dialogue readable', () => {
   expect(plainText('₺18000 a month.')).toBe('I need ₺18000 a month.');
   expect(plainText('Nanny applicant 01: “₺8000 a month.”')).toBe(
     'Nanny applicant 01: “I need ₺8000 a month.”',
@@ -16,9 +18,7 @@ it('projects dialogue and state without changing stored simulation text', () => 
   expect(plainText('Buca. About 45 minutes from the office.')).toBe(
     'I live in Buca. The journey from the office takes about 45 minutes.',
   );
-  expect(plainText('Waiting with an application form.')).toBe(
-    'This applicant is waiting with an application form.',
-  );
+  expect(CANDIDATES[0]?.look).toBe('This applicant is waiting with an application form.');
   expect(plainText('Meal preparation ends at five; evenings are my own.')).toBe(
     'Meal preparation ends at five; evenings are my own.',
   );
@@ -50,7 +50,7 @@ it('projects the same hours and experience when quoted in day notes', () => {
   );
 });
 it('keeps the garden-cover arrangement and the patience clue, and expands uncertain fragments', () => {
-  expect(plainText('A defined cooking or housekeeping trial; garden cover lasts this month only.')).toBe(
+  expect(workerNeed('hatice').words).toBe(
     'I need a trial with clear cooking or housekeeping duties. Someone is covering my garden work for this month only.',
   );
   expect(plainText('Someone steady. There will be two children asking at once.')).toBe(
