@@ -1854,7 +1854,10 @@ export function view(state: State): View {
     rent: { due: s.rentDue, amount: 5000, label: label(s.rentDue), short: s.cash < 5000 },
     task,
     phoneRinging: phone ? { who: phone.who, since: phone.since } : null,
-    scene: s.scene,
+    scene:
+      s.scene?.kind === 'interview'
+        ? { ...s.scene, questionsRemaining: Math.max(0, 4 - s.cards[s.scene.with]!.interviewCount) }
+        : s.scene,
     heldScene: s.heldScene ? { id: s.heldScene.id, title: s.heldScene.title } : null,
     bench,
     books: cards.filter((c) => c.status !== 'bench'),

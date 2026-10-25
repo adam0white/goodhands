@@ -185,6 +185,8 @@ export interface SceneView {
   canLeave: boolean;
   /** How much more conversation the candidate can offer, in words. */
   interviewPace?: string;
+  /** Remaining answers in this visit, projected without changing saved state. */
+  questionsRemaining?: number;
   /** Quiet news can end politely when a consequential call rings. */
   yieldsToPhone?: boolean;
   /** Notes added by this scene, so the UI can show "added to her card". */

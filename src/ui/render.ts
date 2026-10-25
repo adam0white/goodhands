@@ -163,3 +163,25 @@ export function placementDepositWords(simulation: number, replacement = false): 
       ? 'The family pays half the agreed fee as a deposit now.'
       : 'The family pays one week’s wage as a deposit now.';
 }
+
+/** A recorded answer is evidence, including when Nermin doubts it. */
+export function addedEvidence(notes: Note[]): string {
+  const topics: Record<Quality, string> = {
+    patient: 'patience',
+    honest: 'honesty',
+    reliable: 'reliability',
+    warm: 'warmth',
+    hardworking: 'work',
+    discreet: 'discretion',
+  };
+  const qualities = [...new Set(notes.filter((n) => !n.crossedOut).map((n) => topics[n.quality]))];
+  return qualities.length ? `Added evidence about ${qualities.join(', ')}.` : '';
+}
+
+export function placementDeadline(v: View, family: string): string {
+  const request = v.requests.find((r) => r.family === family && r.status === 'open');
+  const name = personName(v, family);
+  return request
+    ? `${name.charAt(0).toLocaleUpperCase('en-GB')}${name.slice(1)} needs a ${request.role} by ${request.byLabel}.`
+    : '';
+}

@@ -59,6 +59,7 @@ import { cityFigurePositions, drawCity, MAP_HEIGHT, MAP_WIDTH } from './map.ts';
 import { drawOffice, officeSeats } from './office.ts';
 import { plainText } from './plain-english.ts';
 import {
+  addedEvidence,
   automaticPace,
   candidateAvailability,
   canWait,
@@ -71,6 +72,7 @@ import {
   noteText,
   personName,
   phoneAvailability,
+  placementDeadline,
   placementDepositWords,
   placementLabel,
   referenceReason,
@@ -944,13 +946,8 @@ function sceneHtml(v: View): string {
     return `<p data-scene-line ${l.side ? `data-scene-side="${l.side}"` : ''} class="${l.kind === 'speech' && !narration ? 'speech' : l.kind === 'notice' || narration ? 'notice-line' : ''} ${l.side ? `side-${l.side}` : ''}">${l.speaker && !narration ? `<strong>${h(l.speaker)}:</strong> ` : ''}${h(l.text)}</p>`;
   };
   return `<section class="scene-sheet ${moreChoices ? 'all-questions' : ''} ${s.kind === 'interview' ? 'interview-sheet' : ''}" data-testid="scene" data-scene-id="${h(s.id)}" aria-label="${h(s.title)}"><header class="sheet-heading lk-sheet-head"><h2>${moreChoices ? `All ${s.kind === 'interview' ? 'questions' : 'choices'} · ${choices.length}` : h(s.title)}</h2>${moreChoices ? '<button type="button" data-action="fewer-choices">Fewer</button>' : ''}</header><div class="lk-sheet-body scene-reading"><div class="exchange" role="region" aria-label="Latest words">${(moreChoices ? latest.slice(-1) : s.lines).map(line).join('')}</div>${s.kind === 'negotiation' && s.negotiation ? `<p class="terms-summary">${h(termsLine(s.negotiation.terms))}</p>` : ''}${
-    s.added?.length
-      ? `<p class="added" role="status">Added to the applicant’s card: ${s.added
-          .filter((n) => !n.crossedOut)
-          .map((n) => h(n.quality))
-          .join(', ')}</p>`
-      : ''
-  }</div><div class="lk-commit">${v.heldScene ? `<p class="held-scene">${h(v.heldScene.title)} is waiting.</p>` : ''}${s.interviewPace ? `<p class="question-cost">Each question takes 8–12 minutes. ${h(s.interviewPace)}</p>` : ''}<div class="scene-choices">${choices
+    s.added?.length ? `<p class="added" role="status">${h(addedEvidence(s.added))}</p>` : ''
+  }</div><div class="lk-commit">${v.heldScene ? `<p class="held-scene">${h(v.heldScene.title)} is waiting.</p>` : ''}${s.kind === 'negotiation' && s.negotiation ? `<p class="placement-deadline">${h(placementDeadline(v, s.negotiation.family))}</p>` : ''}${s.interviewPace ? `<p class="question-cost">Each question takes 8–12 minutes. ${s.questionsRemaining === undefined ? h(s.interviewPace) : s.questionsRemaining > 0 ? `${s.questionsRemaining} ${s.questionsRemaining === 1 ? 'question remains' : 'questions remain'} before you must decide.` : `0 questions remain. ${h(s.interviewPace)}`}</p>` : ''}<div class="scene-choices">${choices
     .slice(0, moreChoices ? choices.length : visibleChoices)
     .map((c) => choiceHtml(c, false))
     .join(
@@ -1225,7 +1222,7 @@ function editTerms(): void {
   );
   const commit = document.createElement('div');
   commit.className = 'lk-commit';
-  commit.innerHTML = '<p class="reason" data-terms-error></p>';
+  commit.innerHTML = `<p class="placement-deadline">${h(placementDeadline(current(), scene.negotiation.family))}</p><p class="reason" data-terms-error></p>`;
   const propose = button(
     'Say these terms to both sides',
     () => {
@@ -1326,6 +1323,7 @@ function matchSheet(kind: 'trial' | 'place'): void {
   );
   const commit = document.createElement('div');
   commit.className = 'lk-commit';
+  commit.innerHTML = '<p data-match-deadline class="placement-deadline"></p>';
   for (const element of d.querySelectorAll('[data-match-reason], [data-confirm-match]'))
     commit.append(element);
   d.querySelector('.takeover-inner')?.append(commit);
@@ -1334,6 +1332,8 @@ function matchSheet(kind: 'trial' | 'place'): void {
   const update = () => {
     const live = current();
     const request = live.requests.find((r) => r.status === 'open' && r.family === familyChoice);
+    const deadline = d.querySelector('[data-match-deadline]');
+    if (deadline) deadline.textContent = placementDeadline(live, familyChoice ?? '');
     const liveCandidate = candidates(live).find((p) => p.id === c.id) ?? c;
     const reason = matchingReason(liveCandidate, request, kind, state?.version);
     const line = d.querySelector('[data-match-reason]');
