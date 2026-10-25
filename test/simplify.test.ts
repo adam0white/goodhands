@@ -106,3 +106,13 @@ it('names the quiet-office caller without rewriting replay state', () => {
   expect((state.log as LogEntry[]).find((line) => line.kind === 'city')?.text).toMatch(/^At the office: /);
   expect(fingerprint(state)).toBe(before);
 });
+
+it('preserves punctuation after grouped and ungrouped money', () => {
+  expect(plainText('The deposit, ₺2250, is in the cash box.')).toBe(
+    'The deposit, ₺2,250, is in the cash box.',
+  );
+  expect(plainText('The deposit, ₺2,250, is in the cash box.')).toBe(
+    'The deposit, ₺2,250, is in the cash box.',
+  );
+  expect(plainText('Pay ₺0, ₺9, ₺10000 and ₺10,000.')).toBe('Pay ₺0, ₺9, ₺10,000 and ₺10,000.');
+});

@@ -288,7 +288,7 @@ export function plainText(value: string): string {
       '$1 for the hours we discuss',
     )
     .replace(
-      /₺(\d[\d,]*)/gu,
+      /₺(\d(?:[\d,]*\d)?)/gu,
       (_match, digits: string) => `₺${Number(digits.replaceAll(',', '')).toLocaleString('en-GB')}`,
     );
 }
