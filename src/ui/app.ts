@@ -1,6 +1,5 @@
 import {
   anchorPersonaLife,
-  canonicalPersona,
   claimCastChapterBatch,
   closePersonaBranch,
   createPersona,
@@ -12,16 +11,10 @@ import {
   watchPersonaCheckpoint,
 } from '@adam0white/lab-client';
 import { ALLOCATION, CAST, CAST_KEYS, castKey } from '../sim/cast.ts';
-import { type AgencyChapter, agencyTransfer, prepareAgencyChapter } from '../sim/cast-chapter.ts';
+import { agencyTransfer, prepareAgencyChapter } from '../sim/cast-chapter.ts';
 import { type GuestAction, type GuestId, prepareGuest } from '../sim/guests.ts';
-import { publishNativeCheckpoint } from './checkpoint.ts';
-import {
-  type ContinuityBook,
-  ContinuitySession,
-  castIds,
-  continuityRow,
-  emptyContinuity,
-} from './continuity.ts';
+import { agencySource, publishNativeCheckpoint } from './checkpoint.ts';
+import { type ContinuityBook, ContinuitySession, continuityRow, emptyContinuity } from './continuity.ts';
 import '@adam0white/lab-kit/stage.css';
 import {
   defineTerms,
@@ -309,7 +302,6 @@ async function newMonth(fresh = false, file?: unknown): Promise<void> {
   if (openingMonth) return;
   openingMonth = true;
   const startup = ++generation;
-  const identity = lab.playerId;
   continuitySession.invalidate();
   const isCurrent = () => startup === generation;
   try {
@@ -328,12 +320,7 @@ async function newMonth(fresh = false, file?: unknown): Promise<void> {
       const batch = await claimCastChapterBatch(
         shelf,
         ALLOCATION.map((p) => p.castId),
-        {
-          game: 'goodhands',
-          build: lab.build().c || 'development',
-          engine: '2.21.0',
-          rules: 'goodhands-6',
-        },
+        agencySource(lab.build().c || 'development'),
         async (inputs) => {
           const prepared = await prepareAgencyChapter(inputs, seed);
           sim.newGame(seed, 6, prepared.guests, prepared);
@@ -448,12 +435,7 @@ function checkpoint(fork = false): Promise<void> {
         }
         const parent = continuity.heads.find((p) => p.castId === cast.castId);
         try {
-          const stamps = {
-            game: 'goodhands',
-            build: lab.build().c || 'development',
-            engine: '2.21.0',
-            rules: 'goodhands-6',
-          };
+          const stamps = agencySource(lab.build().c || 'development');
           let envelope: PersonaEnvelope;
           if (!person.body.alive) {
             if (!parent) {

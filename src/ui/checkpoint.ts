@@ -1,6 +1,11 @@
 /** Fictional source ownership is independent of the menu recording preference (F-491). */
+import { ENGINE_VERSION } from '@adam0white/human-framework';
 import type { PersonaEnvelope } from '@adam0white/lab-client';
 import type { ContinuityBook, Shelf } from './continuity.ts';
+/** One producer stamp for browser claims, checkpoints and bounded source exports. */
+export function agencySource(build: string): PersonaEnvelope['source'] {
+  return { game: 'goodhands', build, engine: ENGINE_VERSION, rules: 'goodhands-6' };
+}
 export async function publishNativeCheckpoint(
   shelf: Shelf,
   book: ContinuityBook,

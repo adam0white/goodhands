@@ -20,7 +20,7 @@ test('first native checkpoint publishes with recording OFF, no parent and no rec
     castRevision: CAST.hulya.revision,
     branchId: 'native-hulya',
     parentRevision: null,
-    source: { game: 'goodhands', build: 'test', engine: '2.17.0', rules: 'goodhands-6' },
+    source: { game: 'goodhands', build: 'test', engine: '2.23.0', rules: 'goodhands-6' },
     transfer: {
       ...(await agencyTransfer(state, 'hulya')),
       life: initialPersonaLife(CAST.hulya.castId, 'native-hulya', 0),
@@ -81,7 +81,7 @@ test('native ownership replay pins the agency boundary while retaining an idle p
     castRevision: CAST.hulya.revision,
     branchId: 'idle-native',
     parentRevision: null,
-    source: { game: 'goodhands', build: 'test', engine: '2.17.0', rules: 'goodhands-6' },
+    source: { game: 'goodhands', build: 'test', engine: '2.23.0', rules: 'goodhands-6' },
     transfer: {
       ...(await agencyTransfer(state, 'hulya')),
       life: initialPersonaLife(CAST.hulya.castId, 'idle-native', 0),

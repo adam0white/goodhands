@@ -82,7 +82,6 @@ export function quality(person: Person, q: Quality): number {
   if (q === 'discreet') return 0.75 * person.traits.honesty + 0.25 * (1 - person.traits.extraversion);
   return person.traits[QUALITY_MAP[q]];
 }
-const at = (day: number, hour = 9, minute = 0) => day * 1440 + hour * 60 + minute;
 
 /** Local applicants have names; allocated canonical candidates retain their shared identities. */
 export const CANDIDATES: Candidate[] = [

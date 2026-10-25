@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import type { CalendarPersonaSnapshot, PersonaProjectionSnapshot } from '@adam0white/human-framework';
-import { perceive, projectPersona, snapshot } from '@adam0white/human-framework';
+import { projectPersona, snapshot } from '@adam0white/human-framework';
 import { canonicalPersona, createPersona } from '@adam0white/lab-client';
 import { describe, expect, it } from 'vitest';
 import {
@@ -189,27 +189,13 @@ describe('one cast guest edition', () => {
     ).toBe(true);
   });
   it('strictly admits source projection and rejects unsupported skills and provenance', async () => {
-    const source = freshGuest('selin-voice').person;
-    source.id = 'selin';
-    perceive(source, [
-      { kind: 'work', channel: 'saw', at: source.now, salience: 1, summary: 'Completed an office work day.' },
-    ]);
+    // Genuine HF2.21 generated unit control; not an actual foreign source journey.
+    const legacy = JSON.parse(
+      readFileSync(new URL('./fixtures/voice3-hf221-unit.json', import.meta.url), 'utf8'),
+    );
+    const source = legacy.source;
+    const projection = legacy.projection;
     const e = source.memory.episodes.at(-1)!;
-    const c = source.agenda.commitments[0]!;
-    const projection = projectPersona(source, {
-      version: 'voice-selin/1',
-      skills: {},
-      episodes: { [e.id]: { id: 'source-work', action: 'voice-office-work', tags: [] } },
-      commitments: {
-        [c.id]: {
-          id: 'voice-office-job',
-          actions: ['voice-office-work'],
-          from: c.from - 1440,
-          until: c.until - 1440,
-          chain: 'voice-office-job',
-        },
-      },
-    });
     const digest = [
       ...new Uint8Array(
         await crypto.subtle.digest('SHA-256', new TextEncoder().encode(canonicalPersona(snapshot(source)))),
@@ -223,7 +209,7 @@ describe('one cast guest edition', () => {
       castRevision: '2',
       branchId: 'test-selin',
       parentRevision: null,
-      source: { game: 'voice', build: 'test', engine: '2.17.0', rules: 'voice-3' },
+      source: { game: 'voice', build: 'historical-unit-hf221', engine: '2.21.0', rules: 'voice-3' },
       transfer: {
         person: projection,
         targetOpening: source.now % 1440,
@@ -245,7 +231,7 @@ describe('one cast guest edition', () => {
     const claim = await createPersona({
       ...unsigned,
       parentRevision: revision,
-      source: { game: 'goodhands', build: 'test', engine: '2.17.0', rules: 'goodhands-6' },
+      source: { game: 'goodhands', build: 'test', engine: '2.23.0', rules: 'goodhands-6' },
     });
     const book: ContinuityBook = {
       v: 1,

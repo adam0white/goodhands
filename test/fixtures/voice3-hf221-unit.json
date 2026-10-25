@@ -1,0 +1,324 @@
+{
+  "source": {
+    "schema": "human/person@1",
+    "engine": "2.21.0",
+    "id": "selin",
+    "name": "Selin",
+    "now": 2521,
+    "rng": {
+      "a": -1835104497,
+      "b": 1621824973,
+      "c": 3310820794,
+      "d": 2041432051
+    },
+    "life": {
+      "bornAt": -16828199,
+      "sex": "female"
+    },
+    "body": {
+      "satiety": 0.8,
+      "hydration": 0.85,
+      "sleepPressure": 0.2,
+      "exertion": 0,
+      "circadianPeak": 960,
+      "pain": 0,
+      "health": 1,
+      "fitness": 0.5,
+      "sleepDebt": 0,
+      "alive": true,
+      "asleep": false,
+      "since": 2521,
+      "injuries": [],
+      "illnesses": [],
+      "nextId": 0
+    },
+    "needs": {
+      "safety": 0.8,
+      "belonging": 0.7,
+      "esteem": 0.6,
+      "autonomy": 0.7,
+      "competence": 0.6,
+      "leisure": 0.6,
+      "meaning": 0.6
+    },
+    "traits": {
+      "honesty": 0.75,
+      "emotionality": 0.5,
+      "extraversion": 0.6,
+      "agreeableness": 0.65,
+      "conscientiousness": 0.7,
+      "openness": 0.5
+    },
+    "values": {
+      "benevolence": 0.8,
+      "universalism": 0.5,
+      "tradition": 0.4,
+      "conformity": 0.5,
+      "security": 0.5,
+      "achievement": 0.6,
+      "power": 0.5,
+      "hedonism": 0.5,
+      "stimulation": 0.5,
+      "selfDirection": 0.5
+    },
+    "conscience": {
+      "norms": [
+        {
+          "normId": "salah",
+          "standing": "obligatory",
+          "conviction": 0.38
+        },
+        {
+          "normId": "sawm-ramadan",
+          "standing": "obligatory",
+          "conviction": 0.38
+        },
+        {
+          "normId": "zakat",
+          "standing": "obligatory",
+          "conviction": 0.38
+        },
+        {
+          "normId": "charity",
+          "standing": "recommended",
+          "conviction": 0.38
+        },
+        {
+          "normId": "lying",
+          "standing": "forbidden",
+          "conviction": 0.72
+        },
+        {
+          "normId": "theft",
+          "standing": "forbidden",
+          "conviction": 0.72
+        },
+        {
+          "normId": "keep-promise",
+          "standing": "obligatory",
+          "conviction": 0.72
+        },
+        {
+          "normId": "kindness-to-parents",
+          "standing": "obligatory",
+          "conviction": 0.56
+        },
+        {
+          "normId": "backbiting",
+          "standing": "forbidden",
+          "conviction": 0.56
+        },
+        {
+          "normId": "help-neighbor",
+          "standing": "recommended",
+          "conviction": 0.56
+        },
+        {
+          "normId": "gratitude",
+          "standing": "recommended",
+          "conviction": 0.56
+        },
+        {
+          "normId": "harm-others",
+          "standing": "forbidden",
+          "conviction": 0.72
+        },
+        {
+          "normId": "intoxicants",
+          "standing": "forbidden",
+          "conviction": 0.38
+        },
+        {
+          "normId": "forbidden-food",
+          "standing": "forbidden",
+          "conviction": 0.38
+        },
+        {
+          "normId": "fairness",
+          "standing": "obligatory",
+          "conviction": 0.56
+        },
+        {
+          "normId": "care-dependents",
+          "standing": "obligatory",
+          "conviction": 0.56
+        },
+        {
+          "normId": "punctuality",
+          "standing": "recommended",
+          "conviction": 0.56
+        },
+        {
+          "normId": "eid-prayer",
+          "standing": "recommended",
+          "conviction": 0.38
+        }
+      ],
+      "breaches": [],
+      "intentions": [],
+      "nextBreach": 0
+    },
+    "affect": {
+      "mood": {
+        "valence": 0,
+        "arousal": 0.3
+      },
+      "emotions": [],
+      "regulation": 0.3,
+      "lastUpdated": 2521
+    },
+    "skills": {},
+    "habits": [],
+    "memory": {
+      "episodes": [
+        {
+          "at": 2521,
+          "kind": "witnessed",
+          "action": "work",
+          "valence": 0,
+          "summary": "Completed an office work day.",
+          "tags": [
+            "work",
+            "saw"
+          ],
+          "id": "e0",
+          "salience": 0.3
+        }
+      ],
+      "beliefs": [],
+      "expectations": [],
+      "sourceTrust": {},
+      "nextEpisode": 1
+    },
+    "social": {
+      "relationships": []
+    },
+    "agenda": {
+      "commitments": [
+        {
+          "kind": "job",
+          "actions": [
+            "voice-office-work"
+          ],
+          "from": 3420,
+          "until": 3960,
+          "importance": 0.8,
+          "recurEvery": 1440,
+          "chain": "voice-office-job",
+          "label": "Office work",
+          "id": "c1",
+          "status": "pending"
+        }
+      ],
+      "goals": [],
+      "nextId": 2,
+      "lastProposalDay": -1
+    },
+    "will": {
+      "voices": [
+        {
+          "voiceId": "nermin",
+          "trust": 0.5,
+          "pressure": 0,
+          "accepted": 0,
+          "refused": 0,
+          "history": [],
+          "seeded": true
+        }
+      ],
+      "precommitments": [],
+      "switchMargin": 0.15,
+      "temperature": 0
+    },
+    "activity": null,
+    "trace": [],
+    "nextDecision": 0,
+    "lexicon": {
+      "plainEnglish": true
+    }
+  },
+  "projection": {
+    "format": "hf-persona-state/1",
+    "mappingVersion": "voice-selin/1",
+    "source": {
+      "schema": "human/person@1",
+      "engine": "2.21.0",
+      "id": "selin",
+      "now": 2521
+    },
+    "name": "Selin",
+    "life": {
+      "bornAt": -16828199,
+      "sex": "female"
+    },
+    "rng": {
+      "a": -1835104497,
+      "b": 1621824973,
+      "c": 3310820794,
+      "d": 2041432051
+    },
+    "traits": {
+      "honesty": 0.75,
+      "emotionality": 0.5,
+      "extraversion": 0.6,
+      "agreeableness": 0.65,
+      "conscientiousness": 0.7,
+      "openness": 0.5
+    },
+    "values": {
+      "benevolence": 0.8,
+      "universalism": 0.5,
+      "tradition": 0.4,
+      "conformity": 0.5,
+      "security": 0.5,
+      "achievement": 0.6,
+      "power": 0.5,
+      "hedonism": 0.5,
+      "stimulation": 0.5,
+      "selfDirection": 0.5
+    },
+    "health": {
+      "health": 1,
+      "fitness": 0.5,
+      "circadianPeak": 960
+    },
+    "family": null,
+    "bonds": null,
+    "skills": {},
+    "skillRetention": null,
+    "episodes": [
+      {
+        "id": "source-work",
+        "at": 2521,
+        "kind": "witnessed",
+        "valence": 0,
+        "salience": 0.3,
+        "summary": "Completed an office work day.",
+        "tags": [],
+        "action": "voice-office-work"
+      }
+    ],
+    "commitments": [
+      {
+        "id": "voice-office-job",
+        "kind": "job",
+        "actions": [
+          "voice-office-work"
+        ],
+        "from": 1980,
+        "until": 2520,
+        "importance": 0.8,
+        "status": "pending",
+        "chain": "voice-office-job",
+        "recurEvery": 1440,
+        "label": "Office work"
+      }
+    ],
+    "limitations": [
+      "source transient body/needs/affect/ambient omitted; target arrival policy",
+      "source habits/methods/beliefs/social/conscience omitted; target authored state",
+      "source optional behaviour stores and decision history omitted; target authored state",
+      "family/bonds provenance checked; target authored state"
+    ]
+  }
+}

@@ -305,11 +305,3 @@ export interface State {
 }
 
 /** Public API the sim must export from src/sim/index.ts. */
-export interface SimApi {
-  newGame(seed: number): State;
-  apply(state: State, input: Input): State; // logs the input at state.now
-  advance(state: State, minutes: number): State; // runs the clock; may stop early when something waits
-  view(state: State): View;
-  replay(seed: number, inputs: LoggedInput[], until: Minute): State;
-  fingerprint(state: State): string;
-}

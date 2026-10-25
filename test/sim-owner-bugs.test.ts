@@ -1,6 +1,5 @@
 import { expect, test } from 'vitest';
 import type { State } from '../src/sim/types.ts';
-import { compactRun, exportRun, verifyImport } from '../src/ui/export.ts';
 import { advance, apply, fingerprint, newGame, replay, view } from './previous-simulation.ts';
 
 function until(s: State, at: number) {

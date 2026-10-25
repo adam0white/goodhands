@@ -187,7 +187,7 @@ describe('Selin quiet calendar', () => {
     const claim = await createPersona({
       ...body,
       parentRevision: revision,
-      source: { game: 'goodhands', build: 'calendar-test', engine: '2.17.0', rules: 'goodhands-6' },
+      source: { game: 'goodhands', build: 'calendar-test', engine: '2.23.0', rules: 'goodhands-6' },
     });
     const book: ContinuityBook = {
       v: 1,

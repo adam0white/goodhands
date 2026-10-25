@@ -2,23 +2,23 @@
 
 All files below are from 20 October 2026. HF cohorts use three personas on three seeds; their verdicts describe modeled sessions. Source-unread reports preserve each persona's own return decision. Neither substitutes for Adam's play acceptance. Polish round 1 followed the fun review; rounds 2–4 followed source-unread rounds 1–3.
 
-| File | Test and verdict |
-| --- | --- |
-| [Fun review](2026-10-20-fun-review.md) | Source-informed interactive review: not consistently fun; the worker/family relationship needs an actionable disagreement. |
-| [HF r1 report](2026-10-20-hf-r1.md) | Three completionists finished; five agenda stops and one quit; 22 withdrawn-action warnings. |
-| [HF r1 traces](2026-10-20-hf-r1.json.gz) | Verbatim nine-session cohort for r1; three completed months, no crashes or time caps. |
-| [Marta, r1 tester A](2026-10-20-r1-tester-a.md) | Would not return through this access method; vouch checkbox input blocked her chosen placement. |
-| [Kerem, r1 tester B](2026-10-20-r1-tester-b.md) | Would not return; one placement felt done and the departure warning had no clear response. |
-| [HF r2 report](2026-10-20-hf-r2.md) | One completionist finished and two hit the cap; repeated replacements and 60 withdrawn-action warnings remained. |
-| [HF r2 traces](2026-10-20-hf-r2.json.gz) | Verbatim nine-session cohort for r2; one completed month, no crashes. |
-| [Aylin, r2 tester C](2026-10-20-r2-tester-c.md) | Would return to see whether Sevda catches her bus and to cover the last fifty for rent; payment lacked a spoken answer. |
-| [Josh, r2 tester D](2026-10-20-r2-tester-d.md) | Would not return; the first dispute interested him, but waiting and a call that ignored placement weakened it. |
-| [HF r3 report](2026-10-20-hf-r3.md) | Three completionists hit the cap in week four; 109 phone interruptions exercised; 48 withdrawn-action warnings. |
-| [HF r3 traces](2026-10-20-hf-r3.json.gz) | Verbatim nine-session cohort for r3; no completed months or crashes. |
-| [HF r4 report](2026-10-20-hf-r4.md) | Three completionists hit the cap in weeks three/four; explicit interview endings exercised; 20 withdrawn-action warnings. |
-| [HF r4 traces](2026-10-20-hf-r4.json.gz) | Verbatim nine-session cohort for r4; no completed months or crashes; repeated replacements remained. |
-| [Farah, r3 tester E](2026-10-20-r3-tester-e.md) | Would return for Sevda's fair day and bus; unexplained interview cap and duplicate household labels obstructed play. |
-| [Lukas, r3 tester F](2026-10-20-r3-tester-f.md) | Would return for Gül's fair placement; duplicate household labels ended the session before he could check arrangements. |
-| [HF r5 report](2026-10-20-hf-r5.md) | Three completionist time caps, five agenda stops and one quit; 33 withdrawn-action warnings; no fresh source-unread verdict. |
-| [HF r5 traces](2026-10-20-hf-r5.json.gz) | Verbatim nine-session cohort on polish-round-4 commit `27d8d90`; no completed months or crashes. |
-| [Owner, 2026-10-20](owner-2026-10-20.md) | Owner run on `bba1a43`: "very good potential"; trial morning stuck, no negotiation, interviews too immediate, repeated reference calls duplicate notes, lost jobs still shown, no way to talk to families. |
+| File                                            | Test and verdict                                                                                                                                                                                           |
+| ----------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [Fun review](2026-10-20-fun-review.md)          | Source-informed interactive review: not consistently fun; the worker/family relationship needs an actionable disagreement.                                                                                 |
+| [HF r1 report](2026-10-20-hf-r1.md)             | Three completionists finished; five agenda stops and one quit; 22 withdrawn-action warnings.                                                                                                               |
+| [HF r1 traces](2026-10-20-hf-r1.json.gz)        | Verbatim nine-session cohort for r1; three completed months, no crashes or time caps.                                                                                                                      |
+| [Marta, r1 tester A](2026-10-20-r1-tester-a.md) | Would not return through this access method; vouch checkbox input blocked her chosen placement.                                                                                                            |
+| [Kerem, r1 tester B](2026-10-20-r1-tester-b.md) | Would not return; one placement felt done and the departure warning had no clear response.                                                                                                                 |
+| [HF r2 report](2026-10-20-hf-r2.md)             | One completionist finished and two hit the cap; repeated replacements and 60 withdrawn-action warnings remained.                                                                                           |
+| [HF r2 traces](2026-10-20-hf-r2.json.gz)        | Verbatim nine-session cohort for r2; one completed month, no crashes.                                                                                                                                      |
+| [Aylin, r2 tester C](2026-10-20-r2-tester-c.md) | Would return to see whether Sevda catches her bus and to cover the last fifty for rent; payment lacked a spoken answer.                                                                                    |
+| [Josh, r2 tester D](2026-10-20-r2-tester-d.md)  | Would not return; the first dispute interested him, but waiting and a call that ignored placement weakened it.                                                                                             |
+| [HF r3 report](2026-10-20-hf-r3.md)             | Three completionists hit the cap in week four; 109 phone interruptions exercised; 48 withdrawn-action warnings.                                                                                            |
+| [HF r3 traces](2026-10-20-hf-r3.json.gz)        | Verbatim nine-session cohort for r3; no completed months or crashes.                                                                                                                                       |
+| [HF r4 report](2026-10-20-hf-r4.md)             | Three completionists hit the cap in weeks three/four; explicit interview endings exercised; 20 withdrawn-action warnings.                                                                                  |
+| [HF r4 traces](2026-10-20-hf-r4.json.gz)        | Verbatim nine-session cohort for r4; no completed months or crashes; repeated replacements remained.                                                                                                       |
+| [Farah, r3 tester E](2026-10-20-r3-tester-e.md) | Would return for Sevda's fair day and bus; unexplained interview cap and duplicate household labels obstructed play.                                                                                       |
+| [Lukas, r3 tester F](2026-10-20-r3-tester-f.md) | Would return for Gül's fair placement; duplicate household labels ended the session before he could check arrangements.                                                                                    |
+| [HF r5 report](2026-10-20-hf-r5.md)             | Three completionist time caps, five agenda stops and one quit; 33 withdrawn-action warnings; no fresh source-unread verdict.                                                                               |
+| [HF r5 traces](2026-10-20-hf-r5.json.gz)        | Verbatim nine-session cohort on polish-round-4 commit `27d8d90`; no completed months or crashes.                                                                                                           |
+| [Owner, 2026-10-20](owner-2026-10-20.md)        | Owner run on `bba1a43`: "very good potential"; trial morning stuck, no negotiation, interviews too immediate, repeated reference calls duplicate notes, lost jobs still shown, no way to talk to families. |

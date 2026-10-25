@@ -22,7 +22,7 @@ async function original(key: 'nermin' | 'hatice') {
     castRevision: CAST[key].revision,
     branchId: key,
     parentRevision: null,
-    source: { game: 'goodhands', build: 'test', engine: '2.17.0', rules: 'goodhands-6' },
+    source: { game: 'goodhands', build: 'test', engine: '2.23.0', rules: 'goodhands-6' },
     transfer: { ...(await agencyTransfer(s, key)), life: initialPersonaLife(CAST[key].castId, key, 0) },
     limitations: [],
   });
@@ -84,7 +84,7 @@ test('seven carried heads can save and reload without an obsolete recording scop
         castRevision: p.revision,
         branchId: crypto.randomUUID(),
         parentRevision: null,
-        source: { game: 'goodhands', build: 'test', engine: '2.17.0', rules: 'goodhands-6' },
+        source: { game: 'goodhands', build: 'test', engine: '2.23.0', rules: 'goodhands-6' },
         transfer: { recordingEpochProvenance: 'old-immutable-epoch' },
         limitations: [],
       }),

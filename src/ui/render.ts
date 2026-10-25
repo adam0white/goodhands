@@ -1,7 +1,6 @@
 import type { CandidateView, Note, PlacementView, Quality, RequestView, View } from '../sim/types.ts';
 import { plainText } from './plain-english.ts';
 
-export const SPEED_NAMES = ['Slow', 'Steady', 'Fast'] as const;
 export const INTRO =
   'You run Good Hands, a small placement agency. A household needs a nanny by Tuesday 08:00. Three applicants are waiting on your bench. Rent is due Friday.';
 

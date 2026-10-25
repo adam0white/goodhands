@@ -14,7 +14,7 @@ async function source(id: 'nermin' | 'hatice') {
     castRevision: CAST[id].revision,
     branchId: id,
     parentRevision: null,
-    source: { game: 'goodhands', build: 'test', engine: '2.17.0', rules: 'goodhands-6' },
+    source: { game: 'goodhands', build: 'test', engine: '2.23.0', rules: 'goodhands-6' },
     transfer: { ...transfer, life: initialPersonaLife(CAST[id].castId, id, 0) },
     limitations: [],
   });
@@ -118,7 +118,7 @@ test('a second agency chapter maps Selin’s actual calendar days and keeps the 
     castRevision: '2',
     branchId: 'calendar-repeat',
     parentRevision: null,
-    source: { game: 'goodhands', build: 'test', engine: '2.17.0', rules: 'goodhands-6' },
+    source: { game: 'goodhands', build: 'test', engine: '2.23.0', rules: 'goodhands-6' },
     transfer: {
       ...transfer,
       guestMetadata: {

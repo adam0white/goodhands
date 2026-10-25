@@ -23,7 +23,7 @@ test('fresh local and canonical starts pin plain narration and replay current ex
     castRevision: CAST.nermin.revision,
     branchId: 'upgrade-test',
     parentRevision: null,
-    source: { game: 'goodhands', build: 'test', engine: '2.21.0', rules: 'goodhands-6' },
+    source: { game: 'goodhands', build: 'test', engine: '2.23.0', rules: 'goodhands-6' },
     transfer: { ...transfer, life: initialPersonaLife(CAST.nermin.castId, 'upgrade-test', 0) },
     limitations: [],
   });
@@ -48,7 +48,7 @@ test('fresh local and canonical starts pin plain narration and replay current ex
   continuity.chapter = chapter;
   continuity.initialClaims = [];
   const run = exportRun(current, current.inputs, continuity);
-  expect(run.framework).toBe('2.21.0');
+  expect(run.framework).toBe('3.0.0');
   for (const exported of [run, compactRun(run)])
     expect(fingerprint(verifyImport(JSON.stringify(exported)).state)).toBe(fingerprint(current));
   expect(() => verifyImport(JSON.stringify({ ...run, framework: '2.18.0' }))).toThrow(/Start a new game/);

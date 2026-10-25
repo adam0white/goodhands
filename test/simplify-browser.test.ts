@@ -38,7 +38,7 @@ async function fixture(context: BrowserContext, reject: () => boolean, carry = f
     castRevision: CAST.nermin.revision,
     branchId: 'simplify-fixture',
     parentRevision: null,
-    source: { game: 'goodhands', build: 'fixture', engine: '2.17.0', rules: 'goodhands-6' },
+    source: { game: 'goodhands', build: 'fixture', engine: '2.23.0', rules: 'goodhands-6' },
     transfer: {
       ...(await agencyTransfer(state, 'nermin')),
       life: initialPersonaLife(CAST.nermin.castId, 'simplify-fixture', Date.now()),
@@ -58,6 +58,7 @@ async function fixture(context: BrowserContext, reject: () => boolean, carry = f
     };
     const type = message.type === 'hf-persona-consent' ? 'hf-persona-consent-reply' : 'hf-persona-reply';
     if (message.action === 'putBatch') {
+      for (const envelope of message.envelopes ?? []) expect(envelope.source.engine).toBe('2.23.0');
       if (reject() && !lostReply)
         return { type, id: message.id, error: 'Shelf unavailable. Use a local file.' };
       backend = acceptPersonaBatch(backend, message.envelopes ?? [], message.expectedHeads);

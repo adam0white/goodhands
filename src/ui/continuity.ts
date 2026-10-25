@@ -10,6 +10,7 @@ import {
 import { ALLOCATION, castKey } from '../sim/cast.ts';
 import type { AgencyChapter } from '../sim/cast-chapter.ts';
 import type { GuestAdmission } from '../sim/guests.ts';
+import { agencySource } from './checkpoint.ts';
 
 export type OneCastRow = {
   v: 1;
@@ -117,12 +118,7 @@ export class ContinuitySession {
         ...body.transfer,
         targetClaim: { adapter: 'goodhands/1', rules: 'goodhands-6', claimId: crypto.randomUUID() },
       },
-      source: {
-        game: 'goodhands',
-        build: typeof this.build === 'function' ? this.build() : this.build,
-        engine: '2.21.0',
-        rules: 'goodhands-6',
-      },
+      source: agencySource(typeof this.build === 'function' ? this.build() : this.build),
     });
     if (scope === 'shared' || this.shelf.enabled) {
       try {
@@ -152,12 +148,7 @@ export class ContinuitySession {
       ...body,
       branchId: fork ? crypto.randomUUID() : prior.branchId,
       parentRevision: fork ? null : revision,
-      source: {
-        game: 'goodhands',
-        build: typeof this.build === 'function' ? this.build() : this.build,
-        engine: '2.21.0',
-        rules: 'goodhands-6',
-      },
+      source: agencySource(typeof this.build === 'function' ? this.build() : this.build),
       limitations:
         (projection?.format === 'hf-persona-calendar/1'
           ? projection.person.limitations

@@ -1,0 +1,700 @@
+{
+  "format": "hf-persona/1",
+  "castId": "hf.cast.aylin.murmur",
+  "castRevision": "1",
+  "branchId": "murmur-hf3-native-proof-aylin",
+  "parentRevision": null,
+  "source": {
+    "game": "murmur",
+    "build": "92cdebd9fe73",
+    "engine": "2.23.0",
+    "rules": "0.6.0"
+  },
+  "transfer": {
+    "castPassport": "murmur-cast/1",
+    "sourceRole": "aylin",
+    "person": {
+      "format": "hf-persona-calendar/1",
+      "person": {
+        "format": "hf-persona-state/1",
+        "mappingVersion": "murmur-calendar/1",
+        "source": {
+          "schema": "human/person@1",
+          "engine": "2.23.0",
+          "id": "aylin",
+          "now": 583801
+        },
+        "name": "Aylin",
+        "life": {
+          "bornAt": -18345201,
+          "sex": "female"
+        },
+        "rng": {
+          "a": 551243328,
+          "b": 3856423693,
+          "c": 400396038,
+          "d": 1748661914
+        },
+        "traits": {
+          "honesty": 0.8,
+          "emotionality": 0.55,
+          "extraversion": 0.55,
+          "agreeableness": 0.65,
+          "conscientiousness": 0.8,
+          "openness": 0.55
+        },
+        "values": {
+          "benevolence": 0.5,
+          "universalism": 0.5,
+          "tradition": 0.5,
+          "conformity": 0.5,
+          "security": 0.5,
+          "achievement": 0.5,
+          "power": 0.5,
+          "hedonism": 0.5,
+          "stimulation": 0.5,
+          "selfDirection": 0.5
+        },
+        "health": {
+          "health": 1,
+          "fitness": 0.4902962105304489,
+          "circadianPeak": 960
+        },
+        "family": null,
+        "bonds": null,
+        "skills": {},
+        "skillRetention": null,
+        "episodes": [],
+        "commitments": [],
+        "limitations": [
+          "source transient body/needs/affect/ambient omitted; target arrival policy",
+          "source habits/methods/beliefs/social and conscience breaches omitted; target authored state; held norms transported",
+          "source optional behaviour stores and decision history omitted; target authored state",
+          "family/bonds provenance checked; target authored state",
+          "episode:e4245",
+          "episode:e4493",
+          "episode:e4494",
+          "episode:e4495",
+          "episode:e4496",
+          "episode:e4497",
+          "episode:e4498",
+          "episode:e4499",
+          "episode:e4500",
+          "episode:e4501",
+          "episode:e4502",
+          "episode:e4503",
+          "episode:e4504",
+          "episode:e4505",
+          "episode:e4506",
+          "episode:e4507",
+          "episode:e4508",
+          "episode:e4509",
+          "episode:e4510",
+          "episode:e4511",
+          "episode:e4512",
+          "episode:e4513",
+          "episode:e4514",
+          "episode:e4515",
+          "episode:e4516",
+          "episode:e4517",
+          "episode:e4518",
+          "episode:e4519",
+          "episode:e4520",
+          "episode:e4521",
+          "episode:e4522",
+          "episode:e4523",
+          "episode:e4524",
+          "episode:e4525",
+          "episode:e4540",
+          "episode:e4541",
+          "episode:e4542",
+          "episode:e4543",
+          "episode:e4544",
+          "episode:e4545",
+          "episode:e4546",
+          "episode:e4547",
+          "episode:e4548",
+          "episode:e4549",
+          "episode:e4550",
+          "episode:e4551",
+          "episode:e4552",
+          "episode:e4553",
+          "episode:e4554",
+          "episode:e4555",
+          "episode:e4556",
+          "episode:e4557",
+          "episode:e4558",
+          "episode:e4559",
+          "episode:e4560",
+          "episode:e4561",
+          "episode:e4562",
+          "episode:e4563",
+          "episode:e4564",
+          "episode:e4565",
+          "episode:e4566",
+          "episode:e4567",
+          "episode:e4568",
+          "episode:e4569",
+          "episode:e4570",
+          "episode:e4571",
+          "episode:e4572",
+          "episode:e4573",
+          "episode:e4574",
+          "episode:e4575",
+          "episode:e4576",
+          "episode:e4577",
+          "episode:e4578",
+          "episode:e4579",
+          "episode:e4580",
+          "episode:e4581",
+          "episode:e4582",
+          "episode:e4583",
+          "episode:e4584",
+          "episode:e4585",
+          "episode:e4586",
+          "episode:e4587",
+          "episode:e4588",
+          "episode:e4589",
+          "episode:e4590",
+          "episode:e4591",
+          "episode:e4592",
+          "episode:e4593",
+          "episode:e4594",
+          "episode:e4595",
+          "episode:e4596",
+          "episode:e4597",
+          "episode:e4598",
+          "episode:e4599",
+          "episode:e4600",
+          "episode:e4601",
+          "episode:e4602",
+          "episode:e4603",
+          "episode:e4604",
+          "episode:e4605",
+          "episode:e4606",
+          "episode:e4607",
+          "episode:e4608",
+          "episode:e4609",
+          "episode:e4610",
+          "episode:e4611",
+          "episode:e4612",
+          "episode:e4613",
+          "episode:e4614",
+          "episode:e4615",
+          "episode:e4616",
+          "episode:e4617",
+          "episode:e4618",
+          "episode:e4619",
+          "episode:e4620",
+          "episode:e4621",
+          "episode:e4622",
+          "episode:e4623",
+          "episode:e4624",
+          "episode:e4625",
+          "episode:e4626",
+          "episode:e4627",
+          "episode:e4628",
+          "episode:e4629",
+          "episode:e4630",
+          "episode:e4631",
+          "episode:e4632",
+          "episode:e4633",
+          "episode:e4634",
+          "episode:e4635",
+          "episode:e4636",
+          "episode:e4637",
+          "episode:e4638",
+          "episode:e4639",
+          "episode:e4640",
+          "episode:e4641",
+          "episode:e4642",
+          "episode:e4643",
+          "episode:e4644",
+          "episode:e4645",
+          "episode:e4646",
+          "episode:e4647",
+          "episode:e4648",
+          "episode:e4649",
+          "episode:e4650",
+          "episode:e4651",
+          "episode:e4652",
+          "episode:e4653",
+          "episode:e4654",
+          "episode:e4655",
+          "episode:e4656",
+          "episode:e4657",
+          "episode:e4658",
+          "episode:e4659",
+          "episode:e4660",
+          "episode:e4661",
+          "episode:e4662",
+          "episode:e4663",
+          "episode:e4664",
+          "episode:e4665",
+          "episode:e4666",
+          "episode:e4667",
+          "episode:e4668",
+          "episode:e4669",
+          "episode:e4670",
+          "episode:e4671",
+          "episode:e4672",
+          "episode:e4673",
+          "episode:e4674",
+          "episode:e4675",
+          "episode:e4676",
+          "episode:e4677",
+          "episode:e4678",
+          "episode:e4679",
+          "episode:e4680",
+          "episode:e4681",
+          "episode:e4682",
+          "episode:e4683",
+          "episode:e4684",
+          "episode:e4685",
+          "episode:e4686",
+          "episode:e4687",
+          "episode:e4688",
+          "episode:e4689",
+          "episode:e4690",
+          "episode:e4691",
+          "episode:e4692",
+          "episode:e4693",
+          "episode:e4694",
+          "episode:e4695",
+          "episode:e4696",
+          "episode:e4697",
+          "episode:e4698",
+          "episode:e4699",
+          "episode:e4700",
+          "episode:e4701",
+          "episode:e4702",
+          "episode:e4703",
+          "episode:e4704",
+          "episode:e4705"
+        ]
+      },
+      "calendar": {
+        "offset": 0,
+        "commitments": [],
+        "owed": [],
+        "lapse": null,
+        "heldNorms": [
+          {
+            "normId": "salah",
+            "standing": "obligatory",
+            "conviction": 0.475
+          },
+          {
+            "normId": "sawm-ramadan",
+            "standing": "obligatory",
+            "conviction": 0.475
+          },
+          {
+            "normId": "zakat",
+            "standing": "obligatory",
+            "conviction": 0.475
+          },
+          {
+            "normId": "charity",
+            "standing": "recommended",
+            "conviction": 0.475
+          },
+          {
+            "normId": "lying",
+            "standing": "forbidden",
+            "conviction": 0.75
+          },
+          {
+            "normId": "theft",
+            "standing": "forbidden",
+            "conviction": 0.75
+          },
+          {
+            "normId": "keep-promise",
+            "standing": "obligatory",
+            "conviction": 0.75
+          },
+          {
+            "normId": "kindness-to-parents",
+            "standing": "obligatory",
+            "conviction": 0.6000000000000001
+          },
+          {
+            "normId": "backbiting",
+            "standing": "forbidden",
+            "conviction": 0.6000000000000001
+          },
+          {
+            "normId": "help-neighbor",
+            "standing": "recommended",
+            "conviction": 0.6000000000000001
+          },
+          {
+            "normId": "gratitude",
+            "standing": "recommended",
+            "conviction": 0.6000000000000001
+          },
+          {
+            "normId": "harm-others",
+            "standing": "forbidden",
+            "conviction": 0.75
+          },
+          {
+            "normId": "intoxicants",
+            "standing": "forbidden",
+            "conviction": 0.475
+          },
+          {
+            "normId": "forbidden-food",
+            "standing": "forbidden",
+            "conviction": 0.475
+          },
+          {
+            "normId": "fairness",
+            "standing": "obligatory",
+            "conviction": 0.6000000000000001
+          },
+          {
+            "normId": "care-dependents",
+            "standing": "obligatory",
+            "conviction": 0.6000000000000001
+          },
+          {
+            "normId": "punctuality",
+            "standing": "recommended",
+            "conviction": 0.6000000000000001
+          },
+          {
+            "normId": "eid-prayer",
+            "standing": "recommended",
+            "conviction": 0.475
+          }
+        ],
+        "norms": [
+          {
+            "id": "salah",
+            "label": "Perform the daily prayers",
+            "standing": "obligatory",
+            "sources": [
+              {
+                "kind": "revelation",
+                "ref": "Qur'an 2:43"
+              },
+              {
+                "kind": "revelation",
+                "ref": "Qur'an 4:103 (prayer at prescribed times)"
+              },
+              {
+                "kind": "interpretation",
+                "ref": "A missed prayer is still owed (qada); sleep, forgetting and unconsciousness lift the blame, not the debt; the debt for a stretch of unconsciousness beyond five prayer times drops (Hanafi count, kept as the default): research/capacity-and-excuse-sources.md §0, §2, §4; research/decisions.md"
+              },
+              {
+                "kind": "assumption",
+                "ref": "Window boundaries (Fajr until sunrise, one-shadow Asr, red-twilight Maghrib) are the most common positions, chosen in research/decisions.md; agenda/prayer.ts"
+              }
+            ]
+          },
+          {
+            "id": "sawm-ramadan",
+            "label": "Fast in Ramadan",
+            "standing": "obligatory",
+            "sources": [
+              {
+                "kind": "revelation",
+                "ref": "Qur'an 2:183"
+              },
+              {
+                "kind": "revelation",
+                "ref": "Qur'an 2:185 (the month of Ramadan)"
+              },
+              {
+                "kind": "revelation",
+                "ref": "Qur'an 2:187 (eat and drink until dawn, then complete the fast until nightfall)"
+              }
+            ],
+            "exemptions": [
+              {
+                "when": "illness",
+                "makeUp": true,
+                "sources": [
+                  {
+                    "kind": "revelation",
+                    "ref": "Qur'an 2:184 (whoever is ill or on a journey: an equal number of days after)"
+                  },
+                  {
+                    "kind": "revelation",
+                    "ref": "Qur'an 2:185 (repeated; Allah intends ease, not hardship)"
+                  },
+                  {
+                    "kind": "assumption",
+                    "ref": "Which illness qualifies is the person’s judgment; the severity threshold is an engineering stand-in"
+                  },
+                  {
+                    "kind": "interpretation",
+                    "ref": "Qur'an 2:184 continues: 'For those who can only fast with extreme difficulty, compensation can be made by feeding a needy person' (quran.com, checked 2026-10-03). Commonly read as covering chronic illness with no expected recovery (fidya instead of make-up); NOT modelled: every qualifying illness, chronic or acute, owes a make-up, because whether a condition is beyond recovery cannot be derived from body state"
+                  }
+                ]
+              },
+              {
+                "when": "travel",
+                "makeUp": true,
+                "sources": [
+                  {
+                    "kind": "revelation",
+                    "ref": "Qur'an 2:184 (whoever is ill or on a journey: an equal number of days after)"
+                  },
+                  {
+                    "kind": "revelation",
+                    "ref": "Qur'an 2:185"
+                  },
+                  {
+                    "kind": "assumption",
+                    "ref": "What counts as a journey is supplied by the host as a traveling flag"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "id": "zakat",
+            "label": "Pay zakat",
+            "standing": "obligatory",
+            "sources": [
+              {
+                "kind": "revelation",
+                "ref": "Qur'an 2:43"
+              }
+            ]
+          },
+          {
+            "id": "charity",
+            "label": "Give voluntary charity (sadaqah)",
+            "standing": "recommended",
+            "sources": [
+              {
+                "kind": "revelation",
+                "ref": "Qur'an 2:261"
+              }
+            ]
+          },
+          {
+            "id": "lying",
+            "label": "Lying (truthfulness is required)",
+            "standing": "forbidden",
+            "sources": [
+              {
+                "kind": "revelation",
+                "ref": "Qur'an 22:30 (shun words of falsehood; quran.com, checked 2026-10-03)"
+              },
+              {
+                "kind": "revelation",
+                "ref": "Qur'an 9:119 (be with the truthful)"
+              }
+            ]
+          },
+          {
+            "id": "theft",
+            "label": "Theft",
+            "standing": "forbidden",
+            "sources": [
+              {
+                "kind": "revelation",
+                "ref": "Qur'an 5:38"
+              },
+              {
+                "kind": "assumption",
+                "ref": "Listed in CONSCIENCE_DEFAULTS.necessityEligible: taking food in extremity is a juristic extension of the 2:173 necessity exception by analogy (2:173 itself names forbidden food); not yet sourced in research/, recorded as an engineering assumption pending a Hanafi source"
+              }
+            ]
+          },
+          {
+            "id": "keep-promise",
+            "label": "Keep promises and commitments",
+            "standing": "obligatory",
+            "sources": [
+              {
+                "kind": "revelation",
+                "ref": "Qur'an 17:34"
+              }
+            ]
+          },
+          {
+            "id": "kindness-to-parents",
+            "label": "Kindness to parents",
+            "standing": "obligatory",
+            "sources": [
+              {
+                "kind": "revelation",
+                "ref": "Qur'an 17:23"
+              }
+            ]
+          },
+          {
+            "id": "backbiting",
+            "label": "Backbiting",
+            "standing": "forbidden",
+            "sources": [
+              {
+                "kind": "revelation",
+                "ref": "Qur'an 49:12"
+              }
+            ]
+          },
+          {
+            "id": "help-neighbor",
+            "label": "Help and be good to neighbours",
+            "standing": "recommended",
+            "sources": [
+              {
+                "kind": "revelation",
+                "ref": "Qur'an 4:36 (be kind to neighbours; a command)"
+              },
+              {
+                "kind": "interpretation",
+                "ref": "Standing recorded as recommended for everyday help beyond basic kindness is an engineering simplification; the verse itself is a command"
+              }
+            ]
+          },
+          {
+            "id": "gratitude",
+            "label": "Gratitude",
+            "standing": "recommended",
+            "sources": [
+              {
+                "kind": "revelation",
+                "ref": "Qur'an 2:152 (thank Me, and never be ungrateful)"
+              },
+              {
+                "kind": "interpretation",
+                "ref": "Standing as recommended for expressed gratitude toward people is an engineering simplification"
+              }
+            ]
+          },
+          {
+            "id": "harm-others",
+            "label": "Harming others without right",
+            "standing": "forbidden",
+            "sources": [
+              {
+                "kind": "revelation",
+                "ref": "Qur'an 33:58 (abusing believers unjustifiably)"
+              },
+              {
+                "kind": "interpretation",
+                "ref": "General prohibition of unjust harm to any person, extended from specific texts; scope of \"without right\" left to the host"
+              }
+            ]
+          },
+          {
+            "id": "intoxicants",
+            "label": "Intoxicants",
+            "standing": "forbidden",
+            "sources": [
+              {
+                "kind": "revelation",
+                "ref": "Qur'an 5:90"
+              }
+            ]
+          },
+          {
+            "id": "forbidden-food",
+            "label": "Eating forbidden food (carrion, blood, swine)",
+            "standing": "forbidden",
+            "sources": [
+              {
+                "kind": "revelation",
+                "ref": "Qur'an 2:173 ('if someone is compelled by necessity—neither driven by desire nor exceeding immediate need—they will not be sinful'; quran.com, checked 2026-10-03)"
+              }
+            ]
+          },
+          {
+            "id": "fairness",
+            "label": "Deal fairly (no cheating in trade)",
+            "standing": "obligatory",
+            "sources": [
+              {
+                "kind": "revelation",
+                "ref": "Qur'an 83:1-3 (woe to the defrauders)"
+              },
+              {
+                "kind": "assumption",
+                "ref": "Generalised to fair dealing for secular hosts"
+              }
+            ]
+          },
+          {
+            "id": "care-dependents",
+            "label": "Care for those who depend on you",
+            "standing": "obligatory",
+            "sources": [
+              {
+                "kind": "interpretation",
+                "ref": "Obligations toward family alongside those toward Allah and oneself (Bukhari 1968, as cited in research/islamic-foundations.md §2); extending it to every dependent’s urgent needs is the host’s reading"
+              },
+              {
+                "kind": "assumption",
+                "ref": "Standing obligatory for secular hosts as a shared caregiving norm; engineering default"
+              }
+            ]
+          },
+          {
+            "id": "punctuality",
+            "label": "Be on time",
+            "standing": "recommended",
+            "sources": [
+              {
+                "kind": "assumption",
+                "ref": "Secular social norm; engineering default"
+              }
+            ]
+          },
+          {
+            "id": "eid-prayer",
+            "label": "Pray the Eid prayer in congregation",
+            "standing": "recommended",
+            "sources": [
+              {
+                "kind": "interpretation",
+                "ref": "Strongly emphasised in every school: wajib for Hanafis, sunnah mu'akkada (Maliki), sunnah (Shafi'i), fard kifaya (Hanbali), per TDV \"Bayram\" in research/eid-and-mourning-sources.md §1"
+              },
+              {
+                "kind": "assumption",
+                "ref": "Recorded as recommended (the most common standing overall, research/decisions.md), so missing it is no breach; congregational, with no individual make-up (eid-and-mourning-sources.md §1)"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "checkpoint": {
+      "schema": "human/person@1",
+      "sourceMinute": 583801,
+      "rng": {
+        "a": 551243328,
+        "b": 3856423693,
+        "c": 400396038,
+        "d": 1748661914
+      },
+      "sha256": "f86d09bd4f0e0e9a04074273e9039876ebb046d0e00ba190373491ed4ffe8d18"
+    },
+    "life": {
+      "version": "hf-coarse-life/1",
+      "clock": {
+        "version": "hf-chapter-clock/1",
+        "watermark": 0,
+        "seed": 1455296413
+      },
+      "assignment": 0,
+      "work": "own-routine",
+      "place": "home",
+      "notices": [],
+      "events": [],
+      "skipped": 0
+    }
+  },
+  "limitations": [
+    "Full native Murmur source state and played input prefix stay in the local export.",
+    "Private discoveries, unsupported source habits and relationships remain in that archive. This projection awards no knowledge or qualification."
+  ],
+  "revision": "11bd8626b954c39c748f832a9a43ef837db81438e4e1bbda834da868d76f82b7"
+}

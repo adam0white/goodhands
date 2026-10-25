@@ -21,6 +21,7 @@ import {
 } from '@adam0white/lab-client';
 import { CAST, CAST_KEYS, type CastKey, castKey } from './cast.ts';
 import { freshGuest, type GuestAdmission, prepareGuest } from './guests.ts';
+import { prepareMurmurAylin } from './murmur-aylin.ts';
 import { prepareSiteSelin } from './site-selin.ts';
 import type { State } from './types.ts';
 import { makePeople } from './world.ts';
@@ -146,7 +147,9 @@ export async function prepareAgencyChapter(inputs: LifePreparation[], seed: numb
       throw new Error('The saved life does not match its date and earlier save.');
     const facts = lifeAdmission(input, 'goodhands');
     let person: Person;
-    if (parent.source.game === 'voice' && key === 'selin-voice') {
+    if (parent.source.game === 'murmur' && key === 'aylin') {
+      person = prepareMurmurAylin(parent, base.aylin!);
+    } else if (parent.source.game === 'voice' && key === 'selin-voice') {
       const guest =
         parent.transfer.castPassport === 'site-cast/1'
           ? prepareSiteSelin(parent)
@@ -159,7 +162,7 @@ export async function prepareAgencyChapter(inputs: LifePreparation[], seed: numb
       person = guest.person;
     } else if (
       parent.source.game === 'goodhands' &&
-      ['2.17.0', '2.21.0'].includes(parent.source.engine) &&
+      ['2.17.0', '2.21.0', '2.23.0'].includes(parent.source.engine) &&
       parent.source.rules === 'goodhands-6' &&
       parent.transfer.castPassport === 'goodhands-agency/1' &&
       parent.transfer.sourceRole === key
