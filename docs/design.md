@@ -4,7 +4,7 @@
 
 ## One cast (2026-10-23)
 
-New months use edition6 with exact HF2.18.0, client0.4.0 and kit0.5.0. The seven released canonical profiles replace unrelated namesakes; docs/cast-census.md records every old slot. Editions1–4 retain their frozen HF2.9.0 runtime. Edition5 saves refuse with an explicit fresh-start choice.
+New months use edition6 with exact HF2.21.0, client0.4.7 and kit0.5.8. Fresh people persist the HF plain-English narration option. The seven released canonical profiles replace unrelated namesakes; docs/cast-census.md records every old slot. Editions1–4 retain their frozen HF2.9.0 runtime. Edition5 saves refuse with an explicit fresh-start choice.
 
 A fresh continuity chapter preflights and atomically claims all seven expected heads, including absent heads. Unsupported, closed or old heads refuse the whole chapter. Explicit fresh local play remains available. Loaded runs replay their pinned initial people and life results without consulting newer shelf heads. Away-life changes actual arrival availability and adds one-sided public notes; it never grants qualifications, consent or mutual trust.
 
@@ -171,6 +171,6 @@ The live UI offers Slow, Walk, Trot and Gallop clock speeds. Conversations, call
 
 Edition6 retains two dedicated guests after the ordinary loop. Zeynep retains only the supported cold-food skill and recurring home promise. Her actual HF trial outcome can differ by carried skill; it does not become general cooking knowledge. Selin's after-work phone call conveys Nermin's actual answer about the limits of the agency enquiry. It grants no placement, medical knowledge or father consent. Halil remains distinct from Taş's porter.
 
-Current revision2 Selin admissions use the HF2.18.0 wrapper and a pinned Voice spring calendar. Existing HF agenda APIs own retiming, exemptions, make-ups, decisions and completion. Good Hands supplies declared fictional clock dates and supported action/reference mappings. Unpaid duties remain unpaid; actual paid records retain their kept receipts until return. No faith score or travel gate exists. This marker changes only the new admitted path; historical editions1–4 retain their frozen behavior.
+Current revision2 Selin admissions use the HF2.21.0 wrapper and a pinned Voice spring calendar. Existing HF agenda APIs own retiming, exemptions, make-ups, decisions and completion. Good Hands supplies declared fictional clock dates and supported action/reference mappings. Unpaid duties remain unpaid; actual paid records retain their kept receipts until return. No faith score or travel gate exists. This marker changes only the new admitted path; historical editions1–4 retain their frozen behavior.
 
 The replay owns its initial admitted Person, source envelope, accepted head and bounded oneCast rows. It validates a load before restoring that head. Return wire metadata is recomputed from the pinned replay, including original source binding and the declared calendar clock. Explicit forks preserve their accepted ancestry in bounded replay metadata. Browser recording permission is separate from continuity consent. Pin selection, opaque epoch acknowledgement, synchronous bootstrap denial and generation guards keep historical uploads tied to the chosen run and identity. Source worlds stay local; the shelf holds only approved projection data and bounded provenance.

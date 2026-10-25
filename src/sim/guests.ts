@@ -125,6 +125,7 @@ export function freshGuest(id: GuestId, seed = 1): GuestAdmission {
   // An authored zero-duration chapter opening, before the guest's first visible encounter.
   const now = DAY + (id === 'zeynep-pass' ? 570 : 1081);
   const person = createPerson({
+    lexicon: { plainEnglish: true },
     id,
     name: info.name,
     seed,
@@ -184,7 +185,7 @@ export async function prepareGuest(input: unknown): Promise<GuestAdmission> {
   const id = (Object.keys(IDENTITY) as GuestId[]).find((key) => IDENTITY[key].cast === envelope.castId);
   if (!id || envelope.castRevision !== '2') fail('This saved version of the person is not supported.');
   const info = IDENTITY[id];
-  if (envelope.source.game !== info.source || envelope.source.engine !== '2.17.0')
+  if (envelope.source.game !== info.source || !['2.17.0', '2.21.0'].includes(envelope.source.engine))
     fail('This source save is not supported.');
   if (
     id === 'selin-voice' &&

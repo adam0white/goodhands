@@ -328,7 +328,7 @@ async function newMonth(fresh = false, file?: unknown): Promise<void> {
         {
           game: 'goodhands',
           build: lab.build().c || 'development',
-          engine: '2.17.0',
+          engine: '2.21.0',
           rules: 'goodhands-6',
         },
         async (inputs) => {
@@ -448,7 +448,7 @@ function checkpoint(fork = false): Promise<void> {
           const stamps = {
             game: 'goodhands',
             build: lab.build().c || 'development',
-            engine: '2.17.0',
+            engine: '2.21.0',
             rules: 'goodhands-6',
           };
           let envelope: PersonaEnvelope;

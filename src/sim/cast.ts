@@ -44,6 +44,7 @@ export function freshCast(
 ): Person {
   const c = CAST[id];
   return createPerson({
+    lexicon: { plainEnglish: true },
     id,
     name: c.name,
     seed,

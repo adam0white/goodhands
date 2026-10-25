@@ -6,7 +6,7 @@ Owner 2026-10-23: recorded play links across games on this device automatically.
 
 What remains: owner play accepts the canonical-cast increment by 2026-11-03. Technical delivery receipts and any pending live checks are in /Users/abdul/code/.lab-scratch/cast/goodhands.md. Adam accepts the result by playing it.
 
-Current months use edition6, exact HF2.18.0 (engine2.17.0), client0.4.4 and kit0.5.4. All seven allocated canonical profiles come from the released cast artifact. Old namesake roles are retired; docs/cast-census.md records their disposition. Versions1–4 retain frozen modules and the exact HF2.9.0 alias. Edition5 saves refuse plainly rather than relabeling old people.
+Current months use edition6, exact HF2.21.0 (engine2.21.0), client0.4.7 and kit0.5.8. All seven allocated canonical profiles come from the released cast artifact. Old namesake roles are retired; docs/cast-census.md records their disposition. Versions1–4 retain frozen modules and the exact HF2.9.0 alias. Edition5 saves refuse plainly rather than relabeling old people.
 
 Fresh continuity awaits the shelf and atomically claims every applicable head after semantic preflight. Unknown, old or closed heads refuse the whole start; explicit local fresh play remains available. Current exports pin complete initial actors, source claims, life inputs and results. Loaded runs never fetch newer heads. Current local ownership receipts survive reload. Native rows pin the agency checkpoint minute and input prefix separately from each Person clock, so idle people retain their actual source state. File provenance persists independently of recording permission. Recording and linking now follow the single menu preference (owner, 2026-10-23). No per-person recording scope or consent query is needed for native publication, saving or replay; file provenance remains an ownership restriction.
 
@@ -37,3 +37,7 @@ Adopt immutable kit0.5.7 with unchanged client0.4.6 and engine pins. Keep the ac
 What remains: Adam accepts the wording by playing it. Technical delivery ends with the signed main commit, green exact-commit CI and a clean live release. The external delivery report is `/Users/abdul/code/.lab-scratch/plain2/goodhands-report.md`.
 
 Current-edition story and UI prose now live at source. Frozen editions1–4 keep their exact text and replay behavior. The remaining display adapter supports those editions, stored semantic labels and honorifics. Current exports replay; pre-rewrite current-edition files may be refused with a plain new-game message. The rules proof replays exact baseline input tapes and blanks explicit prose paths, including narration-only HF memory summaries, while preserving every other state field. HF lexicon output remains out of scope.
+
+## HF plain narration — 2026-10-25
+
+What remains: Adam accepts the wording by playing it. This increment pins exact HF2.21.0 for edition6, keeps frozen editions1–4 on the existing2.9.0 alias, and persists `lexicon.plainEnglish: true` for fresh local and canonical starts. Saved runs keep their narration data; older edition6 framework exports refuse plainly. Current native adapters accept only historical2.17.0 and current2.21.0 source stamps, retaining their identity, role, map and checkpoint checks. Delivery receipts and limitations are in `/Users/abdul/code/.lab-scratch/hfadopt/goodhands-report.md`.

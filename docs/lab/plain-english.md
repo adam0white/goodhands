@@ -13,3 +13,11 @@ Check actual text and controls at phone and tablet widths after fonts load. Keep
 Delivery for the 2026-10-24 simplification means a signed source commit, exact green CI, a clean release from a fresh latest-origin worktree and the live Chromium/WebKit viewport matrix. Adam accepts feel and readiness by playing later. Friends' playtests and Show HN remain paused. No new playtest round is part of this change.
 
 F-492 retains the simplification history. F-493 is the route for the setting and Turkish-word pass.
+
+## HF narration upgrades
+
+Fresh edition-6 people use HF2.21.0 with persisted `lexicon.plainEnglish: true`, including canonical arrivals. Loading a saved run preserves its narration data. Older edition-6 framework exports refuse with a new-game message; frozen editions retain their original runtime. Keep source engine allowlists finite when adopting a new release. A real current source checkpoint must pass the same identity and calendar checks as the historical dialect. Changing an old fixture's header does not prove this.
+
+For a narration-only upgrade, compare identical recorded inputs with explicit prose paths and the known HF engine/narration metadata excluded. Preserve semantic histories, RNG state and all other fields. Inspect actual displayed text before deleting host glosses. A package phrase is not evidence that a player saw it.
+
+A source departure and a host arrival can happen at different minutes. Wait for actual host availability before testing the visitor’s reply.

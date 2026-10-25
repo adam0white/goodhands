@@ -87,7 +87,7 @@ export function exportRun(state: State, inputs: LoggedInput[], continuity?: Cont
   return {
     game: 'goodhands',
     version: 1,
-    ...(state.version === 6 ? { framework: '2.18.0' } : {}),
+    ...(state.version === 6 ? { framework: '2.21.0' } : {}),
     ...(state.castChapter ? { chapter: structuredClone(state.castChapter as AgencyChapter) } : {}),
     ...(state.version === 6 ? { castEdition: CAST_EDITION } : {}),
     ...(state.version === 6 ? { oneCast: structuredClone(continuity?.rows ?? []) } : {}),
@@ -262,7 +262,7 @@ export function verifyImport(text: string): {
   if (simulation === 6 && data.castEdition !== CAST_EDITION)
     throw new Error('This version cannot load that cast. Start a new game.');
   const continuity = readContinuity(data.continuity, data.oneCast);
-  if (simulation === 6 && data.framework !== '2.18.0')
+  if (simulation === 6 && data.framework !== '2.21.0')
     throw new Error('This file uses an older version of the Human Framework. Start a new game.');
   if (data.chapter !== undefined) {
     boundedPersonaJson(data.chapter);

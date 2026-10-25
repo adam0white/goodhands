@@ -159,7 +159,7 @@ export async function prepareAgencyChapter(inputs: LifePreparation[], seed: numb
       person = guest.person;
     } else if (
       parent.source.game === 'goodhands' &&
-      parent.source.engine === '2.17.0' &&
+      ['2.17.0', '2.21.0'].includes(parent.source.engine) &&
       parent.source.rules === 'goodhands-6' &&
       parent.transfer.castPassport === 'goodhands-agency/1' &&
       parent.transfer.sourceRole === key
@@ -259,6 +259,7 @@ export async function prepareAgencyChapter(inputs: LifePreparation[], seed: numb
         summary: `${person.name} read a public work note from ${facts.contacts.join(', ')}. The note does not show that they know each other.`,
         tags: ['work'],
       });
+    person.lexicon = { ...person.lexicon, plainEnglish: true };
     chapter.actors[key] = structuredClone(person);
     chapter.facts[key] = facts;
   }

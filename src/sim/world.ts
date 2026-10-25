@@ -1063,5 +1063,6 @@ export function makePeople(seed: number): Record<string, Person> {
     for (const q of ['warm', 'hardworking', 'discreet'] as const)
       hear(speaker, worker.id, `trait:goodhands:${q}`, quality(worker, q), 510, 1);
   }
+  for (const person of Object.values(people)) person.lexicon = { ...person.lexicon, plainEnglish: true };
   return people;
 }

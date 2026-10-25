@@ -568,6 +568,8 @@ export function newGame(
     };
   initGuests(s, admissions);
   if (chapter) installAgencyChapter(s, chapter);
+  // Pin narration only when a fresh chapter starts. Loaded runs keep their saved lexicon.
+  for (const person of Object.values(s.people)) person.lexicon = { ...person.lexicon, plainEnglish: true };
   arrive(s);
   return s;
 }

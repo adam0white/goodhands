@@ -19,11 +19,11 @@ export function prepareSiteSelin(envelope: PersonaEnvelope): GuestAdmission {
     envelope.castId !== 'hf.cast.selin.voice' ||
     envelope.castRevision !== '2' ||
     envelope.source.game !== 'voice' ||
-    envelope.source.engine !== '2.17.0' ||
+    !['2.17.0', '2.21.0'].includes(envelope.source.engine) ||
     envelope.source.rules !== 'cast-1' ||
     t.castPassport !== 'site-cast/1' ||
     t.sourceRole !== 'selin' ||
-    t.engine !== '2.17.0' ||
+    (t.engine !== '2.17.0' && t.engine !== '2.21.0') ||
     p.mappingVersion !== 'site-cast-calendar/1' ||
     p.source.id !== 'selin' ||
     p.name !== 'Selin' ||

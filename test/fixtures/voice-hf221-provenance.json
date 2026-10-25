@@ -1,0 +1,30 @@
+{
+  "kind": "actual-ordinary-input-voice4-departure",
+  "sourceCommit": "423696587f31f55b6e4e523b710cf88e1e055b69",
+  "framework": "2.21.0",
+  "sourceNow": 2520,
+  "sourceHash": "1f8b61182f1bdb",
+  "replayDriftAt": -1,
+  "inputLog": [
+    {
+      "at": 1660,
+      "type": "begin"
+    },
+    {
+      "at": 1660,
+      "type": "setAutoPause",
+      "on": false
+    },
+    {
+      "at": 1660,
+      "type": "personaCheckpoint"
+    },
+    [
+      1,
+      860
+    ]
+  ],
+  "dedicatedEnvelopeRevision": "7b2f870fdece27e8dc7762d867ff61271943d6632ebad24c4299818ba2592444",
+  "checkpointSha256": "af809b614af560606c5657bfb28506dacb04a169d2f27efe32fa9fcc1738164b",
+  "genericEnvelopeRevision": "d8ec7e8001b53f2347e9897c8e2d9430010e2ad55cc47c56bd26a741a083e4de"
+}

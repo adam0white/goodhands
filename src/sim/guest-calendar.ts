@@ -63,7 +63,7 @@ export function prepareCalendarGuest(
     envelope.castRevision !== '2' ||
     envelope.source.game !== 'voice' ||
     envelope.source.rules !== 'voice-4' ||
-    envelope.source.engine !== '2.17.0'
+    !['2.17.0', '2.21.0'].includes(envelope.source.engine)
   )
     fail('This source save is not supported.');
   const projection = validateCalendarPersona(envelope.transfer.person);

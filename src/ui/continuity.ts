@@ -120,7 +120,7 @@ export class ContinuitySession {
       source: {
         game: 'goodhands',
         build: typeof this.build === 'function' ? this.build() : this.build,
-        engine: '2.17.0',
+        engine: '2.21.0',
         rules: 'goodhands-6',
       },
     });
@@ -155,7 +155,7 @@ export class ContinuitySession {
       source: {
         game: 'goodhands',
         build: typeof this.build === 'function' ? this.build() : this.build,
-        engine: '2.17.0',
+        engine: '2.21.0',
         rules: 'goodhands-6',
       },
       limitations:
