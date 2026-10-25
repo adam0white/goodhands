@@ -291,60 +291,62 @@ function notice(person: Person, variant: number): string {
   let pool: Six;
   if (signs.fatigue > 0.3) {
     pool = [
-      'Their eyelids droop between answers.',
-      'They stifle a yawn behind one hand.',
-      'They rub their eyes before continuing.',
-      'Their shoulders settle lower in the chair.',
-      'They blink slowly, then sit up again.',
-      'They pause before starting the next sentence.',
+      '{possessive} eyelids droop between answers.',
+      '{person} stifles a yawn behind one hand.',
+      '{person} rubs {possessive} eyes before continuing.',
+      '{possessive} shoulders settle lower in the chair.',
+      '{person} blinks slowly, then sits up again.',
+      '{person} pauses before starting the next sentence.',
     ];
   } else if (signs.fear > 0.2) {
     pool = [
-      'Their fingers hold the edge of the chair.',
-      'They look towards the door before answering.',
-      'Their voice catches on the first word.',
-      'They press their palms together in their lap.',
-      'They take a shallow breath before continuing.',
-      'Their hands move, then go still.',
+      '{possessive} fingers hold the edge of the chair.',
+      '{person} looks towards the door before answering.',
+      '{possessive} voice catches on the first word.',
+      '{person} presses {possessive} palms together in {possessive} lap.',
+      '{person} takes a shallow breath before continuing.',
+      '{possessive} hands move, then go still.',
     ];
   } else if (signs.pain > 0.2) {
     pool = [
-      'They shift their weight carefully in the chair.',
-      'They wince before settling again.',
-      'They move one shoulder with care.',
-      'They pause to find a more comfortable position.',
-      'Their face tightens as they sit forward.',
-      'They brace a hand on the chair before moving.',
+      '{person} shifts {possessive} weight carefully in the chair.',
+      '{person} winces before settling again.',
+      '{person} moves one shoulder with care.',
+      '{person} pauses to find a more comfortable position.',
+      '{possessive} face tightens as {person} sits forward.',
+      '{person} braces a hand on the chair before moving.',
     ];
   } else if ((signs.mood ?? 0) < -0.15) {
     pool = [
-      'Their mouth tightens after the answer.',
-      'They look down at their hands for a moment.',
+      '{possessive} mouth tightens after the answer.',
+      '{person} looks down at {possessive} hands for a moment.',
       'The last words come out quietly.',
-      'They let out a long breath.',
-      'Their face still looks tired as they wait.',
-      'They look away before the next question.',
+      '{person} lets out a long breath.',
+      '{possessive} face still looks tired as {person} waits.',
+      '{person} looks away before the next question.',
     ];
   } else if ((signs.mood ?? 0) > 0.15) {
     pool = [
-      'They keep a small smile after answering.',
-      'Their face brightens as they speak.',
-      'They settle easily into the chair.',
-      'They meet Nermin’s eyes and smile.',
-      'Their shoulders loosen as they continue.',
-      'They give a brief, easy laugh.',
+      '{person} keeps a small smile after answering.',
+      '{possessive} face brightens as {person} speaks.',
+      '{person} settles easily into the chair.',
+      '{person} meets Nermin’s eyes and smiles.',
+      '{possessive} shoulders loosen as {person} continues.',
+      '{person} gives a brief, easy laugh.',
     ];
   } else {
     pool = [
-      'Nermin cannot read much from their expression.',
-      'Their expression does not show much.',
-      'They finish speaking and wait.',
-      'Their expression stays much the same.',
+      'Nermin cannot read much from {possessive} expression.',
+      '{possessive} expression does not show much.',
+      '{person} finishes speaking and waits.',
+      '{possessive} expression stays much the same.',
       'Nermin watches, but sees no clear change.',
-      'They pause before the next question.',
+      '{person} pauses before the next question.',
     ];
   }
-  return pool[variant] ?? pool[0];
+  return (pool[variant] ?? pool[0])
+    .replaceAll('{possessive}', `${person.name}’s`)
+    .replaceAll('{person}', person.name);
 }
 
 export function answer(

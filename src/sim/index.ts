@@ -995,7 +995,7 @@ function resumeHeld(s: Sim) {
     s.scene = s.heldScene;
     s.heldScene = null;
     s.scene.lines.push({ speaker: 'Nermin', text: 'Sorry. Where were we?', kind: 'speech' });
-    log(s, 'word', `Nermin returned to ${s.scene.title}. “Sorry. Where were we?”`);
+    log(s, 'word', 'Nermin returned to the conversation. “Sorry. Where were we?”');
   }
 }
 function applyInput(state: State, input: Input): State {
@@ -1245,7 +1245,7 @@ function applyInput(state: State, input: Input): State {
         } else {
           const a = answer(s.people[c.id]!, c.presentation, c.roles[0]!, input.choice, 0);
           text = a.text;
-          sc.added = [addNote(s, c.id, a.quality, a.claim, 'says', `${c.name} says`, c.id, text)];
+          sc.added = [addNote(s, c.id, a.quality, a.claim, 'says', c.name, c.id, text)];
           if (input.choice === 'q-reliable') text += ` ${contextualConcern(c.id, c.roles[0]!).concern}`;
         }
         sc.lines.push({ speaker: c.name, text, kind: 'speech' });
@@ -1330,7 +1330,7 @@ function applyInput(state: State, input: Input): State {
       text: 'Excuse me. I need to answer the phone.',
       kind: 'speech',
     });
-    log(s, 'word', `Nermin asked to interrupt ${s.scene.title} to answer the phone.`);
+    log(s, 'word', 'Nermin asked to pause the conversation and answer the phone.');
     s.scene = null;
   }
   if (s.scene) {
@@ -1440,11 +1440,11 @@ function applyInput(state: State, input: Input): State {
     const card = s.cards[input.candidate];
     if (!ref || !c || !card?.met) return s;
     if (card.called.includes(ref.id)) {
-      refuse(s, `${ref.name} has already told you what they think of ${c.name}.`);
+      refuse(s, `${ref.name} has already given an account of ${c.name}’s work.`);
       return s;
     }
     if (s.now % DAY < ref.reachableAt) {
-      refuse(s, `${ref.name} cannot answer until ${timeLabel(ref.reachableAt)}; they are at work.`);
+      refuse(s, `${ref.name} is at work and cannot answer until ${timeLabel(ref.reachableAt)}.`);
       return s;
     }
     if (!card.called.includes(ref.id)) card.called.push(ref.id);
@@ -1778,7 +1778,7 @@ export function view(state: State): View {
                 why: `${r.name} has already told you what ${s.people[r.id]!.life.sex === 'male' ? 'he thinks' : 'she thinks'} of ${c.name}.`,
               }
             : t < r.reachableAt
-              ? { why: `${r.name} is at work until ${timeLabel(r.reachableAt)}.` }
+              ? { why: `At work until ${timeLabel(r.reachableAt)}.` }
               : {}),
           called: card.called.includes(id),
         };
@@ -2098,7 +2098,7 @@ function reportWords(s: Sim, p: Placement, through = p.moments.length): string {
     clamp((m.good ? 0.85 : 0.2) + (speaker.traits.honesty < 0.5 ? -0.28 : 0)),
   );
   return p.vouched.includes(m.quality)
-    ? `You said ${name(p.candidate)} was ${m.quality}. ${words} ${m.good ? 'You were right about this worker.' : 'That is not what you promised us.'}`
+    ? `You said the worker was ${m.quality}. ${words} ${m.good ? 'You were right about this worker.' : 'That is not what you promised us.'}`
     : words;
 }
 function deliverReport(s: Sim, p: Placement, visit = false, through = p.moments.length) {
@@ -2515,7 +2515,7 @@ function offers(s: Sim) {
         'offer',
         rich.id,
         'A job that pays more',
-        `Could you bring ${name(p.candidate)} to us instead? We will pay ₺6000 for finding someone. The present household need not know until the worker agrees.`,
+        `Could you bring ${name(p.candidate)} to us instead? We will pay ₺6000 for finding someone. The present household does not need to know until the worker agrees.`,
         [
           {
             id: 'accept-poach',
@@ -2575,7 +2575,7 @@ function offerChoice(s: Sim, sc: SceneView, choice: string) {
       log(
         s,
         'money',
-        `You repeated what ${name(offer.candidate)} told you in private. ${name(sc.with)} paid ₺1800.`,
+        `You repeated what ${name(offer.candidate)} told you in private. ${cap(name(sc.with))} paid ₺1800.`,
       );
       const routeId = s.routes.length + 1;
       const prop = `${offer.family}:secret`;
@@ -2645,7 +2645,7 @@ function offerChoice(s: Sim, sc: SceneView, choice: string) {
         log(
           s,
           'money',
-          `${name(offer.candidate)} accepted the offer. ${f.name} paid the ₺6000 finder’s fee.`,
+          `${name(offer.candidate)} accepted the offer. ${cap(f.name)} paid the ₺6000 finder’s fee.`,
           { candidate: p.candidate, family: f.id },
         );
         const r = s.requests.find((r) => r.family === f.id);
@@ -2781,14 +2781,15 @@ function envelopeDue(s: Sim) {
 function spokenClaim(prop: string, value: boolean) {
   const [target, trait] = prop.split(':');
   const subject = name(target ?? '');
+  const start = cap(subject);
   const claims: Record<string, [string, string]> = {
     reliable: [`You can rely on ${subject}.`, `You cannot rely on ${subject}.`],
-    honest: [`${subject} has been honest with people.`, `${subject} has not been honest with people.`],
-    kind: [`${subject} has treated people well.`, `${subject} has treated people badly.`],
-    patient: [`${subject} gives people time.`, `${subject} gets angry when people need time.`],
-    warm: [`${subject} makes people feel welcome.`, `${subject} keeps apart from people.`],
-    hardworking: [`${subject} finishes the work.`, `${subject} leaves work for other people.`],
-    discreet: [`${subject} keeps private information private.`, `${subject} repeats private information.`],
+    honest: [`${start} has been honest with people.`, `${start} has not been honest with people.`],
+    kind: [`${start} has treated people well.`, `${start} has treated people badly.`],
+    patient: [`${start} gives people time.`, `${start} gets angry when people need time.`],
+    warm: [`${start} makes people feel welcome.`, `${start} keeps apart from people.`],
+    hardworking: [`${start} finishes the work.`, `${start} leaves work for other people.`],
+    discreet: [`${start} keeps private information private.`, `${start} repeats private information.`],
   };
   return (
     claims[trait ?? '']?.[value ? 0 : 1] ??
@@ -3114,7 +3115,7 @@ function arrangementTests(s: Sim) {
           : spec.familyBroken;
       // The named household moment checks the agreed term; a promise checks Nermin's call.
       p.story.push(
-        `${label(s.now)}: Household test (${mode === 'promise' ? 'Nermin’s promise' : spec.moment}): ${familyWords}`,
+        `${label(s.now)}. ${mode === 'promise' ? 'Nermin’s promised reply was due.' : 'The family tested the agreed arrangement.'} The family said, “${familyWords}”`,
       );
       if (spec.moment === 'funds' || spec.moment === 'pay')
         worker.needs.safety = clamp(worker.needs.safety + (kept ? 0.12 : -0.1));
@@ -3145,7 +3146,7 @@ function arrangementTests(s: Sim) {
         { at: s.now, tags: ['arrangement'] },
         { arrangement: { honesty: kept ? 0.9 : 0.2 } },
       );
-      p.story.push(`${label(at)}: ${words} Family: ${familyWords}`);
+      p.story.push(`${label(at)}. ${name(p.candidate)} said, “${words}” The family said, “${familyWords}”`);
       p.lastWord = words;
       p.checkInAt = s.now;
       p.seems = kept ? 'good' : 'trouble';

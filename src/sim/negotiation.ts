@@ -69,7 +69,7 @@ export function responses(
     workerWords: workerRefuses
       ? 'No. I cannot take a job on those terms. Offer a fair wage and working hours I can manage.'
       : low
-        ? `I need ₺${c.wage} a month. Will you offer them that wage?`
+        ? `I need ₺${c.wage} a month. Will you offer that wage?`
         : late
           ? `I need to leave by ${String(Math.floor(finish)).padStart(2, '0')}:00. ${workerNeed(c.id).words}`
           : long

@@ -30,7 +30,7 @@ const accounts: Record<string, ReferenceAccount> = Object.fromEntries(
   CANDIDATES.map((c) => [
     c.id,
     {
-      opening: `I can tell you about ${c.name}’s past job as a ${c.roles[0]}. I do not know every part of ${c.name}’s life.`,
+      opening: `I can tell you about ${c.name}’s past job as a ${c.roles[0]}. I can only tell you about that job.`,
       patient: story(
         'patient',
         '{worker} listened when the instructions were repeated.',
@@ -65,7 +65,7 @@ export function referenceChoices(ref: Referee, asked: string[]): SceneChoice[] {
     { id: 'ref-honest', label: 'Ask about money and honesty' },
     { id: 'ref-reliable', label: 'Ask about keeping arrangements' },
     { id: 'ref-leaving', label: 'Ask why the job ended' },
-    { id: 'ref-return', label: 'Ask whether they would hire again' },
+    { id: 'ref-return', label: 'Ask whether the employer would hire again' },
     {
       id: 'distrust',
       label: `I'm not sure I believe ${ref.name.startsWith('Mr ') ? 'him' : 'her'}`,
@@ -198,8 +198,8 @@ const moments: Record<Quality, [string, string]> = {
     '{worker} did not arrive at the agreed start time and gave no warning.',
   ],
   warm: [
-    '{worker} asked the person receiving help what they wanted.',
-    '{worker} spoke about the person without asking them.',
+    '{worker} asked the person receiving help what help was wanted.',
+    '{worker} spoke about the person without asking that person.',
   ],
   hardworking: ['{worker} finished the agreed tasks.', '{worker} left the agreed tasks unfinished.'],
   discreet: [
@@ -213,7 +213,7 @@ const households: Record<string, HouseholdAccount> = Object.fromEntries(
     {
       moments,
       disagreement:
-        'Household contact: “We asked {worker} to do more work after the agreed finish time. We need to agree on the hours.”',
+        'We asked {worker} to do more work after the agreed finish time. We need to agree on the hours.',
     },
   ]),
 );

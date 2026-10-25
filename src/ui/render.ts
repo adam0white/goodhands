@@ -33,6 +33,21 @@ export function vouchLabel(candidate: CandidateView, quality: Quality): string {
   return `${quality} · ${source ?? 'not checked'}`;
 }
 
+/** Resolve public names without showing internal actor IDs. */
+export function personName(v: View, id: string): string {
+  const applicants = [...v.bench, ...v.books];
+  return (
+    applicants.find((c) => c.id === id)?.name ??
+    v.families.find((f) => f.id === id || f.name === id)?.name ??
+    v.families.flatMap((f) => f.household).find((p) => p.id === id)?.name ??
+    applicants.flatMap((c) => c.referees).find((r) => r.id === id)?.name ??
+    v.castContacts?.find((c) => c.id === id)?.name ??
+    v.guests?.find((g) => g.id === id)?.name ??
+    v.city.figures.find((f) => f.id === id)?.name ??
+    (id === 'nermin' ? 'Nermin' : id === 'husnu' ? 'Mr Hüsnü' : 'Someone')
+  );
+}
+
 export function phoneAvailability(v: View): string | undefined {
   if (v.scene?.yieldsToPhone) return undefined;
   if (v.heldScene || (v.scene && !['interview', 'reference'].includes(v.scene.kind)))
@@ -44,7 +59,7 @@ export function candidateAvailability(candidate: CandidateView): string | undefi
   if (candidate.busy) return candidate.busy;
   if (candidate.status === 'gone') return 'This applicant has left and is no longer in your agency records.';
   if (candidate.status === 'placed')
-    return 'This worker is working. Use Placed to check in or bring them back.';
+    return 'This worker is working. Use Placed to check in or bring the worker back.';
   if (candidate.status === 'trial') return 'This worker is on a trial. Wait for the family’s report.';
   return undefined;
 }

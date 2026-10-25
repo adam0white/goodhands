@@ -41,3 +41,9 @@ Current-edition story and UI prose now live at source. Frozen editions1–4 keep
 ## HF plain narration — 2026-10-25
 
 What remains: Adam accepts the wording by playing it. This increment pins exact HF2.21.0 for edition6, keeps frozen editions1–4 on the existing2.9.0 alias, and persists `lexicon.plainEnglish: true` for fresh local and canonical starts. Saved runs keep their narration data; older edition6 framework exports refuse plainly. Current native adapters accept only historical2.17.0 and current2.21.0 source stamps, retaining their identity, role, map and checkpoint checks. Delivery receipts and limitations are in `/Users/abdul/code/.lab-scratch/hfadopt/goodhands-report.md`.
+
+## Second reading pass — 2026-10-25
+
+What remains: Adam accepts the wording by playing it. Technical delivery requires the signed main commit, exact green CI, clean live release and recorded phone layout check. The delivery report is `/Users/abdul/code/.lab-scratch/plain3/goodhands-report.md`.
+
+Current source names local applicants, families, household members and former employers. These names do not restore retired biographies or change canonical identities; the census records their scope. Experience replies use first-person speech. Family requests state their needs directly. Arrangement reports use full sentences and preserve the source of each claim. Public name resolution covers household contacts and Hüsnü without showing IDs. Frozen editions remain unchanged. Exact baseline tapes and explicit prose-free state hashes verify rules; current full and compact exports replay. Older current-edition exports may refuse with the plain start-new-game message. Automated capture and an independent Codex review support delivery; neither supplies Adam's reading acceptance.

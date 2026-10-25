@@ -69,6 +69,7 @@ import {
   money,
   monthTally,
   noteText,
+  personName,
   phoneAvailability,
   placementDepositWords,
   placementLabel,
@@ -183,7 +184,7 @@ function candidates(v: View): CandidateView[] {
   return [...v.bench, ...v.books];
 }
 function person(v: View, id: string): string {
-  return candidates(v).find((c) => c.id === id)?.name ?? v.families.find((f) => f.id === id)?.name ?? id;
+  return personName(v, id);
 }
 function candidate(v: View): CandidateView | undefined {
   return candidates(v).find((c) => c.id === selected);
@@ -653,7 +654,7 @@ function paceWords(v: View): string {
   if (modal === 'feedback') return 'Paused for Feedback.';
   if (waitAnimation) return 'Skipping to the next event.';
   if (v.scene)
-    return `The clock is paused. ${v.scene.with ? person(v, v.scene.with) : v.scene.title.replace(/^.*: /, '')} is talking.`;
+    return `The clock is paused. ${v.scene.with ? `${person(v, v.scene.with).replace(/^the /, 'The ')} is talking.` : 'A conversation is in progress.'}`;
   if (v.phoneRinging) return 'Paused for the phone call.';
   if (v.dayCard || !v.open) return 'Paused. The office is closed.';
   if (v.heldScene) return `Paused for ${v.heldScene.title}.`;
@@ -857,7 +858,7 @@ function selectCandidate(id: string): void {
 function benchHtml(v: View): string {
   const c = candidate(v);
   if (!c)
-    return `<nav class="bench-strip" aria-label="Waiting bench" data-testid="bench">${v.bench.map((p) => `<button type="button" data-candidate="${h(p.id)}" aria-label="${h(p.name)}" aria-pressed="false">${p.posture === 'leaving' ? '◌' : p.posture === 'restless' ? '◐' : '●'} ${h(p.name)}</button>`).join('')}</nav><div class="empty-card"><h1>Nermin’s desk</h1><p>Choose an applicant on the bench to open their card.</p>${v.books.length ? `<div class="book-list">${v.books.map((c) => `<button type="button" data-candidate="${h(c.id)}">${h(c.name)} · ${h(c.busy ?? (c.arrival ? `coming ${c.arrival.dateLabel}` : c.presence === 'home' ? 'at home' : c.status))}</button>`).join('')}</div>` : ''}</div>`;
+    return `<nav class="bench-strip" aria-label="Waiting bench" data-testid="bench">${v.bench.map((p) => `<button type="button" data-candidate="${h(p.id)}" aria-label="${h(p.name)}" aria-pressed="false">${p.posture === 'leaving' ? '◌' : p.posture === 'restless' ? '◐' : '●'} ${h(p.name)}</button>`).join('')}</nav><div class="empty-card"><h1>Nermin’s desk</h1><p>Choose an applicant on the bench to open the application card.</p>${v.books.length ? `<div class="book-list">${v.books.map((c) => `<button type="button" data-candidate="${h(c.id)}">${h(c.name)} · ${h(c.busy ?? (c.arrival ? `coming ${c.arrival.dateLabel}` : c.presence === 'home' ? 'at home' : c.status))}</button>`).join('')}</div>` : ''}</div>`;
   const unavailable =
     candidateAvailability(c) ?? (!v.open ? 'The office is closed. Sleep to open tomorrow.' : undefined);
   const interviewLimit =
@@ -867,7 +868,7 @@ function benchHtml(v: View): string {
       : undefined);
   const reason =
     unavailable || interviewLimit ? `<p class="reason">${h(unavailable ?? interviewLimit ?? '')}</p>` : '';
-  const card = `<article class="candidate-card"><div class="card-heading"><h2>${h(c.name)}</h2><span>${h(c.roles.join(' / '))}</span></div><p class="look">${h(c.look)}</p>${c.arrival ? `<p>${h(c.name)} is coming · ${h(c.arrival.dateLabel)}</p>` : ''}${(state?.version ?? 0) < 3 ? '<p class="reason">This month uses earlier rules. Start a new month for office visits and negotiated placements.</p>' : ''}<div class="candidate-actions">${(state?.version ?? 0) >= 3 && c.presence === 'home' ? action('Call in to the office', 'call-in', unavailable, 'The journey takes time.') : action('Interview', 'interview', unavailable ?? interviewLimit, 'This takes about 30 minutes.')}${action((state?.version ?? 0) >= 3 ? 'Negotiate placement' : 'Place', 'place', unavailable, (state?.version ?? 0) >= 3 ? 'Agree on the terms with both sides.' : 'Choose which qualities to promise.')}${action('Call a reference', 'references', unavailable, 'This takes about 15 minutes.')}${action('Send for a trial', 'trial', unavailable, 'The applicant will spend the next morning with the family.')}${action('Take their number', 'take-number', unavailable ?? (c.status !== 'bench' ? 'You already have this applicant’s number.' : undefined), 'This takes 2 minutes. The applicant goes home, and you keep their number.')}</div>${reason}${c.wants ? `<p class="candidate-wants handwritten">Needs: ${h(c.wants)}</p>` : ''}<details class="notes-details"><summary>Nermin’s notes · ${c.wage === null ? 'Wage not yet asked' : `${money(c.wage)} a month`}</summary><div class="card-notes">${QUALITIES.map(
+  const card = `<article class="candidate-card"><div class="card-heading"><h2>${h(c.name)}</h2><span>${h(c.roles.join(' / '))}</span></div><p class="look">${h(c.look)}</p>${c.arrival ? `<p>${h(c.name)} is coming · ${h(c.arrival.dateLabel)}</p>` : ''}${(state?.version ?? 0) < 3 ? '<p class="reason">This month uses earlier rules. Start a new month for office visits and negotiated placements.</p>' : ''}<div class="candidate-actions">${(state?.version ?? 0) >= 3 && c.presence === 'home' ? action('Call in to the office', 'call-in', unavailable, 'The journey takes time.') : action('Interview', 'interview', unavailable ?? interviewLimit, 'This takes about 30 minutes.')}${action((state?.version ?? 0) >= 3 ? 'Negotiate placement' : 'Place', 'place', unavailable, (state?.version ?? 0) >= 3 ? 'Agree on the terms with both sides.' : 'Choose which qualities to promise.')}${action('Call a reference', 'references', unavailable, 'This takes about 15 minutes.')}${action('Send for a trial', 'trial', unavailable, 'The applicant will spend the next morning with the family.')}${action('Keep the phone number', 'take-number', unavailable ?? (c.status !== 'bench' ? 'You already have this applicant’s number.' : undefined), 'This takes 2 minutes. The applicant goes home, and you keep the phone number.')}</div>${reason}${c.wants ? `<p class="candidate-wants handwritten">Needs: ${h(c.wants)}</p>` : ''}<details class="notes-details"><summary>Nermin’s notes · ${c.wage === null ? 'Wage not yet asked' : `${money(c.wage)} a month`}</summary><div class="card-notes">${QUALITIES.map(
     (q) => {
       const notes = c.notes.filter((n) => n.quality === q);
       const read = notes.findLast((n) => !n.crossedOut) ?? notes.at(-1);
@@ -1697,7 +1698,7 @@ function info(): void {
     ],
     office: [
       'The desk',
-      'The clock runs during office hours and pauses while you talk. Applicants on the bench wait for a while, then leave. Take an applicant’s number so you can call them in later. An interview takes about 30 minutes. A call to a former employer takes about 15 minutes. A visit takes an hour, plus the journey. Agency fees help you pay the rent.',
+      'The clock runs during office hours and pauses while you talk. Applicants on the bench wait for a while, then leave. Take an applicant’s number so you can call the applicant in later. An interview takes about 30 minutes. A call to a former employer takes about 15 minutes. A visit takes an hour, plus the journey. Agency fees help you pay the rent.',
     ],
     conversation: [
       'Talking',

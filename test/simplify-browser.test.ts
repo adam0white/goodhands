@@ -217,7 +217,7 @@ for (const [name, engine] of [
               .count(),
           ).toBe(0);
           await page.getByRole('button', { name: 'Resume', exact: true }).click();
-          await page.getByRole('button', { name: 'Nanny applicant 01', exact: true }).click();
+          await page.getByRole('button', { name: 'Gülce Aksoy', exact: true }).click();
           expect(await page.locator('.look').innerText()).toBe(
             'This applicant is waiting with an application form.',
           );
@@ -244,7 +244,7 @@ for (const [name, engine] of [
           // End the interview and use the actual offer controls.
           await page.locator('[data-choice="wait-bench"]').click();
           await page.locator('[data-choice="done"]').click();
-          await page.getByRole('button', { name: 'Nanny applicant 01', exact: true }).click();
+          await page.getByRole('button', { name: 'Gülce Aksoy', exact: true }).click();
           await page.locator('[data-action="place"]').click();
           await readable(page, '.vouch-controls button', width! >= 768 ? 17 : 13);
           await page.locator('[data-confirm-match]').click();
@@ -391,7 +391,7 @@ for (const pending of [false, true]) {
       // Use an action available at the saved time, rather than an opening-only applicant.
       if (pending) await page.locator('[data-action="phone"]').click();
       else {
-        await page.getByRole('button', { name: 'Nanny applicant 01', exact: true }).click();
+        await page.getByRole('button', { name: 'Gülce Aksoy', exact: true }).click();
         await page.locator('[data-action="interview"]').click();
       }
       expect(await page.getByTestId('scene').count()).toBe(1);

@@ -59,7 +59,7 @@ try {
     await page.getByRole('button', { name: 'People between games', exact: true }).click();
     await page.getByRole('button', { name: 'Start a fresh month without history', exact: true }).click();
     await fits('office');
-    await page.getByRole('button', { name: 'Nanny applicant 01', exact: true }).click();
+    await page.getByRole('button', { name: 'Gülce Aksoy', exact: true }).click();
     await fits('candidate');
     assert.equal(await page.locator('.candidate-actions button').count(), 5);
     assert.equal(

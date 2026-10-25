@@ -48,7 +48,11 @@ export function personalAnswer(id: string, question: string): string {
     case 'wage':
       return `I need ₺${c.wage} a month.`;
     case 'last-family':
-      return c.skills.join(' ');
+      if (id === 'hulya') return 'I am an oven cook. I offer baking and meal preparation with agreed limits.';
+      if (id === 'aylin') return 'I have worked as a school kitchen cook. I offer private meal preparation.';
+      if (id === 'hatice')
+        return 'I have run a tea garden and can cook for a household. Someone will cover my seasonal work at the garden for this month only.';
+      return `I have worked as a ${c.roles[0]}.`;
     case 'hours':
       return `I can work during the day and finish by ${Math.floor(workerNeed(id).finishBy / 60)}:00. I will not return for evening work unless we agree to it.`;
     case 'home':
@@ -62,7 +66,7 @@ export function personalAnswer(id: string, question: string): string {
   }
 }
 export function workerDisagreement(id: string, household: string, told = false): string {
-  return `${household} asked for more than the agreement. ${told ? 'As I explained, I' : 'I'} need ${workerNeed(id).reason}.`;
+  return `${household.charAt(0).toUpperCase() + household.slice(1)} asked for more than the agreement. ${told ? 'As I explained, I' : 'I'} need ${workerNeed(id).reason}.`;
 }
 export function authoredTraitAnswer(
   _id: string,

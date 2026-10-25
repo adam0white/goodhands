@@ -111,3 +111,37 @@ Source: origin/main `144d38d`, current simulation5 modules. Canonical target: HF
 Old Taş Zeynep16, Taş Halil porter, İnce Derya architect and Kaya Aylin teacher are retired unrelated roles. None maps to a canonical namesake. Household collective names, relatives and player role are not added canonical people.
 
 Previous current edition had 24 applicants,16 households,24 referees plus Nermin and2 guests. All source household members above are enumerated. Existing keyed background profile/age/work-arrival generation rules remain, scoped to an unnamed monthly work episode. Canonical profiles never use those donors. No new recurring background identity is introduced. Frozen simulations1–4 remain historical source only.
+
+
+## Plain-English local names — 2026-10-25
+
+Current monthly work episodes now have readable local names. These names do not restore retired biographies or make the people canonical. IDs, profiles, sex construction, schedules and random draws remain unchanged. Canonical Hülya, Aylin and Hatice keep their allocated names. Household surnames identify collectives; contact and member names label the existing monthly roles. Referees remain scoped former employers with no maintained personal biography.
+
+| Applicant ID | Current local name |
+|---|---|
+| gul | Gülce Aksoy |
+| sevda | Şebnem Eren |
+| pinar | Özlem Koç |
+| hulya | Hülya |
+| cem | Cihan Yalçın |
+| ayla | Nurgül Keskin |
+| aylin | Aylin |
+| murat | Koray Güneş |
+| dilek | Selen Sezer |
+| hatice | Hatice |
+| selim | Cemil Toprak |
+| zehra | Şeyma Acar |
+| leyla | Fulya Şen |
+| osman | Orhan Bulut |
+| esra | Gizem Çetin |
+| safiye | Suzan Korkmaz |
+| burak | Kaan Sönmez |
+| meltem | Begüm Yavuz |
+| huriye | Müjde Polat |
+| yusuf | Oğuz Tekin |
+| aysun | Damla Ekinci |
+| nurten | Bilge Kurt |
+| ergun | Erdinç Aksu |
+| feride | Mine Uslu |
+
+Households: Arslan, Kaya, Demir, Ak, Erdem, Yılmaz, Çelik, Özkan, Aydın, Taş, Şahin, Uğur, Kara, Polat, Tekin and İnce. Each is displayed as “the [surname] family”.

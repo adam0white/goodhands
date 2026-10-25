@@ -46,7 +46,7 @@ it('holds the menu and information, then resumes without speed inputs', async ()
 });
 it('expands interview questions inside the sheet and keeps the transcript', async () => {
   await page.keyboard.press('Escape');
-  await page.getByRole('button', { name: 'Nanny applicant 01', exact: true }).click();
+  await page.getByRole('button', { name: 'Gülce Aksoy', exact: true }).click();
   await page.locator('[data-action="interview"]').click();
   await page.locator('[data-action="more-choices"]').click();
   expect(await page.locator('dialog').count()).toBe(0);
@@ -57,5 +57,5 @@ it('expands interview questions inside the sheet and keeps the transcript', asyn
   const held = await page.locator('[data-time]').innerText();
   await page.clock.runFor(3000);
   expect(await page.locator('[data-time]').innerText()).toBe(held);
-  expect(await page.locator('[data-pace]').innerText()).toContain('Nanny applicant 01 is talking');
+  expect(await page.locator('[data-pace]').innerText()).toContain('Gülce Aksoy is talking');
 });

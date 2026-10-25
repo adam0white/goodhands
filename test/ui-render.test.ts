@@ -11,6 +11,7 @@ import {
   matchingReason,
   monthTally,
   noteText,
+  personName,
   phoneAvailability,
   placementDepositWords,
   referenceReason,
@@ -207,4 +208,23 @@ it('explains the deposit for the saved rules edition', () => {
   expect(placementDepositWords(3)).toContain('half the agreed fee');
   expect(placementDepositWords(4)).toContain('one week');
   expect(placementDepositWords(4, true)).toContain('earlier deposit');
+});
+
+it('resolves public people outside the applicant list without leaking IDs', () => {
+  const v = {
+    bench: [],
+    books: [],
+    families: [
+      {
+        id: 'arslans',
+        name: 'the Arslan family',
+        household: [{ id: 'arslans-0', name: 'Suna', who: 'mother' }],
+      },
+    ],
+    city: { figures: [], threads: [], houses: [] },
+  } as unknown as View;
+  expect(personName(v, 'husnu')).toBe('Mr Hüsnü');
+  expect(personName(v, 'arslans-0')).toBe('Suna');
+  expect(personName(v, 'the Arslan family')).toBe('the Arslan family');
+  expect(personName(v, 'internal-missing')).toBe('Someone');
 });

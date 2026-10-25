@@ -84,11 +84,11 @@ export function quality(person: Person, q: Quality): number {
 }
 const at = (day: number, hour = 9, minute = 0) => day * 1440 + hour * 60 + minute;
 
-/** Unnamed work episodes; only the allocated canonical candidates retain identities. */
+/** Local applicants have names; allocated canonical candidates retain their shared identities. */
 export const CANDIDATES: Candidate[] = [
   {
     id: 'gul',
-    name: 'Nanny applicant 01',
+    name: 'Gülce Aksoy',
     age: 38,
     roles: ['nanny', 'housekeeper'],
     presentation: 'chatty',
@@ -97,12 +97,14 @@ export const CANDIDATES: Candidate[] = [
     commute: 35,
     home: 'Buca',
     arrives: 510,
-    skills: ['This applicant reports experience as a nanny. Check the reference and trial.'],
+    skills: [
+      'This applicant says, “I have worked as a nanny.” Call the reference or arrange a trial to check.',
+    ],
     referees: ['ref-gul'],
   },
   {
     id: 'sevda',
-    name: 'Nanny applicant 02',
+    name: 'Şebnem Eren',
     age: 32,
     roles: ['nanny', 'carer'],
     presentation: 'reserved',
@@ -111,12 +113,14 @@ export const CANDIDATES: Candidate[] = [
     commute: 25,
     home: 'Bornova',
     arrives: 510,
-    skills: ['This applicant reports experience as a nanny. Check the reference and trial.'],
+    skills: [
+      'This applicant says, “I have worked as a nanny.” Call the reference or arrange a trial to check.',
+    ],
     referees: ['ref-sevda'],
   },
   {
     id: 'pinar',
-    name: 'Nanny applicant 03',
+    name: 'Özlem Koç',
     age: 29,
     roles: ['nanny', 'housekeeper'],
     presentation: 'polished',
@@ -125,7 +129,9 @@ export const CANDIDATES: Candidate[] = [
     commute: 40,
     home: 'Karşıyaka',
     arrives: 510,
-    skills: ['This applicant reports experience as a nanny. Check the reference and trial.'],
+    skills: [
+      'This applicant says, “I have worked as a nanny.” Call the reference or arrange a trial to check.',
+    ],
     referees: ['ref-pinar'],
   },
   {
@@ -144,7 +150,7 @@ export const CANDIDATES: Candidate[] = [
   },
   {
     id: 'cem',
-    name: 'Driver applicant 05',
+    name: 'Cihan Yalçın',
     age: 43,
     roles: ['driver'],
     presentation: 'chatty',
@@ -153,12 +159,14 @@ export const CANDIDATES: Candidate[] = [
     commute: 35,
     home: 'Bornova',
     arrives: 3420,
-    skills: ['This applicant reports experience as a driver. Check the reference and trial.'],
+    skills: [
+      'This applicant says, “I have worked as a driver.” Call the reference or arrange a trial to check.',
+    ],
     referees: ['ref-cem'],
   },
   {
     id: 'ayla',
-    name: 'Carer applicant 06',
+    name: 'Nurgül Keskin',
     age: 46,
     roles: ['carer'],
     presentation: 'reserved',
@@ -167,7 +175,9 @@ export const CANDIDATES: Candidate[] = [
     commute: 40,
     home: 'Buca',
     arrives: 4860,
-    skills: ['This applicant reports experience as a carer. Check the reference and trial.'],
+    skills: [
+      'This applicant says, “I have worked as a carer.” Call the reference or arrange a trial to check.',
+    ],
     referees: ['ref-ayla'],
   },
   {
@@ -186,7 +196,7 @@ export const CANDIDATES: Candidate[] = [
   },
   {
     id: 'murat',
-    name: 'Driver applicant 08',
+    name: 'Koray Güneş',
     age: 35,
     roles: ['driver', 'carer'],
     presentation: 'plain',
@@ -195,12 +205,14 @@ export const CANDIDATES: Candidate[] = [
     commute: 45,
     home: 'Buca',
     arrives: 7740,
-    skills: ['This applicant reports experience as a driver. Check the reference and trial.'],
+    skills: [
+      'This applicant says, “I have worked as a driver.” Call the reference or arrange a trial to check.',
+    ],
     referees: ['ref-murat'],
   },
   {
     id: 'dilek',
-    name: 'Nanny applicant 09',
+    name: 'Selen Sezer',
     age: 26,
     roles: ['nanny'],
     presentation: 'polished',
@@ -209,7 +221,9 @@ export const CANDIDATES: Candidate[] = [
     commute: 30,
     home: 'Bornova',
     arrives: 10620,
-    skills: ['This applicant reports experience as a nanny. Check the reference and trial.'],
+    skills: [
+      'This applicant says, “I have worked as a nanny.” Call the reference or arrange a trial to check.',
+    ],
     referees: ['ref-dilek'],
   },
   {
@@ -231,7 +245,7 @@ export const CANDIDATES: Candidate[] = [
   },
   {
     id: 'selim',
-    name: 'Driver applicant 11',
+    name: 'Cemil Toprak',
     age: 54,
     roles: ['driver'],
     presentation: 'polished',
@@ -240,12 +254,14 @@ export const CANDIDATES: Candidate[] = [
     commute: 25,
     home: 'Alsancak',
     arrives: 13500,
-    skills: ['This applicant reports experience as a driver. Check the reference and trial.'],
+    skills: [
+      'This applicant says, “I have worked as a driver.” Call the reference or arrange a trial to check.',
+    ],
     referees: ['ref-selim'],
   },
   {
     id: 'zehra',
-    name: 'Carer applicant 12',
+    name: 'Şeyma Acar',
     age: 40,
     roles: ['carer', 'housekeeper'],
     presentation: 'chatty',
@@ -254,12 +270,14 @@ export const CANDIDATES: Candidate[] = [
     commute: 35,
     home: 'Göztepe',
     arrives: 14940,
-    skills: ['This applicant reports experience as a carer. Check the reference and trial.'],
+    skills: [
+      'This applicant says, “I have worked as a carer.” Call the reference or arrange a trial to check.',
+    ],
     referees: ['ref-zehra'],
   },
   {
     id: 'leyla',
-    name: 'Nanny applicant 13',
+    name: 'Fulya Şen',
     age: 34,
     roles: ['nanny', 'cook'],
     presentation: 'plain',
@@ -268,12 +286,14 @@ export const CANDIDATES: Candidate[] = [
     commute: 40,
     home: 'Karşıyaka',
     arrives: 16380,
-    skills: ['This applicant reports experience as a nanny. Check the reference and trial.'],
+    skills: [
+      'This applicant says, “I have worked as a nanny.” Call the reference or arrange a trial to check.',
+    ],
     referees: ['ref-leyla'],
   },
   {
     id: 'osman',
-    name: 'Carer applicant 14',
+    name: 'Orhan Bulut',
     age: 60,
     roles: ['carer'],
     presentation: 'reserved',
@@ -282,12 +302,14 @@ export const CANDIDATES: Candidate[] = [
     commute: 20,
     home: 'Alsancak',
     arrives: 17820,
-    skills: ['This applicant reports experience as a carer. Check the reference and trial.'],
+    skills: [
+      'This applicant says, “I have worked as a carer.” Call the reference or arrange a trial to check.',
+    ],
     referees: ['ref-osman'],
   },
   {
     id: 'esra',
-    name: 'Housekeeper applicant 15',
+    name: 'Gizem Çetin',
     age: 31,
     roles: ['housekeeper'],
     presentation: 'polished',
@@ -296,12 +318,14 @@ export const CANDIDATES: Candidate[] = [
     commute: 35,
     home: 'Bornova',
     arrives: 20700,
-    skills: ['This applicant reports experience as a housekeeper. Check the reference and trial.'],
+    skills: [
+      'This applicant says, “I have worked as a housekeeper.” Call the reference or arrange a trial to check.',
+    ],
     referees: ['ref-esra'],
   },
   {
     id: 'safiye',
-    name: 'Cook applicant 16',
+    name: 'Suzan Korkmaz',
     age: 53,
     roles: ['cook', 'carer'],
     presentation: 'plain',
@@ -310,12 +334,14 @@ export const CANDIDATES: Candidate[] = [
     commute: 45,
     home: 'Buca',
     arrives: 22140,
-    skills: ['This applicant reports experience as a cook. Check the reference and trial.'],
+    skills: [
+      'This applicant says, “I have worked as a cook.” Call the reference or arrange a trial to check.',
+    ],
     referees: ['ref-safiye'],
   },
   {
     id: 'burak',
-    name: 'Driver applicant 17',
+    name: 'Kaan Sönmez',
     age: 28,
     roles: ['driver'],
     presentation: 'chatty',
@@ -324,12 +350,14 @@ export const CANDIDATES: Candidate[] = [
     commute: 30,
     home: 'Göztepe',
     arrives: 23580,
-    skills: ['This applicant reports experience as a driver. Check the reference and trial.'],
+    skills: [
+      'This applicant says, “I have worked as a driver.” Call the reference or arrange a trial to check.',
+    ],
     referees: ['ref-burak'],
   },
   {
     id: 'meltem',
-    name: 'Nanny applicant 18',
+    name: 'Begüm Yavuz',
     age: 44,
     roles: ['nanny'],
     presentation: 'reserved',
@@ -338,12 +366,14 @@ export const CANDIDATES: Candidate[] = [
     commute: 45,
     home: 'Karşıyaka',
     arrives: 25020,
-    skills: ['This applicant reports experience as a nanny. Check the reference and trial.'],
+    skills: [
+      'This applicant says, “I have worked as a nanny.” Call the reference or arrange a trial to check.',
+    ],
     referees: ['ref-meltem'],
   },
   {
     id: 'huriye',
-    name: 'Housekeeper applicant 19',
+    name: 'Müjde Polat',
     age: 58,
     roles: ['housekeeper', 'cook'],
     presentation: 'chatty',
@@ -352,12 +382,14 @@ export const CANDIDATES: Candidate[] = [
     commute: 30,
     home: 'Bornova',
     arrives: 26460,
-    skills: ['This applicant reports experience as a housekeeper. Check the reference and trial.'],
+    skills: [
+      'This applicant says, “I have worked as a housekeeper.” Call the reference or arrange a trial to check.',
+    ],
     referees: ['ref-huriye'],
   },
   {
     id: 'yusuf',
-    name: 'Carer applicant 20',
+    name: 'Oğuz Tekin',
     age: 47,
     roles: ['carer', 'driver'],
     presentation: 'plain',
@@ -366,12 +398,14 @@ export const CANDIDATES: Candidate[] = [
     commute: 35,
     home: 'Göztepe',
     arrives: 27900,
-    skills: ['This applicant reports experience as a carer. Check the reference and trial.'],
+    skills: [
+      'This applicant says, “I have worked as a carer.” Call the reference or arrange a trial to check.',
+    ],
     referees: ['ref-yusuf'],
   },
   {
     id: 'aysun',
-    name: 'Nanny applicant 21',
+    name: 'Damla Ekinci',
     age: 36,
     roles: ['nanny'],
     presentation: 'polished',
@@ -380,12 +414,14 @@ export const CANDIDATES: Candidate[] = [
     commute: 40,
     home: 'Buca',
     arrives: 30780,
-    skills: ['This applicant reports experience as a nanny. Check the reference and trial.'],
+    skills: [
+      'This applicant says, “I have worked as a nanny.” Call the reference or arrange a trial to check.',
+    ],
     referees: ['ref-aysun'],
   },
   {
     id: 'nurten',
-    name: 'Cook applicant 22',
+    name: 'Bilge Kurt',
     age: 50,
     roles: ['cook'],
     presentation: 'reserved',
@@ -394,12 +430,14 @@ export const CANDIDATES: Candidate[] = [
     commute: 25,
     home: 'Alsancak',
     arrives: 32220,
-    skills: ['This applicant reports experience as a cook. Check the reference and trial.'],
+    skills: [
+      'This applicant says, “I have worked as a cook.” Call the reference or arrange a trial to check.',
+    ],
     referees: ['ref-nurten'],
   },
   {
     id: 'ergun',
-    name: 'Driver applicant 23',
+    name: 'Erdinç Aksu',
     age: 41,
     roles: ['driver', 'housekeeper'],
     presentation: 'plain',
@@ -408,12 +446,14 @@ export const CANDIDATES: Candidate[] = [
     commute: 45,
     home: 'Bornova',
     arrives: 33660,
-    skills: ['This applicant reports experience as a driver. Check the reference and trial.'],
+    skills: [
+      'This applicant says, “I have worked as a driver.” Call the reference or arrange a trial to check.',
+    ],
     referees: ['ref-ergun'],
   },
   {
     id: 'feride',
-    name: 'Carer applicant 24',
+    name: 'Mine Uslu',
     age: 45,
     roles: ['carer', 'nanny'],
     presentation: 'chatty',
@@ -422,7 +462,9 @@ export const CANDIDATES: Candidate[] = [
     commute: 35,
     home: 'Karşıyaka',
     arrives: 35100,
-    skills: ['This applicant reports experience as a carer. Check the reference and trial.'],
+    skills: [
+      'This applicant says, “I have worked as a carer.” Call the reference or arrange a trial to check.',
+    ],
     referees: ['ref-feride'],
   },
 ];
@@ -431,17 +473,17 @@ export const CANDIDATES: Candidate[] = [
 export const FAMILIES: Family[] = [
   {
     id: 'arslans',
-    name: 'household request 01',
+    name: 'the Arslan family',
     district: 'Karşıyaka',
     household: [
       {
         id: 'arslans-0',
-        name: 'Household contact',
+        name: 'Suna',
         who: 'adult, arranging the work',
       },
       {
         id: 'arslans-1',
-        name: 'Household member',
+        name: 'Elif',
         who: 'adult, receiving help',
       },
     ],
@@ -449,7 +491,8 @@ export const FAMILIES: Family[] = [
     pressureWords: 'A frustrated household member repeats the instructions.',
     role: 'nanny',
     wage: 9000,
-    wants: 'We need a nanny for the agreed hours. A frustrated household member repeats the instructions.',
+    wants:
+      'We need a nanny for the agreed hours. One of us gets frustrated and repeats instructions, so the worker must be patient.',
     arrives: 510,
     deadline: 1920,
     x: 0.22,
@@ -459,17 +502,17 @@ export const FAMILIES: Family[] = [
   },
   {
     id: 'kayas',
-    name: 'household request 02',
+    name: 'the Kaya family',
     district: 'Bornova',
     household: [
       {
         id: 'kayas-0',
-        name: 'Household contact',
+        name: 'Sevil',
         who: 'adult, arranging the work',
       },
       {
         id: 'kayas-1',
-        name: 'Household member',
+        name: 'Saadet',
         who: 'adult, receiving help',
       },
     ],
@@ -477,7 +520,8 @@ export const FAMILIES: Family[] = [
     pressureWords: 'A frustrated household member repeats the instructions.',
     role: 'carer',
     wage: 9000,
-    wants: 'We need a carer for the agreed hours. A frustrated household member repeats the instructions.',
+    wants:
+      'We need a carer for the agreed hours. One of us gets frustrated and repeats instructions, so the worker must be patient.',
     arrives: 660,
     deadline: 3360,
     x: 0.78,
@@ -487,17 +531,17 @@ export const FAMILIES: Family[] = [
   },
   {
     id: 'demirs',
-    name: 'household request 03',
+    name: 'the Demir family',
     district: 'Alsancak',
     household: [
       {
         id: 'demirs-0',
-        name: 'Household contact',
+        name: 'Berrin',
         who: 'adult, arranging the work',
       },
       {
         id: 'demirs-1',
-        name: 'Household member',
+        name: 'Nevin',
         who: 'adult, receiving help',
       },
     ],
@@ -505,7 +549,8 @@ export const FAMILIES: Family[] = [
     pressureWords: 'A visitor asks about private household business.',
     role: 'driver',
     wage: 8500,
-    wants: 'We need a driver for the agreed hours. A visitor asks about private household business.',
+    wants:
+      'We need a driver for the agreed hours. Visitors sometimes ask about our private affairs. The worker must keep those matters private.',
     arrives: 840,
     deadline: 4800,
     x: 0.49,
@@ -515,17 +560,17 @@ export const FAMILIES: Family[] = [
   },
   {
     id: 'aks',
-    name: 'household request 04',
+    name: 'the Ak family',
     district: 'Göztepe',
     household: [
       {
         id: 'aks-0',
-        name: 'Household contact',
+        name: 'Nesrin',
         who: 'adult, arranging the work',
       },
       {
         id: 'aks-1',
-        name: 'Household member',
+        name: 'Nihal',
         who: 'adult, receiving help',
       },
     ],
@@ -533,7 +578,8 @@ export const FAMILIES: Family[] = [
     pressureWords: 'The person receiving help wants to be addressed directly.',
     role: 'carer',
     wage: 9500,
-    wants: 'We need a carer for the agreed hours. The person receiving help wants to be addressed directly.',
+    wants:
+      'We need a carer for the agreed hours. The person receiving help wants the worker to speak directly to that person.',
     arrives: 6360,
     deadline: 10560,
     x: 0.29,
@@ -543,17 +589,17 @@ export const FAMILIES: Family[] = [
   },
   {
     id: 'erdems',
-    name: 'household request 05',
+    name: 'the Erdem family',
     district: 'Karşıyaka',
     household: [
       {
         id: 'erdems-0',
-        name: 'Household contact',
+        name: 'Gülay',
         who: 'adult, arranging the work',
       },
       {
         id: 'erdems-1',
-        name: 'Household member',
+        name: 'Defne',
         who: 'adult, receiving help',
       },
     ],
@@ -561,7 +607,8 @@ export const FAMILIES: Family[] = [
     pressureWords: 'The household asks for extra tasks.',
     role: 'nanny',
     wage: 10000,
-    wants: 'We need a nanny for the agreed hours. The household asks for extra tasks.',
+    wants:
+      'We need a nanny for the agreed hours. We sometimes ask for extra tasks, so we need someone who can keep working.',
     arrives: 7800,
     deadline: 12000,
     x: 0.28,
@@ -571,17 +618,17 @@ export const FAMILIES: Family[] = [
   },
   {
     id: 'yilmazs',
-    name: 'household request 06',
+    name: 'the Yılmaz family',
     district: 'Buca',
     household: [
       {
         id: 'yilmazs-0',
-        name: 'Household contact',
+        name: 'İnci',
         who: 'adult, arranging the work',
       },
       {
         id: 'yilmazs-1',
-        name: 'Household member',
+        name: 'Sema',
         who: 'adult, receiving help',
       },
     ],
@@ -589,8 +636,7 @@ export const FAMILIES: Family[] = [
     pressureWords: 'The household needs the worker to arrive at the agreed time.',
     role: 'driver',
     wage: 9000,
-    wants:
-      'We need a driver for the agreed hours. The household needs the worker to arrive at the agreed time.',
+    wants: 'We need a driver for the agreed hours. We need the worker to arrive at the agreed time.',
     arrives: 10620,
     deadline: 13320,
     x: 0.67,
@@ -600,17 +646,17 @@ export const FAMILIES: Family[] = [
   },
   {
     id: 'celiks',
-    name: 'household request 07',
+    name: 'the Çelik family',
     district: 'Bornova',
     household: [
       {
         id: 'celiks-0',
-        name: 'Household contact',
+        name: 'Nalan',
         who: 'adult, arranging the work',
       },
       {
         id: 'celiks-1',
-        name: 'Household member',
+        name: 'Tülay',
         who: 'adult, receiving help',
       },
     ],
@@ -619,7 +665,7 @@ export const FAMILIES: Family[] = [
     role: 'cook',
     wage: 9500,
     wants:
-      'We need a cook for the agreed hours. The worker must check the shopping change against the receipts.',
+      'We need a cook for the agreed hours. We need the worker to check the shopping change against the receipts.',
     arrives: 12180,
     deadline: 14940,
     x: 0.85,
@@ -629,17 +675,17 @@ export const FAMILIES: Family[] = [
   },
   {
     id: 'ozkans',
-    name: 'household request 08',
+    name: 'the Özkan family',
     district: 'Göztepe',
     household: [
       {
         id: 'ozkans-0',
-        name: 'Household contact',
+        name: 'Figen',
         who: 'adult, arranging the work',
       },
       {
         id: 'ozkans-1',
-        name: 'Household member',
+        name: 'Leman',
         who: 'adult, receiving help',
       },
     ],
@@ -647,7 +693,8 @@ export const FAMILIES: Family[] = [
     pressureWords: 'A frustrated household member repeats the instructions.',
     role: 'carer',
     wage: 9000,
-    wants: 'We need a carer for the agreed hours. A frustrated household member repeats the instructions.',
+    wants:
+      'We need a carer for the agreed hours. One of us gets frustrated and repeats instructions, so the worker must be patient.',
     arrives: 13560,
     deadline: 16320,
     x: 0.24,
@@ -657,17 +704,17 @@ export const FAMILIES: Family[] = [
   },
   {
     id: 'aydins',
-    name: 'household request 09',
+    name: 'the Aydın family',
     district: 'Alsancak',
     household: [
       {
         id: 'aydins-0',
-        name: 'Household contact',
+        name: 'Belgin',
         who: 'adult, arranging the work',
       },
       {
         id: 'aydins-1',
-        name: 'Household member',
+        name: 'İdil',
         who: 'adult, receiving help',
       },
     ],
@@ -675,7 +722,8 @@ export const FAMILIES: Family[] = [
     pressureWords: 'The person receiving help wants to be addressed directly.',
     role: 'nanny',
     wage: 9000,
-    wants: 'We need a nanny for the agreed hours. The person receiving help wants to be addressed directly.',
+    wants:
+      'We need a nanny for the agreed hours. The person receiving help wants the worker to speak directly to that person.',
     arrives: 15060,
     deadline: 17760,
     x: 0.54,
@@ -685,17 +733,17 @@ export const FAMILIES: Family[] = [
   },
   {
     id: 'tass',
-    name: 'household request 10',
+    name: 'the Taş family',
     district: 'Buca',
     household: [
       {
         id: 'tass-0',
-        name: 'Household contact',
+        name: 'Oya',
         who: 'adult, arranging the work',
       },
       {
         id: 'tass-1',
-        name: 'Household member',
+        name: 'Gülten',
         who: 'adult, receiving help',
       },
     ],
@@ -703,7 +751,8 @@ export const FAMILIES: Family[] = [
     pressureWords: 'The household asks for extra tasks.',
     role: 'housekeeper',
     wage: 8500,
-    wants: 'We need a housekeeper for the agreed hours. The household asks for extra tasks.',
+    wants:
+      'We need a housekeeper for the agreed hours. We sometimes ask for extra tasks, so we need someone who can keep working.',
     arrives: 16440,
     deadline: 20700,
     x: 0.73,
@@ -713,17 +762,17 @@ export const FAMILIES: Family[] = [
   },
   {
     id: 'sahins',
-    name: 'household request 11',
+    name: 'the Şahin family',
     district: 'Karşıyaka',
     household: [
       {
         id: 'sahins-0',
-        name: 'Household contact',
+        name: 'Füsun',
         who: 'adult, arranging the work',
       },
       {
         id: 'sahins-1',
-        name: 'Household member',
+        name: 'Sibel',
         who: 'adult, receiving help',
       },
     ],
@@ -731,8 +780,7 @@ export const FAMILIES: Family[] = [
     pressureWords: 'The household needs the worker to arrive at the agreed time.',
     role: 'driver',
     wage: 9500,
-    wants:
-      'We need a driver for the agreed hours. The household needs the worker to arrive at the agreed time.',
+    wants: 'We need a driver for the agreed hours. We need the worker to arrive at the agreed time.',
     arrives: 20700,
     deadline: 23460,
     x: 0.18,
@@ -742,17 +790,17 @@ export const FAMILIES: Family[] = [
   },
   {
     id: 'ugurs',
-    name: 'household request 12',
+    name: 'the Uğur family',
     district: 'Bornova',
     household: [
       {
         id: 'ugurs-0',
-        name: 'Household contact',
+        name: 'Serap',
         who: 'adult, arranging the work',
       },
       {
         id: 'ugurs-1',
-        name: 'Household member',
+        name: 'Nuray Yalın',
         who: 'adult, receiving help',
       },
     ],
@@ -761,7 +809,7 @@ export const FAMILIES: Family[] = [
     role: 'housekeeper',
     wage: 8500,
     wants:
-      'We need a housekeeper for the agreed hours. The worker must check the shopping change against the receipts.',
+      'We need a housekeeper for the agreed hours. We need the worker to check the shopping change against the receipts.',
     arrives: 22200,
     deadline: 25020,
     x: 0.8,
@@ -771,17 +819,17 @@ export const FAMILIES: Family[] = [
   },
   {
     id: 'karas',
-    name: 'household request 13',
+    name: 'the Kara family',
     district: 'Göztepe',
     household: [
       {
         id: 'karas-0',
-        name: 'Household contact',
+        name: 'Gönül',
         who: 'adult, arranging the work',
       },
       {
         id: 'karas-1',
-        name: 'Household member',
+        name: 'Eylül',
         who: 'adult, receiving help',
       },
     ],
@@ -789,7 +837,8 @@ export const FAMILIES: Family[] = [
     pressureWords: 'A frustrated household member repeats the instructions.',
     role: 'nanny',
     wage: 10500,
-    wants: 'We need a nanny for the agreed hours. A frustrated household member repeats the instructions.',
+    wants:
+      'We need a nanny for the agreed hours. One of us gets frustrated and repeats instructions, so the worker must be patient.',
     arrives: 23640,
     deadline: 26400,
     x: 0.35,
@@ -799,17 +848,17 @@ export const FAMILIES: Family[] = [
   },
   {
     id: 'polats',
-    name: 'household request 14',
+    name: 'the Polat family',
     district: 'Alsancak',
     household: [
       {
         id: 'polats-0',
-        name: 'Household contact',
+        name: 'İpek',
         who: 'adult, arranging the work',
       },
       {
         id: 'polats-1',
-        name: 'Household member',
+        name: 'Şermin',
         who: 'adult, receiving help',
       },
     ],
@@ -817,7 +866,8 @@ export const FAMILIES: Family[] = [
     pressureWords: 'A visitor asks about private household business.',
     role: 'cook',
     wage: 10000,
-    wants: 'We need a cook for the agreed hours. A visitor asks about private household business.',
+    wants:
+      'We need a cook for the agreed hours. Visitors sometimes ask about our private affairs. The worker must keep those matters private.',
     arrives: 26580,
     deadline: 30780,
     x: 0.46,
@@ -827,17 +877,17 @@ export const FAMILIES: Family[] = [
   },
   {
     id: 'tekins',
-    name: 'household request 15',
+    name: 'the Tekin family',
     district: 'Buca',
     household: [
       {
         id: 'tekins-0',
-        name: 'Household contact',
+        name: 'Şule',
         who: 'adult, arranging the work',
       },
       {
         id: 'tekins-1',
-        name: 'Household member',
+        name: 'Şükran',
         who: 'adult, receiving help',
       },
     ],
@@ -845,7 +895,8 @@ export const FAMILIES: Family[] = [
     pressureWords: 'The person receiving help wants to be addressed directly.',
     role: 'carer',
     wage: 9500,
-    wants: 'We need a carer for the agreed hours. The person receiving help wants to be addressed directly.',
+    wants:
+      'We need a carer for the agreed hours. The person receiving help wants the worker to speak directly to that person.',
     arrives: 30840,
     deadline: 33600,
     x: 0.64,
@@ -855,17 +906,17 @@ export const FAMILIES: Family[] = [
   },
   {
     id: 'inces',
-    name: 'household request 16',
+    name: 'the İnce family',
     district: 'Karşıyaka',
     household: [
       {
         id: 'inces-0',
-        name: 'Household contact',
+        name: 'Jale',
         who: 'adult, arranging the work',
       },
       {
         id: 'inces-1',
-        name: 'Household member',
+        name: 'Filiz',
         who: 'adult, receiving help',
       },
     ],
@@ -873,8 +924,7 @@ export const FAMILIES: Family[] = [
     pressureWords: 'The household needs the worker to arrive at the agreed time.',
     role: 'driver',
     wage: 10000,
-    wants:
-      'We need a driver for the agreed hours. The household needs the worker to arrive at the agreed time.',
+    wants: 'We need a driver for the agreed hours. We need the worker to arrive at the agreed time.',
     arrives: 33720,
     deadline: 36480,
     x: 0.3,
@@ -886,10 +936,36 @@ export const FAMILIES: Family[] = [
 for (const family of FAMILIES) {
   if (family.role === 'nanny') family.household[1]!.who = 'child, three';
 }
+const refereeNames = [
+  'Ayten Aydın',
+  'Melek Yıldız',
+  'Hale Erol',
+  'Emine Tan',
+  'Gülsen Oral',
+  'Nilgün Baş',
+  'Seher Yücel',
+  'Banu Özer',
+  'Aysel Tamer',
+  'Nükhet Ersoy',
+  'Sevim Altan',
+  'Lale Gür',
+  'Canan Uzun',
+  'Sermin Ayhan',
+  'Reyhan Demirel',
+  'Perihan Efe',
+  'Güner Başar',
+  'Handan İleri',
+  'Saniye Yaman',
+  'İlknur Ergin',
+  'Gülsüm Saygın',
+  'Rengin Akyol',
+  'Necla Yüksel',
+  'Zerrin Ata',
+];
 const biases: Referee['bias'][] = ['cagey', 'stingy', 'fond', 'fair'];
 export const REFEREES: Referee[] = CANDIDATES.map((candidate, i) => ({
   id: `ref-${candidate.id}`,
-  name: `Former employer ${i + 1}`,
+  name: refereeNames[i]!,
   candidate: candidate.id,
   bias: biases[i % biases.length] ?? 'fair',
   reachableAt: i % 3 === 0 ? 14 * 60 : 9 * 60,
