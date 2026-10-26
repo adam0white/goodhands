@@ -1675,6 +1675,7 @@ body {
   overflow: visible;
 }
 @media (max-width: 899px) {
+  .game.lk-stage,
   .game,
   .game.has-day-card {
     grid-template-rows: 44px auto 150px 48px minmax(0, 1fr);
@@ -1717,4 +1718,24 @@ body {
 }
 .menu-sheet .sheet-content > button[data-action="fullscreen"] {
   display: flex;
+}
+
+/* The shared observer measures the existing fitted game grid. */
+.game.lk-stage {
+  block-size: 100%;
+}
+.game.lk-stage > .desk-sheet.lk-sheet {
+  max-block-size: none;
+}
+@media (min-width: 900px) {
+  .topbar > button[data-action="menu"] {
+    flex: 0 0 auto;
+    width: max-content;
+    min-width: 90px;
+    padding-inline: 12px;
+    white-space: nowrap;
+  }
+  .topbar > button[data-action="menu"] .menu-label {
+    white-space: nowrap;
+  }
 }

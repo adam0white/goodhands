@@ -19,6 +19,29 @@ try {
     const page = await browser.newPage({ viewport });
     const errors: string[] = [];
     page.on('pageerror', (e) => errors.push(e.message));
+    await page.addInitScript(() => {
+      const NativeObserver = ResizeObserver;
+      const active = new Set<ResizeObserver>();
+      let mounts = 0;
+      Object.assign(window, { stageProbe: () => ({ active: active.size, mounts }) });
+      window.ResizeObserver = class extends NativeObserver {
+        override observe(target: Element, options?: ResizeObserverOptions) {
+          if (target.matches('.game')) {
+            active.add(this);
+            mounts++;
+          }
+          super.observe(target, options);
+        }
+        override disconnect() {
+          active.delete(this);
+          super.disconnect();
+        }
+      };
+    });
+    const lifecycle = () =>
+      page.evaluate(() =>
+        (window as unknown as { stageProbe: () => { active: number; mounts: number } }).stageProbe(),
+      );
     await page.clock.install();
     await page.clock.pauseAt(new Date());
     await page.goto(`http://127.0.0.1:${port}/?lab=1`);
@@ -55,10 +78,53 @@ try {
       }
     };
     await fits('start');
+    await hitTargets('[data-action="menu"]');
+    if (viewport.width >= 900) {
+      assert.ok(
+        await page.locator('.menu-label').evaluate((el) => {
+          const range = document.createRange();
+          range.selectNodeContents(el);
+          return range.getClientRects().length === 1;
+        }),
+        'desktop Menu stays on one line',
+      );
+    }
     await page.getByRole('button', { name: 'Lab tools', exact: true }).click();
     await page.getByRole('button', { name: 'People between games', exact: true }).click();
     await page.getByRole('button', { name: 'Start a fresh month without history', exact: true }).click();
     await fits('office');
+    assert.deepEqual(await lifecycle(), { active: 1, mounts: 1 });
+    const checkStage = async () => {
+      assert.ok(
+        await page.locator('.game').evaluate((el) => {
+          const scene = el.querySelector('.lk-scene')!.getBoundingClientRect();
+          const style = (el as HTMLElement).style;
+          return ['x', 'y', 'width', 'height'].every(
+            (key) =>
+              Math.abs(
+                Number.parseFloat(style.getPropertyValue(`--lk-scene-${key}`)) -
+                  scene[key as 'x' | 'y' | 'width' | 'height'],
+              ) < 1,
+          );
+        }),
+        'controller reports the actual scene bounds',
+      );
+      const canvas = await page.locator('#office').evaluate((el) => ({
+        width: (el as HTMLCanvasElement).width,
+        expected: Math.round(el.clientWidth * devicePixelRatio),
+      }));
+      assert.equal(canvas.width, canvas.expected, 'controller resize redraws the actual canvas');
+      assert.equal(await page.locator('.game').getAttribute('data-sheet'), 'fit');
+      assert.ok(await page.locator('.game').getAttribute('data-sheet-id'));
+    };
+    await checkStage();
+    const historyLength = await page.evaluate(() => history.length);
+    await page.setViewportSize({ width: viewport.width, height: viewport.height - 40 });
+    await page.waitForTimeout(50);
+    await checkStage();
+    await page.setViewportSize(viewport);
+    await page.waitForTimeout(50);
+    await checkStage();
     await page.getByRole('button', { name: 'Gülce Aksoy', exact: true }).click();
     await fits('candidate');
     assert.equal(await page.locator('.candidate-actions button').count(), 5);
@@ -68,6 +134,7 @@ try {
     );
     await page.locator('[data-action="interview"]').click();
     await fits('interview');
+    const sceneName = await page.locator('[data-testid="scene"]').getAttribute('aria-label');
     const held = await page.locator('[data-time]').innerText();
     await page.clock.runFor(3000);
     assert.equal(await page.locator('[data-time]').innerText(), held);
@@ -80,8 +147,23 @@ try {
     await page.clock.runFor(3000);
     assert.equal(await page.locator('[data-time]').innerText(), held);
     await page.getByRole('button', { name: 'Slow', exact: true }).click();
+    await page.getByRole('button', { name: 'The day’s notes', exact: true }).click();
+    assert.equal(await page.getByRole('button', { name: 'Close menu', exact: true }).count(), 0);
+    await page.getByRole('button', { name: 'Back', exact: true }).click();
+    assert.equal(
+      await page
+        .getByRole('button', { name: 'The day’s notes', exact: true })
+        .evaluate((el) => el === document.activeElement),
+      true,
+    );
     await page.getByRole('button', { name: 'Feedback', exact: true }).click();
     await fits('feedback');
+    assert.equal(await page.locator('.desk-sheet').isVisible(), false);
+    assert.ok(sceneName);
+    assert.equal(await page.getByRole('region', { name: sceneName, exact: true }).count(), 0);
+    assert.equal(await page.getByRole('button', { name: 'Close menu', exact: true }).count(), 0);
+    assert.equal(await page.evaluate(() => history.length), historyLength);
+    await checkStage();
     const pending = page.waitForEvent('download');
     await page.getByRole('button', { name: 'Keep a copy of this run ⤓', exact: true }).click();
     const stream = await (await pending).createReadStream();
@@ -89,11 +171,18 @@ try {
     for await (const chunk of stream) json += chunk.toString();
     const downloaded = verifyImport(json);
     assert.equal(downloaded.inputs.filter((i) => i.input.type === 'speed').length, 0);
-    await page.keyboard.press('Escape');
+    await page.getByRole('button', { name: 'Back', exact: true }).click();
+    assert.equal(
+      await page.locator('[data-action="menu"]').evaluate((el) => el === document.activeElement),
+      true,
+    );
+    assert.equal(await page.getByRole('button', { name: 'Close menu', exact: true }).count(), 0);
+    assert.equal(await page.locator('.desk-sheet').isVisible(), true);
     await page.locator('[data-action="info"]').click();
     await page.clock.runFor(3000);
     assert.equal(await page.locator('[data-time]').innerText(), held);
     await page.keyboard.press('Escape');
+    assert.deepEqual(await lifecycle(), { active: 1, mounts: 1 });
     // Fixture uses only public simulation actions; the import must replay unchanged.
     let fixture = newGame(1);
     for (let n = 0; n < 30 && !view(fixture).ended; n++) {
@@ -111,6 +200,7 @@ try {
     verifyImport(JSON.stringify(run));
     await page.locator('[data-action="menu"]').click();
     await page.getByRole('button', { name: 'To the title page', exact: true }).click();
+    assert.equal((await lifecycle()).active, 0);
     await page.getByRole('button', { name: 'Lab tools', exact: true }).click();
     const chooser = page.waitForEvent('filechooser');
     await page.getByRole('button', { name: 'Load a playtest run', exact: true }).click();
@@ -140,6 +230,7 @@ try {
     await page.locator('.review').waitFor();
     assert.equal(await page.locator('.topbar-label').innerText(), 'Month’s end · 13 Nov');
     await fits('early-ending');
+    assert.equal((await lifecycle()).active, 0);
     assert.deepEqual(errors, []);
     await page.close();
   }

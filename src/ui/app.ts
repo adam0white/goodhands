@@ -24,6 +24,7 @@ import {
   feedbackSharePlay,
   glossaryPanel,
   personaControls,
+  phoneStage,
   telemetryNotice,
   telemetryToggle,
   term,
@@ -103,11 +104,31 @@ let last = performance.now();
 let shown = '';
 let lastHour = -1;
 let sheet: HTMLElement | null = null;
+let stage: ReturnType<typeof phoneStage> | null = null;
+let sheetOpener: HTMLElement | null = null;
+
+function destroyStage(): void {
+  stage?.destroy();
+  stage = null;
+}
+
+function syncStage(): void {
+  const game = root.querySelector<HTMLElement>('.game');
+  if (!game) return;
+  // All panels use the game's fitted grid. The host owns navigation and visibility.
+  game.dataset.sheet = 'fit';
+  game.dataset.sheetId = sheet
+    ? `${modal}:${sheet.getAttribute('aria-label')}`
+    : (current().scene?.id ?? `desk-${tab}`);
+  game.dataset.sheetBack = String(sheetOrigins.length > 0);
+  stage?.refresh();
+}
 
 const sheetOrigins: {
   node: HTMLElement;
   kind: string;
   inspection: (() => void) | null;
+  opener: HTMLElement | null;
 }[] = [];
 let modal = '';
 let updateInspection: (() => void) | null = null;
@@ -250,6 +271,7 @@ function topbar(label: string): string {
   return `<header class="topbar"><div class="topbar-label">${label}</div><button type="button" data-action="info" aria-label="Information">i</button><button type="button" data-action="menu" aria-label="Game menu">≡<span class="menu-label"> Menu</span></button></header>`;
 }
 function title(): void {
+  destroyStage();
   closeSheet(false);
   if (state) saved = verifyImport(JSON.stringify(runExport()));
   playing = false;
@@ -634,7 +656,28 @@ function peoplePanel(): void {
   };
 }
 function shell(v: View): void {
-  root.innerHTML = `<main class="game" data-testid="office">${topbar('<span data-date></span> · <strong data-time></strong>')}<div class="state-strip"><span data-money></span><progress class="rent-meter" max="${v.rent.amount}" value="${Math.max(0, v.cash)}" aria-label="Cash towards rent"></progress><span data-rent-due></span><span data-pace></span></div><section class="office-front" aria-label="The office"><div class="room"><canvas id="office" role="img" aria-label="Nermin’s desk, telephone, window and the waiting bench"></canvas><div class="seat-targets"></div><div class="city-map" hidden><canvas id="city" role="img" aria-label="Izmir across the bay"></canvas><div class="city-targets"></div></div></div><p class="scene-status" data-status role="status"></p><p data-city-person class="city-person"></p><div class="phone-strip" hidden><button class="phone-control" type="button" data-action="phone"></button><p id="phone-reason" class="phone-reason reason"></p></div><button class="city-toggle" type="button" data-action="city">City</button></section><div class="caption-row"><button class="task now" type="button" aria-label="Task" data-testid="task" data-action="task"><span></span></button><button type="button" data-action="wait-for" aria-label="Skip to the next event" class="until-event"></button></div><section class="desk-sheet" data-content aria-label="Nermin’s desk"></section></main>`;
+  destroyStage();
+  root.innerHTML = `<main class="game" data-testid="office">${topbar('<span data-date></span> · <strong data-time></strong>')}<div class="state-strip"><span data-money></span><progress class="rent-meter" max="${v.rent.amount}" value="${Math.max(0, v.cash)}" aria-label="Cash towards rent"></progress><span data-rent-due></span><span data-pace></span></div><section class="office-front" aria-label="The office"><div class="room lk-scene"><canvas id="office" role="img" aria-label="Nermin’s desk, telephone, window and the waiting bench"></canvas><div class="seat-targets"></div><div class="city-map" hidden><canvas id="city" role="img" aria-label="Izmir across the bay"></canvas><div class="city-targets"></div></div></div><p class="scene-status" data-status role="status"></p><p data-city-person class="city-person"></p><div class="phone-strip" hidden><button class="phone-control" type="button" data-action="phone"></button><p id="phone-reason" class="phone-reason reason"></p></div><button class="city-toggle" type="button" data-action="city">City</button></section><div class="caption-row"><button class="task now" type="button" aria-label="Task" data-testid="task" data-action="task"><span></span></button><button type="button" data-action="wait-for" aria-label="Skip to the next event" class="until-event"></button></div><section class="desk-sheet lk-sheet" data-content aria-label="Nermin’s desk"></section></main>`;
+  const game = root.querySelector<HTMLElement>('.game');
+  if (game) {
+    let previousBounds = '';
+    stage = phoneStage(game, {
+      observeOnly: true,
+      history: false,
+      onSceneRect(rect) {
+        // Redraw on actual scene resize, including visual-viewport changes while idle.
+        // Canvas and HTML hit targets retain the same game-owned coordinate system.
+        const bounds = `${rect.width}:${rect.height}`;
+        if (bounds === previousBounds || rect.width <= 0 || rect.height <= 0) return;
+        previousBounds = bounds;
+        if (!state || !playing) return;
+        const canvas = game.querySelector<HTMLCanvasElement>('#office');
+        if (canvas && !city) drawOffice(canvas, displayedView(), selected);
+        if (city) updateCity(displayedView());
+      },
+    });
+    syncStage();
+  }
   updateClock(v);
 }
 function pace(v: View): number {
@@ -840,6 +883,7 @@ function render(force = false): void {
     );
     replacement?.focus({ preventScroll: true });
   }
+  syncStage();
   showNotice();
 }
 function selectCandidate(id: string): void {
@@ -1069,6 +1113,7 @@ function updateCity(v: View): void {
 }
 
 function review(v: View): void {
+  destroyStage();
   closeSheet(false);
   shown = 'review';
   setScreen('review');
@@ -1097,6 +1142,7 @@ function review(v: View): void {
 
 function closeSheet(restore = true): void {
   if (!sheet) return;
+  const opener = sheetOpener;
   sheet.remove();
   sheet = null;
   modal = '';
@@ -1106,22 +1152,34 @@ function closeSheet(restore = true): void {
     sheet = origin.node;
     modal = origin.kind;
     updateInspection = origin.inspection;
+    sheetOpener = origin.opener;
     (root.querySelector('.game') ?? root.querySelector('main') ?? root).append(sheet);
   } else for (const previous of sheetOrigins.splice(0)) previous.node.remove();
   const panel = root.querySelector<HTMLElement>('[data-content]');
   if (panel) panel.hidden = !!sheet;
   last = performance.now();
   if (restore && playing && !sheet) render(true);
+  syncStage();
+  if (restore) {
+    const target =
+      opener?.isConnected && opener !== document.body
+        ? opener
+        : root.querySelector<HTMLElement>('[data-action="menu"]');
+    target?.focus({ preventScroll: true });
+  }
 }
 function openSheet(title: string, content: string, kind = 'inspect'): HTMLElement {
+  const opener = document.activeElement instanceof HTMLElement ? document.activeElement : null;
   if (sheet) {
     sheetOrigins.push({
       node: sheet,
       kind: modal,
       inspection: updateInspection,
+      opener: sheetOpener,
     });
     sheet.remove();
   }
+  sheetOpener = opener;
   const d = document.createElement('section');
   d.className = kind === 'menu' ? 'overlay menu-overlay' : 'sheet takeover';
   d.setAttribute('aria-label', title);
@@ -1139,6 +1197,7 @@ function openSheet(title: string, content: string, kind = 'inspect'): HTMLElemen
     });
   gloss(d);
   d.querySelector<HTMLElement>('[data-close]')?.focus({ preventScroll: true });
+  syncStage();
   updateClockIfPlaying();
   return d;
 }
@@ -1969,3 +2028,5 @@ void get<RunExport>('run').then(async (row) => {
   if (!playing && !sheet) title();
 });
 requestAnimationFrame(frame);
+
+if (import.meta.hot) import.meta.hot.dispose(destroyStage);
