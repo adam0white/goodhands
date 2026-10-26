@@ -338,12 +338,23 @@ function interviewChoices(s: Sim, id: string): SceneView['choices'] {
     },
   ];
 }
+function requiredCard(s: Sim, id: string): Card {
+  const card = s.cards[id];
+  if (!card) throw new Error(`Missing roster card: ${id}`);
+  return card;
+}
+function requiredPerson(s: Sim, id: string): Sim['people'][string] {
+  const person = s.people[id];
+  if (!person) throw new Error(`Missing roster person: ${id}`);
+  return person;
+}
 function arrive(s: Sim) {
-  for (const c of CANDIDATES)
-    if (!s.cards[c.id]!.met && s.cards[c.id]!.arrived <= s.now) {
-      const reputation = credence(s.people[c.id]!, 'nermin:reliable');
+  for (const c of CANDIDATES) {
+    const card = requiredCard(s, c.id);
+    if (!card.met && card.arrived <= s.now) {
+      const reputation = credence(requiredPerson(s, c.id), 'nermin:reliable');
       if (reputation < 0.42) {
-        Object.assign(s.cards[c.id]!, { met: true, status: 'gone', arrived: s.now });
+        Object.assign(card, { met: true, status: 'gone', arrived: s.now });
         log(
           s,
           'word',
@@ -352,7 +363,7 @@ function arrive(s: Sim) {
         );
         continue;
       }
-      Object.assign(s.cards[c.id]!, { met: true, status: 'bench', arrived: s.now });
+      Object.assign(card, { met: true, status: 'bench', arrived: s.now });
       landReferral(s, c.id);
       if (reputation > 0.58)
         log(s, 'word', `${c.name}: “Someone you placed told me to come here. They said you listen.”`, {
@@ -360,6 +371,7 @@ function arrive(s: Sim) {
         });
       log(s, 'arrival', `${c.name} sat on the bench. ${c.look}`, { candidate: c.id });
     }
+  }
   for (const f of FAMILIES)
     if (f.arrives <= s.now && !s.requests.some((r) => r.family === f.id) && requestHasPath(s, f)) {
       const request: RequestView = {
@@ -372,7 +384,7 @@ function arrive(s: Sim) {
         byLabel: label(f.deadline),
         status: 'open',
       };
-      const reputation = credence(s.people[`${f.id}-0`]!, 'nermin:reliable');
+      const reputation = credence(requiredPerson(s, `${f.id}-0`), 'nermin:reliable');
       if (reputation < 0.42) {
         request.status = 'lost';
         request.lostReason = 'They heard how the last placement ended and chose another agency.';
@@ -414,20 +426,25 @@ function arrive(s: Sim) {
 function requestHasPath(s: Sim, f: (typeof FAMILIES)[number]): boolean {
   const suitable = CANDIDATES.filter((c) => c.roles.includes(f.role));
   if (
-    suitable.some(
-      (c) =>
-        ['bench', 'books'].includes(s.cards[c.id]!.status) &&
-        s.cards[c.id]!.met &&
-        !s.cards[c.id]!.refuses.some((r) => r.family === f.id),
-    )
+    suitable.some((c) => {
+      const card = requiredCard(s, c.id);
+      return (
+        ['bench', 'books'].includes(card.status) && card.met && !card.refuses.some((r) => r.family === f.id)
+      );
+    })
   )
     return true;
   const next = suitable
-    .filter((c) => !s.cards[c.id]!.met)
-    .sort((a, b) => s.cards[a.id]!.arrived - s.cards[b.id]!.arrived)[0];
+    .filter((c) => !requiredCard(s, c.id).met)
+    .sort((a, b) => {
+      const aCard = requiredCard(s, a.id);
+      const bCard = requiredCard(s, b.id);
+      return aCard.arrived - bCard.arrived;
+    })[0];
   if (!next) return false;
   // The candidate has already arranged to come; bring that appointment into this half-day.
-  s.cards[next.id]!.arrived = Math.min(s.cards[next.id]!.arrived, s.now + 60);
+  const nextCard = requiredCard(s, next.id);
+  nextCard.arrived = Math.min(nextCard.arrived, s.now + 60);
   return true;
 }
 
