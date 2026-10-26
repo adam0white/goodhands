@@ -566,7 +566,15 @@ function peoplePanel(): void {
       }),
     );
   });
-  d.querySelector<HTMLButtonElement>('[data-persona-file]')!.onclick = () => {
+  const personaFile = d.querySelector<HTMLButtonElement>('[data-persona-file]');
+  const personaFresh = d.querySelector<HTMLButtonElement>('[data-persona-fresh]');
+  const personaExport = d.querySelector<HTMLButtonElement>('[data-persona-export]');
+  const personaPause = d.querySelector<HTMLButtonElement>('[data-persona-pause]');
+  const personaCheckpoint = d.querySelector<HTMLButtonElement>('[data-persona-checkpoint]');
+  const personaFork = d.querySelector<HTMLButtonElement>('[data-persona-fork]');
+  if (!personaFile || !personaFresh || !personaExport || !personaPause || !personaCheckpoint || !personaFork)
+    throw new Error('Missing required persona controls.');
+  personaFile.onclick = () => {
     const file = document.createElement('input');
     file.type = 'file';
     file.accept = '.json,application/json';
@@ -583,20 +591,20 @@ function peoplePanel(): void {
     };
     file.click();
   };
-  d.querySelector<HTMLButtonElement>('[data-persona-fresh]')!.onclick = () => {
+  personaFresh.onclick = () => {
     void newMonth(true);
   };
-  d.querySelector<HTMLButtonElement>('[data-persona-export]')!.onclick = () => {
+  personaExport.onclick = () => {
     for (const head of continuity.heads) downloadJson(`${head.castId}.json`, head);
   };
-  d.querySelector<HTMLButtonElement>('[data-persona-pause]')!.onclick = () => {
+  personaPause.onclick = () => {
     if (state) send({ type: state.castPaused ? 'resume-cast' : 'pause-cast' });
     update();
   };
-  d.querySelector<HTMLButtonElement>('[data-persona-checkpoint]')!.onclick = () => {
+  personaCheckpoint.onclick = () => {
     void checkpoint().then(update);
   };
-  d.querySelector<HTMLButtonElement>('[data-persona-fork]')!.onclick = () => {
+  personaFork.onclick = () => {
     void (async () => {
       try {
         if (pendingFork) {
@@ -1153,9 +1161,9 @@ function menu(): void {
     'menu',
   );
   d.querySelector('.recording-footer')?.append(telemetryToggle(lab));
-  d.querySelector('[data-new-game]')?.addEventListener('click', () =>
-    confirmNewGame(d.querySelector('.sheet-content')!),
-  );
+  const confirmationContent = d.querySelector<HTMLElement>('.sheet-content');
+  if (!confirmationContent) throw new Error('Missing new-game confirmation content.');
+  d.querySelector('[data-new-game]')?.addEventListener('click', () => confirmNewGame(confirmationContent));
   const commit = document.createElement('div');
   commit.className = 'lk-commit';
   commit.append(button('Resume', () => closeSheet(), 'primary'));

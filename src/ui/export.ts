@@ -178,29 +178,39 @@ function validInput(value: unknown): value is Input {
     } else if (key === 'terms') {
       const terms = value[key];
       const keys = ['wage', 'startHour', 'endHour', 'dayOff', 'trialDays', 'fee'];
+      if (!record(terms) || Object.keys(terms).length !== keys.length) return false;
+      const { wage, startHour, endHour, dayOff, trialDays, fee } = terms;
       if (
-        !record(terms) ||
-        Object.keys(terms).length !== keys.length ||
-        !keys.every((key) => typeof terms[key] === 'number' && Number.isFinite(terms[key]))
+        typeof wage !== 'number' ||
+        !Number.isFinite(wage) ||
+        typeof startHour !== 'number' ||
+        !Number.isFinite(startHour) ||
+        typeof endHour !== 'number' ||
+        !Number.isFinite(endHour) ||
+        typeof dayOff !== 'number' ||
+        !Number.isFinite(dayOff) ||
+        typeof trialDays !== 'number' ||
+        !Number.isFinite(trialDays) ||
+        typeof fee !== 'number' ||
+        !Number.isFinite(fee)
       )
         return false;
-      const { wage, startHour, endHour, dayOff, trialDays, fee } = terms as Record<string, number>;
       if (
         !(
-          wage! > 0 &&
-          wage! <= 1e6 &&
-          startHour! >= 0 &&
-          startHour! < 24 &&
-          endHour! > startHour! &&
-          endHour! <= 24 &&
+          wage > 0 &&
+          wage <= 1e6 &&
+          startHour >= 0 &&
+          startHour < 24 &&
+          endHour > startHour &&
+          endHour <= 24 &&
           Number.isInteger(dayOff) &&
-          dayOff! >= 0 &&
-          dayOff! <= 6 &&
+          dayOff >= 0 &&
+          dayOff <= 6 &&
           Number.isInteger(trialDays) &&
-          trialDays! >= 1 &&
-          trialDays! <= 14 &&
-          fee! >= 0 &&
-          fee! <= 1e6
+          trialDays >= 1 &&
+          trialDays <= 14 &&
+          fee >= 0 &&
+          fee <= 1e6
         )
       )
         return false;
@@ -430,11 +440,12 @@ export async function validateContinuity(
         (r) => r.revision === head.revision && r.parentRevision === head.parentRevision,
       );
       if (!row) throw new Error('Owned receipt has no accepted lineage.');
-      if (head.terminal) {
+      const terminal = head.terminal;
+      if (terminal) {
         const source = replay(
           savedState.seed,
-          inputs.filter((i) => i.at <= head.terminal!.at),
-          head.terminal.at,
+          inputs.filter((i) => i.at <= terminal.at),
+          terminal.at,
           6,
           book.chapter.guests,
           book.chapter,

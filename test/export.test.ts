@@ -28,6 +28,31 @@ describe('run exports', () => {
     expect(() => verifyImport(JSON.stringify({ ...run, fingerprint: 'wrong' }))).toThrow();
     expect(() => verifyImport(JSON.stringify({ ...run, state: newGame(18) }))).toThrow();
   });
+  it('rejects malformed employment terms before replay', () => {
+    const run = compactRun(fixture());
+    const valid = { wage: 9000, startHour: 9, endHour: 17, dayOff: 0, trialDays: 3, fee: 500 };
+    const { fee: _fee, ...missing } = valid;
+    for (const terms of [
+      missing,
+      { ...valid, extra: 1 },
+      { ...valid, wage: '9000' },
+      { ...valid, wage: null },
+    ]) {
+      expect(() =>
+        verifyImport(
+          JSON.stringify({
+            ...run,
+            inputs: [{ at: 510, input: { type: 'propose-terms', scene: 'scene-1', terms } }],
+          }),
+        ),
+      ).toThrow('Invalid input history.');
+    }
+    const overflowing = JSON.stringify({
+      ...run,
+      inputs: [{ at: 510, input: { type: 'propose-terms', scene: 'scene-1', terms: valid } }],
+    }).replace('9000', '1e400');
+    expect(() => verifyImport(overflowing)).toThrow('Invalid input history.');
+  });
   it('rejects an envelope clock beyond the actual end', () => {
     const state = replay(17, [], 40320);
     const run = compactRun(exportRun(state, []));
