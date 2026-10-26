@@ -1,3 +1,9 @@
+## Automatic recording source candidate — 2026-10-26
+
+Ordinary automated browsers now initialize the released `createLab({ game: 'goodhands' })`; the implicit webdriver no-op client is removed. The SDK, endpoint, Recording switch, stored off choices, DNT/GPC defaults and privacy override behavior are unchanged. Client 0.4.11 still suppresses localhost recording without its public `sendFromLocalhost` option. Future recorded local QA requires a reviewed use of that option and disclosure that the deployed SDK has no supported agent cohort marker.
+
+This is an uncommitted source candidate on f101cc7, not a live recording fix or ingestion proof. Parent independent review, signed source, exact green CI, a fresh hold check and clean release remain. Good Hands admission is held on the guarded live f101cc7 build; no upload or admission here. Shared stage, cast, HF3 native bodies, frozen editions, startup history, Shelf, menu and simulation remain unchanged. Historical quarantined/fake-client runs remain historical. B owns later recorded engineering and admission; HTTP 429 is not acknowledgment and HTTP 200 alone does not prove complete ingestion. No active round is established by this source task; recheck current holds before any later release.
+
 # Good Hands handoff
 
 ## Current SDK delivery — 2026-10-25

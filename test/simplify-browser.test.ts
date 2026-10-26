@@ -257,6 +257,11 @@ for (const [name, engine] of [
           await capture('offer');
           await page.locator('[data-close]').click();
           await page.locator('[data-action="menu"]').click();
+          // This control covers the Recording-off form through the real SDK preference.
+          await page.locator('.recording-footer input[type="checkbox"]').uncheck();
+          expect(await page.locator('.recording-footer input[type="checkbox"]').isChecked()).toBe(false);
+          // The shelf fixture has no identity reply; let the SDK's normal fallback finish.
+          await page.clock.runFor(2001);
           await page.getByRole('button', { name: 'Feedback', exact: true }).click();
           expect(await page.locator('.feedback-screen').count()).toBe(1);
           expect(await page.locator('.feedback-screen input[type="checkbox"]').count()).toBe(1);
