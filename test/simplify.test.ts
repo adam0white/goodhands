@@ -1,5 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { expect, it } from 'vitest';
+import { runPolicy } from '../scripts/policy.ts';
 import { workerNeed } from '../src/sim/dialogue.ts';
 import { advance, apply, fingerprint, newGame, view } from '../src/sim/index.ts';
 import type { LogEntry } from '../src/sim/types.ts';
@@ -115,4 +116,19 @@ it('preserves punctuation after grouped and ungrouped money', () => {
     'The deposit, ₺2,250, is in the cash box.',
   );
   expect(plainText('Pay ₺0, ₺9, ₺10000 and ₺10,000.')).toBe('Pay ₺0, ₺9, ₺10,000 and ₺10,000.');
+});
+
+it('keeps an actual visit observation in report voice and known family speech in first person', () => {
+  const state = runPolicy(1, 'careful', 2600, 6 as 4);
+  expect(view(state).scene?.title).toBe('Visit: Şebnem Eren at the Kaya family');
+  const observation = view(state).placements[0]!.lastWord!;
+  expect(observation).toBe(
+    'Şebnem Eren let the household member finish explaining. The household could follow the agreed routine.',
+  );
+  const before = fingerprint(state);
+  expect(plainText(observation)).toBe(observation);
+  expect(familySpeech(observation)).toBe(
+    'Şebnem Eren let us finish explaining. We could follow the agreed routine.',
+  );
+  expect(fingerprint(state)).toBe(before);
 });
