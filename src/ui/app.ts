@@ -3,6 +3,7 @@ import {
   claimCastChapterBatch,
   closePersonaBranch,
   createPersona,
+  FEEDBACK_LABELS,
   initialPersonaLife,
   type PersonaEnvelope,
   type PersonaLife,
@@ -1748,6 +1749,11 @@ function feedback(): void {
     ['quit', 'I’d stop here'],
   ]
     .map(([id, label]) => `<button type="button" data-verdict="${id}" aria-pressed="false">${label}</button>`)
+    .join('')}</div><div class="verdict-chips">${Object.entries(FEEDBACK_LABELS)
+    .map(
+      ([id, label]) =>
+        `<button type="button" data-feedback-choice="${id}" aria-pressed="false">${h(label)}</button>`,
+    )
     .join(
       '',
     )}</div><div data-feedback-persona></div><label class="feedback-note"><span class="sr-only">Your note</span><textarea rows="4" placeholder="Tell us what happened and what got in your way."></textarea></label><details class="feedback-name"><summary>+ Add a name</summary><label>Your name or tester ID (optional)<input data-feedback-name maxlength="60" value="${h(name)}" autocomplete="name"></label><p>It labels your earlier and later runs on this device.</p></details><details><summary>What is sent</summary><p>Your note and optional name are linked to your player ID. This ID does not contain your real name. ${state ? 'While recording is on, your run can include its seed, choices, clock, saved month and log. Recording off sends only your note and optional name.' : ''}</p><a href="https://human.adamwhite.work/lab/privacy/">Lab privacy</a></details>${state ? '<button type="button" data-action="download">Keep a copy of this run ⤓</button>' : ''}`;
@@ -1758,6 +1764,14 @@ function feedback(): void {
       verdict = chip.dataset.verdict ?? '';
       for (const c of body.querySelectorAll('[data-verdict]'))
         c.setAttribute('aria-pressed', String(c === chip));
+    };
+  let selectedLabel = '';
+  for (const chip of body.querySelectorAll<HTMLButtonElement>('[data-feedback-choice]'))
+    chip.onclick = () => {
+      selectedLabel =
+        selectedLabel === chip.dataset.feedbackChoice ? '' : (chip.dataset.feedbackChoice ?? '');
+      for (const c of body.querySelectorAll<HTMLButtonElement>('[data-feedback-choice]'))
+        c.setAttribute('aria-pressed', String(c.dataset.feedbackChoice === selectedLabel));
     };
   const commit = document.createElement('div');
   commit.className = 'lk-commit';
@@ -1781,6 +1795,7 @@ function feedback(): void {
           .trim()
           .slice(0, 60);
         const note = [
+          selectedLabel ? FEEDBACK_LABELS[selectedLabel as keyof typeof FEEDBACK_LABELS] : '',
           verdict ? `Verdict: ${verdict}` : '',
           body.querySelector<HTMLTextAreaElement>('textarea')?.value.trim(),
         ]
