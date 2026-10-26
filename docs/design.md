@@ -147,7 +147,9 @@ New months use simulation 3. Simulations 1 and 2 retain their shipped rules and 
 
 - **2026-10-21:** Assess repeated withdrawal/replacement in a fresh source-unread playtest. HF round 2 produced 83–141 placement records for completionists and two 60-minute caps; it does not establish human return intent.
 - **2026-10-27:** Retest round 4 with a fresh source-unread player, including phone-size callback reasons and named household controls; Adam's play acceptance remains outstanding.
-- **2026-10-27:** Review the remaining round-3 observations: gendered candidate-card copy for Cem, breakfast wording after an afternoon placement, and trait/source shorthand that needs the full card to explain Nermin's judgment. Preserve the quoted evidence and the worker/family disagreement.
+- **2026-10-27:** Root review and delivery of GDI106–108: Cem is retired; current cards already use neutral applicant wording. Current household accounts no longer contain the old breakfast anecdote. The candidate adds the actual placement agreement date/time and explains who spoke or observed beside Nermin’s uncertain reading. Raw identity/history and worker/family disagreement stay unchanged. Candidate source checks do not establish deployed delivery or Adam’s acceptance.
+- **2026-10-27:** Root producer/receiver review and delivery for GDI703: the candidate receives only the actual Murmur154caef CLI Aylin v2 checkpoint and its eight selected episodes on HF3.0. All192 omitted episodes and full raw source remain in the original archive; receiving full/compact runs pin the source passport, selection/map and raw digest. Nonempty beliefs/duties/debt, unsupported source routes, live browser ownership, CAS and a human source journey remain unproved. Danyal’s Coast bridge stays excluded.
+- **2026-10-27:** Root review of card-reading slowdown and phone/pacing/Skip builder checks. Candidate card reading now uses the existing inspection slowdown even when Fast was selected; the menu still pauses time. Keep the existing shared stage stylesheet and quiet Feedback artifacts. Adam’s feel/readiness acceptance remains due2026-11-03.
 
 ## Build measurement
 

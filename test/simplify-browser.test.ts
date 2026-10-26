@@ -240,7 +240,9 @@ for (const [name, engine] of [
           expect(await page.locator('.exchange').innerText()).toContain('I need ₺');
           await readable(page, '.exchange [data-scene-line]:last-child');
           await page.locator('[data-action="info"]').click();
-          expect(await page.locator('.info-panel').innerText()).toContain('Reports from others are “heard”.');
+          expect(await page.locator('.info-panel').innerText()).toContain(
+            'They distinguish what Nermin observed from what someone told her.',
+          );
           await page.keyboard.press('Escape');
           // End the interview and use the actual offer controls.
           await page.locator('[data-choice="wait-bench"]').click();

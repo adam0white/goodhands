@@ -1,0 +1,34 @@
+{
+  "producer": {
+    "game": "murmur",
+    "build": "154caef0ccee20950cfb7491390fcb5c6ebe8d58",
+    "engine": "2.23.0",
+    "rules": "0.6.0"
+  },
+  "originalSource": {
+    "game": "murmur",
+    "build": "92cdebd9fe73",
+    "engine": "2.23.0",
+    "rules": "0.6.0"
+  },
+  "parentRevision": "11bd8626b954c39c748f832a9a43ef837db81438e4e1bbda834da868d76f82b7",
+  "revision": "5c89a5a9d82761ed4a5e264987e2b153d7fc54c3633d043313654fa54349a09d",
+  "files": {
+    "murmur-next-final-aylin.json": "e258b0b969720ca98270fc696b61e7d590c978e00350a59eecad8b1a2b397109",
+    "murmur-next-final-aylin.json.passport.json": "17eadac3e69adddc809d3ed797f1ec0cace0bde5926dda7d54bbcb8fc19a6822"
+  },
+  "rawDigest": "f86d09bd4f0e0e9a04074273e9039876ebb046d0e00ba190373491ed4ffe8d18",
+  "semanticDigest": "c436807f4e8b1b2217973787a7e67b8caf3470694b0dcac96d287a4e8d623487",
+  "selectedIds": [
+    "e4698",
+    "e4699",
+    "e4700",
+    "e4701",
+    "e4702",
+    "e4703",
+    "e4704",
+    "e4705"
+  ],
+  "omittedCount": 192,
+  "evidence": "Actual CLI-produced source pair; no browser ownership or human journey. Producer delivery is reviewed separately by root."
+}

@@ -24,7 +24,9 @@ it('calls a doubtful patience answer evidence without endorsing it', () => {
   apply(state, { type: 'interview', candidate: 'sevda' });
   apply(state, { type: 'choose', scene: view(state).scene!.id, choice: 'q-patient' });
   const notes = view(state).scene!.added!;
-  expect(addedEvidence(notes)).toBe('Added evidence about patience.');
+  expect(addedEvidence(notes)).toBe(
+    `${notes[0]!.from} told Nermin about this worker. Nermin’s reading: ${notes[0]!.phrase}`,
+  );
   expect(addedEvidence(notes.map((n) => ({ ...n, crossedOut: true })))).toBe('');
 });
 
@@ -38,4 +40,20 @@ it('uses the selected household deadline, including another household', () => {
   expect(placementDeadline({ ...v, requests: [...v.requests, next] }, 'kayas')).toContain(
     'by Wednesday 4 November 08:00.',
   );
+});
+
+it('immediate evidence states the speaker and Nermin’s uncertain reading without changing the raw note', () => {
+  const state = newGame(1);
+  apply(state, { type: 'interview', candidate: 'sevda' });
+  apply(state, { type: 'choose', scene: view(state).scene!.id, choice: 'q-patient' });
+  const notes = view(state).scene!.added!;
+  const original = structuredClone(notes);
+  expect(addedEvidence(notes)).toContain(`${notes[0]!.from} told Nermin`);
+  expect(addedEvidence(notes)).toContain(notes[0]!.phrase);
+  expect(notes).toEqual(original);
+});
+
+it('names the actual afternoon placement agreement time without claiming a meal or witnessed work', async () => {
+  const { placementTiming } = await import('../src/ui/render.ts');
+  expect(placementTiming({ since: 15 * 60 + 38 })).toBe('Placement agreed Monday 2 November at 15:38.');
 });

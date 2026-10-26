@@ -63,12 +63,14 @@ import {
   matchingReason,
   money,
   monthTally,
+  noteSource,
   noteText,
   personName,
   phoneAvailability,
   placementDeadline,
   placementDepositWords,
   placementLabel,
+  placementTiming,
   referenceReason,
   requestGroups,
   resumeLine,
@@ -637,8 +639,9 @@ function shell(v: View): void {
 }
 function pace(v: View): number {
   if (overlay || modal === 'menu' || modal === 'feedback' || waitAnimation) return 0;
-  const automatic = automaticPace(v, !!sheet);
-  if (automatic <= 0.5 || (sheet && v.bench.length)) return automatic;
+  const inspecting = !!sheet || (tab === 'Bench' && selected !== null);
+  const automatic = automaticPace(v, inspecting);
+  if (automatic <= 0.5 || (inspecting && v.bench.length)) return automatic;
   return paceChoice === 'automatic' ? automatic : { slow: 0.5, steady: 2, fast: 20 }[paceChoice];
 }
 function paceWords(v: View): string {
@@ -657,7 +660,8 @@ function paceWords(v: View): string {
       ? `The clock is slow. ${c.name} is picking up a bag.`
       : 'The clock is slow. Someone needs an answer.';
   }
-  if (sheet && v.bench[0]) return `${v.bench[0].name} is waiting while you read.`;
+  if ((sheet || (tab === 'Bench' && selected !== null)) && v.bench[0])
+    return `${v.bench[0].name} is waiting while you read.`;
   return '';
 }
 function updateClock(v: View): void {
@@ -865,7 +869,7 @@ function benchHtml(v: View): string {
     (q) => {
       const notes = c.notes.filter((n) => n.quality === q);
       const read = notes.findLast((n) => !n.crossedOut) ?? notes.at(-1);
-      return `<section class="quality-note"><h3>${q}</h3><p class="nermin-read handwritten">${read ? h(read.phrase) : 'You have not asked yet.'}</p>${notes.map((n) => `<p class="note ${n.crossedOut ? 'crossed-out' : ''}"><small>${h(n.from)} · ${n.source}</small><span class="note-claim">${h(n.claim ?? n.phrase)}</span></p>`).join('')}</section>`;
+      return `<section class="quality-note"><h3>${q}</h3><p class="nermin-read handwritten">${read ? h(read.phrase) : 'You have not asked yet.'}</p>${notes.map((n) => `<p class="note ${n.crossedOut ? 'crossed-out' : ''}"><small>${h(noteSource(n))}</small><span class="note-claim">${h(n.claim ?? n.phrase)}</span></p>`).join('')}</section>`;
     },
   ).join(
     '',
@@ -1387,7 +1391,7 @@ function placementSheet(id: string): void {
   if (!p) return;
   const d = openSheet(
     `${person(v, p.candidate)} at ${person(v, p.family)}`,
-    `<p>${h(p.lastWord || 'The family has not reported back yet.')}</p>${p.terms ? `<p>${h(termsLine(p.terms))}</p>` : ''}${(state?.version ?? 0) >= 3 ? `<button type="button" data-phone-family="${h(p.family)}">Speak to someone in the house</button>` : ''}${p.arrangement ? `<p>${h(p.arrangement)}</p>` : ''}${p.pending ? `<p>${h(p.pending.dateLabel)}: ${h(p.pending.text)}</p>` : ''}<p data-check-reason class="reason"></p><button type="button" data-check="phone" data-placement-id="${h(id)}">Check in by phone<small>This takes about 15 minutes.</small></button><button type="button" data-check="visit" data-placement-id="${h(id)}">Visit the house<small>The visit takes an hour, plus the journey.</small></button><button type="button" data-check="drop-by" data-placement-id="${h(id)}">Ask the worker to drop by<small>After work</small></button><details><summary>Bring the worker back</summary><p>The worker will leave this house and return to your agency records. The family loses its worker.</p><button type="button" data-withdraw="${h(id)}">Withdraw this worker</button></details>`,
+    `<p>${h(placementTiming(p))}</p><p>${h(p.lastWord || 'The family has not reported back yet.')}</p>${p.terms ? `<p>${h(termsLine(p.terms))}</p>` : ''}${(state?.version ?? 0) >= 3 ? `<button type="button" data-phone-family="${h(p.family)}">Speak to someone in the house</button>` : ''}${p.arrangement ? `<p>${h(p.arrangement)}</p>` : ''}${p.pending ? `<p>${h(p.pending.dateLabel)}: ${h(p.pending.text)}</p>` : ''}<p data-check-reason class="reason"></p><button type="button" data-check="phone" data-placement-id="${h(id)}">Check in by phone<small>This takes about 15 minutes.</small></button><button type="button" data-check="visit" data-placement-id="${h(id)}">Visit the house<small>The visit takes an hour, plus the journey.</small></button><button type="button" data-check="drop-by" data-placement-id="${h(id)}">Ask the worker to drop by<small>After work</small></button><details><summary>Bring the worker back</summary><p>The worker will leave this house and return to your agency records. The family loses its worker.</p><button type="button" data-withdraw="${h(id)}">Withdraw this worker</button></details>`,
   );
   updateInspection = () => {
     const live = current();
@@ -1700,7 +1704,7 @@ function info(): void {
     ],
     conversation: [
       'Talking',
-      'Each question takes 8–12 minutes. Applicants answer fewer questions as they get tired. Their cards label their own claims as “says”. Reports from others are “heard”. What you watch during a trial is “seen”. A note Nermin doubts is crossed out.',
+      'Each question takes 8–12 minutes. Applicants answer fewer questions as they get tired. Their cards name who gave each account. They distinguish what Nermin observed from what someone told her. Nermin’s reading can remain uncertain. A note Nermin doubts is crossed out.',
     ],
     negotiate: [
       'Your promises',

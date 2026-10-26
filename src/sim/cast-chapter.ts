@@ -148,7 +148,7 @@ export async function prepareAgencyChapter(inputs: LifePreparation[], seed: numb
     const facts = lifeAdmission(input, 'goodhands');
     let person: Person;
     if (parent.source.game === 'murmur' && key === 'aylin') {
-      person = prepareMurmurAylin(parent, base.aylin!);
+      person = await prepareMurmurAylin(parent, base.aylin!);
     } else if (parent.source.game === 'voice' && key === 'selin-voice') {
       const guest =
         parent.transfer.castPassport === 'site-cast/1'

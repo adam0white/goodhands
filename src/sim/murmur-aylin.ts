@@ -1,4 +1,11 @@
-/** Finite Murmur0.6 Aylin arrival. The full played source stays in its export. */
+/** Finite Murmur0.6 Aylin arrival. Native v1 stays unchanged. Opt-in v2 accepts only the
+ * actual 154caef producer's eight selected episodes e4698–e4705 at its pinned 92cdebd checkpoint.
+ * The semantic digest binds incoming payload, references, selection/map, omissions, raw witness and
+ * provenance; it is a finite source restriction, not a signature or ownership check. We admit the
+ * incoming projection, never a bundled Person. HF translates episode/birth clocks by arrival offset.
+ * All 192 omitted episodes and full raw history stay in the source archive. Empty beliefs/duties/debt
+ * prove no nonempty coverage. No source reference creates a tie, skill, trust or public fact here.
+ */
 import {
   admitCalendarPersona,
   DEFAULT_NORMS,
@@ -6,8 +13,34 @@ import {
   validateCalendarPersona,
 } from '@adam0white/human-framework';
 import { canonicalPersona, type PersonaEnvelope } from '@adam0white/lab-client';
-export function prepareMurmurAylin(envelope: PersonaEnvelope, opening: Person): Person {
+export async function prepareMurmurAylin(envelope: PersonaEnvelope, opening: Person): Promise<Person> {
   const t = envelope.transfer;
+  const history = t.castPassport === 'murmur-cast/2';
+  if (history) {
+    // Exact signed producer dialect and original parent; unknown v2 checkpoints need their own map review.
+    const semantic = {
+      person: t.person,
+      selection: t.selection,
+      checkpoint: t.checkpoint,
+      provenance: t.provenance,
+    };
+    const hash = [
+      ...new Uint8Array(
+        await crypto.subtle.digest('SHA-256', new TextEncoder().encode(canonicalPersona(semantic))),
+      ),
+    ]
+      .map((byte) => byte.toString(16).padStart(2, '0'))
+      .join('');
+    if (
+      envelope.source.build !== '154caef0ccee20950cfb7491390fcb5c6ebe8d58' ||
+      envelope.branchId !== 'murmur-hf3-native-proof-aylin' ||
+      envelope.parentRevision !== '11bd8626b954c39c748f832a9a43ef837db81438e4e1bbda834da868d76f82b7' ||
+      hash !== 'c436807f4e8b1b2217973787a7e67b8caf3470694b0dcac96d287a4e8d623487'
+    )
+      throw new Error(
+        'This Murmur history source or episode selection is not supported. Keep its source export or start fresh.',
+      );
+  }
   const portable = validateCalendarPersona(t.person),
     p = portable.person;
   const receipt = t.checkpoint as
@@ -20,9 +53,9 @@ export function prepareMurmurAylin(envelope: PersonaEnvelope, opening: Person): 
     envelope.source.game !== 'murmur' ||
     envelope.source.rules !== '0.6.0' ||
     envelope.source.engine !== '2.23.0' ||
-    t.castPassport !== 'murmur-cast/1' ||
+    t.castPassport !== (history ? 'murmur-cast/2' : 'murmur-cast/1') ||
     t.sourceRole !== 'aylin' ||
-    p.mappingVersion !== 'murmur-calendar/1' ||
+    p.mappingVersion !== (history ? 'murmur-calendar/2' : 'murmur-calendar/1') ||
     p.source.engine !== '2.23.0' ||
     p.source.id !== 'aylin' ||
     p.name !== 'Aylin' ||
@@ -30,7 +63,7 @@ export function prepareMurmurAylin(envelope: PersonaEnvelope, opening: Person): 
     p.health.health !== 1 ||
     p.health.circadianPeak !== 960 ||
     Object.keys(p.skills).length ||
-    p.episodes.length ||
+    (history ? p.episodes.length !== 8 : p.episodes.length) ||
     p.commitments.length ||
     portable.calendar.offset !== 0 ||
     portable.calendar.commitments.length ||
@@ -56,7 +89,7 @@ export function prepareMurmurAylin(envelope: PersonaEnvelope, opening: Person): 
   const mapped = structuredClone(portable);
   mapped.calendar.offset = offset;
   return admitCalendarPersona(mapped, target, {
-    mappingVersion: 'murmur-calendar/1',
+    mappingVersion: history ? 'murmur-calendar/2' : 'murmur-calendar/1',
     sourceId: 'aylin',
     targetId: 'aylin',
     targetNorms: DEFAULT_NORMS,

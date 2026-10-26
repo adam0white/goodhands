@@ -423,10 +423,20 @@ export async function validateContinuity(
       )
         throw new Error('Invalid batch claim parent.');
       await validatePersona(claim);
+      const { revision: parentRevision, ...parentBody } = input.parent;
+      const { revision: _claimRevision, ...claimBody } = claim;
+      // client0.4.11 claims inherit the parent body, replacing only these three fields.
+      const expected = {
+        ...parentBody,
+        parentRevision,
+        source: claim.source,
+        transfer: { ...parentBody.transfer, life: input.life },
+      };
       if (
         claim.source.game !== 'goodhands' ||
         claim.source.rules !== 'goodhands-6' ||
-        canonicalPersona(claim.transfer) !== canonicalPersona({ ...input.parent.transfer, life: input.life })
+        !['2.17.0', '2.21.0', '2.23.0'].includes(claim.source.engine) ||
+        canonicalPersona(claimBody) !== canonicalPersona(expected)
       )
         throw new Error('Batch claim changed the pinned passport.');
     }

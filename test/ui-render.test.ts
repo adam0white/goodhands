@@ -46,10 +46,10 @@ describe('player-facing render helpers', () => {
   it('escapes speech before it enters HTML', () =>
     expect(escapeHtml('<button>"&\'')).toBe('&lt;button&gt;&quot;&amp;&#39;'));
   it('shows the source and excludes contradicted notes from a vouch', () => {
-    expect(noteText(note)).toContain('seen: Nermin');
+    expect(noteText(note)).toContain('Nermin observed this.');
     expect(
       evidence({ ...candidate, notes: [{ ...note, source: 'says', crossedOut: true }, note] }, 'patient'),
-    ).toBe('seen: waited with the twins (Nermin)');
+    ).toBe('patient — Nermin’s reading: waited with the twins Nermin observed this.');
     expect(evidence(candidate, 'honest')).toContain('checked this yet');
   });
   it('uses the known circumstance when an action is unavailable', () => {
@@ -61,12 +61,14 @@ describe('player-facing render helpers', () => {
   it('labels a vouch with the strongest uncrossed evidence rather than the latest claim', () => {
     const seen = { ...note, source: 'seen' as const };
     const says = { ...note, source: 'says' as const, at: 600 };
-    expect(vouchLabel({ ...candidate, notes: [seen, says] }, 'patient')).toBe('patient · seen');
+    expect(vouchLabel({ ...candidate, notes: [seen, says] }, 'patient')).toBe(
+      'patient · Nermin observed this.',
+    );
     expect(vouchLabel({ ...candidate, notes: [{ ...seen, crossedOut: true }, says] }, 'patient')).toBe(
-      'patient · says',
+      'patient · Nermin told Nermin about this worker.',
     );
     expect(vouchLabel({ ...candidate, notes: [{ ...note, source: 'heard' }] }, 'patient')).toBe(
-      'patient · heard',
+      'patient · Nermin reported this to Nermin.',
     );
     expect(vouchLabel(candidate, 'reliable')).toBe('reliable · not checked');
   });
@@ -117,7 +119,7 @@ describe('player-facing render helpers', () => {
 
 it('keeps a source’s own claim beside Nermin’s read', () => {
   expect(noteText({ ...note, claim: 'I sat with the twins until they slept.' })).toBe(
-    'patient — waited with the twins · seen: Nermin — I sat with the twins until they slept.',
+    'patient — Nermin’s reading: waited with the twins Nermin observed this. I sat with the twins until they slept.',
   );
 });
 

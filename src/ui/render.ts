@@ -15,21 +15,28 @@ export function money(amount: number): string {
   return `₺${new Intl.NumberFormat('en-GB', { maximumFractionDigits: 0 }).format(amount)}`;
 }
 
+/** Source words describe evidence reaching Nermin, never the worker’s true traits. */
+export function noteSource(note: Note): string {
+  return note.source === 'seen'
+    ? 'Nermin observed this.'
+    : note.source === 'says'
+      ? `${note.from} told Nermin about this worker.`
+      : `${note.from} reported this to Nermin.`;
+}
+
 export function noteText(note: Note): string {
-  return `${note.quality} — ${plainText(note.phrase)} · ${note.source}: ${note.from}${note.claim ? ` — ${note.claim}` : ''}`;
+  return `${note.quality} — Nermin’s reading: ${plainText(note.phrase)} ${noteSource(note)}${note.claim ? ` ${plainText(note.claim)}` : ''}`;
 }
 
 export function evidence(candidate: CandidateView, quality: Quality): string {
   const notes = candidate.notes.filter((n) => n.quality === quality && !n.crossedOut);
-  return notes.length
-    ? notes.map((n) => `${n.source}: ${plainText(n.phrase)} (${n.from})`).join('; ')
-    : 'You have not made a note or checked this yet.';
+  return notes.length ? notes.map(noteText).join('; ') : 'You have not made a note or checked this yet.';
 }
 
 export function vouchLabel(candidate: CandidateView, quality: Quality): string {
   const notes = candidate.notes.filter((n) => n.quality === quality && !n.crossedOut);
-  const source = ['seen', 'heard', 'says'].find((source) => notes.some((n) => n.source === source));
-  return `${quality} · ${source ?? 'not checked'}`;
+  const note = ['seen', 'heard', 'says'].flatMap((source) => notes.filter((n) => n.source === source))[0];
+  return `${quality} · ${note ? noteSource(note) : 'not checked'}`;
 }
 
 /** Resolve public names without showing internal actor IDs. */
@@ -165,16 +172,10 @@ export function placementDepositWords(simulation: number, replacement = false): 
 
 /** A recorded answer is evidence, including when Nermin doubts it. */
 export function addedEvidence(notes: Note[]): string {
-  const topics: Record<Quality, string> = {
-    patient: 'patience',
-    honest: 'honesty',
-    reliable: 'reliability',
-    warm: 'warmth',
-    hardworking: 'work',
-    discreet: 'discretion',
-  };
-  const qualities = [...new Set(notes.filter((n) => !n.crossedOut).map((n) => topics[n.quality]))];
-  return qualities.length ? `Added evidence about ${qualities.join(', ')}.` : '';
+  return notes
+    .filter((n) => !n.crossedOut)
+    .map((n) => `${noteSource(n)} Nermin’s reading: ${plainText(n.phrase)}`)
+    .join(' ');
 }
 
 export function placementDeadline(v: View, family: string): string {
@@ -183,4 +184,10 @@ export function placementDeadline(v: View, family: string): string {
   return request
     ? `${name.charAt(0).toLocaleUpperCase('en-GB')}${name.slice(1)} needs a ${request.role} by ${request.byLabel}.`
     : '';
+}
+
+/** An agreement time is known. It does not establish when work or a meal was observed. */
+export function placementTiming(placement: Pick<PlacementView, 'since'>): string {
+  const at = clockLabels(placement.since);
+  return `Placement agreed ${at.dateLabel} at ${at.timeLabel}.`;
 }

@@ -47,6 +47,15 @@ it('holds the menu and information, then resumes without speed inputs', async ()
 it('expands interview questions inside the sheet and keeps the transcript', async () => {
   await page.keyboard.press('Escape');
   await page.getByRole('button', { name: 'Gülce Aksoy', exact: true }).click();
+  const readingAt = await page.locator('[data-time]').innerText();
+  await page.clock.runFor(6000);
+  const readingAfter = await page.locator('[data-time]').innerText();
+  const minutes = (clock: string) =>
+    clock
+      .split(':')
+      .map(Number)
+      .reduce((hour, minute) => hour * 60 + minute);
+  expect(minutes(readingAfter) - minutes(readingAt)).toBe(3);
   await page.locator('[data-action="interview"]').click();
   await page.locator('[data-action="more-choices"]').click();
   expect(await page.locator('dialog').count()).toBe(0);
