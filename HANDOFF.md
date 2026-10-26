@@ -12,7 +12,7 @@ Fresh WebKit and existing signed-in Chrome checked 360×690 and 1280×800 using 
 
 The finite Voice Selin, Murmur Aylin and Pass Zeynep proof and limitations below remain historical evidence. Their original signed outgoing artifacts are immutable; this SDK delivery does not restamp them or prove a new source journey. Owner recording policy, faith constraints, loaded-run preservation, fresh-play availability and Deferred ownership remain in force. Lab-panel rounds belong to the playtest director; docsweb runs no rounds. Friends’ playtests and Show HN remain paused.
 
-Use Node≥24 and `/opt/homebrew/bin` first on PATH. Run the normal `npm run check:lane` before every signed commit, with the Codex trailer. One independent reviewer is arranged by the director. Fetch/rebase, inspect drift and require exact green CI. This documentation-only change needs no app deployment. Preserve owner saves and preferences; remove owned merged worktrees and local/origin task branches after push.
+Use shared Node26.12.0 and pnpm12.14.0 with `/opt/homebrew/bin` first on PATH. Install with `pnpm install --frozen-lockfile`. See README for migration cleanup and pnpm policy. Run the normal `pnpm run check:lane` before every signed commit, with the Codex trailer. One independent reviewer is arranged by the director. Fetch/rebase, inspect drift and require exact green CI. This documentation-only change needs no app deployment. Preserve owner saves and preferences; remove owned merged worktrees and local/origin task branches after push.
 
 ## Historical handoff snapshot — retained byte for byte, 2026-10-25
 

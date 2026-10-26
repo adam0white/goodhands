@@ -28,14 +28,18 @@ The current game is app `0.1.0`, simulation edition 6, using exact HF package `3
 
 ## Development and delivery
 
-Use Node ≥24 with `/opt/homebrew/bin` first on PATH. HF requires TypeScript 7 or later; this host pins 7.0.2.
+Use the shared exact Node 26.12.0 and pnpm 12.14.0 with `/opt/homebrew/bin` first on PATH. HF requires TypeScript 7 or later; this host pins 7.0.2.
 
 ```fish
-npm ci
-npm run dev
-npm run check:lane # normal shared lock; lint, typecheck and full tests here
-npm run build
+pnpm install --frozen-lockfile
+pnpm run dev
+pnpm run check:lane # normal shared lock; lint, typecheck and full tests here
+pnpm run build
 ```
+
+The exact manager pin and shared Node version are recorded in package.json and .node-version. pnpm-workspace.yaml owns strict engine and peer checks, no hoisting, hardlinks, the 1440-minute release-age policy with only owned @adam0white/* exempted, native build approvals and overrides. Run a frozen install after branch updates. pnpm run/exec rejects stale dependencies; npm run scripts remain supported but bypass that pnpm guard.
+
+Existing npm worktrees must preserve dirty source, remove only their own root and workspace node_modules, run pnpm install --frozen-lockfile, then delete dist, .types and *.tsbuildinfo before rebuilding. Create managed worktrees with `npm run wt -- add <repo-dir> <name>` from the Human Framework repository.
 
 Run the normal lane before every signed commit. Fetch and rebase before pushing; require green CI on the exact commit. Application changes use the normal clean managed deployment and live verification procedure in [HANDOFF.md](HANDOFF.md). Documentation-only changes need no application deployment.
 
