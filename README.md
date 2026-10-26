@@ -8,7 +8,7 @@ Open the office or continue a saved month. Select an applicant on the Bench to i
 
 Use Families to inspect requests and deadlines. Propose a worker, discuss the wage, working hours, weekly day off, trial length and agency fee, and choose which qualities to promise. Both sides must accept before you confirm a placement. Use Placed to follow work, calls, disagreements and arrangements. The day’s notes remain at the desk. The information button explains the current situation. The month review shows placement outcomes and Nermin’s notes beside the underlying character information.
 
-Ordinary play handles pacing and continuing people automatically. The menu offers Resume, Feedback, Full screen, All games, Recording and New game with confirmation. Feedback can send a note without sharing a run and offers “Keep a copy of this run”. The month review also offers “Download this run”. Diagnostic import, export, pacing and people controls require exactly `?lab=1`.
+Ordinary play handles pacing and continuing people automatically. The menu offers Resume, Feedback, Full screen, All games, Recording and New game with confirmation. Feedback can send a note without sharing a run and offers “Keep a copy of this run”. It has verdict buttons “I’d keep playing”, “Not sure” and “I’d stop here”, plus separate “I’m stopping” and “I’m confused” choices. Selecting a choice sends nothing and leaves your note unchanged. Select the same choice again to clear it, or select the other choice to change it. Only Submit sends the selected label, the verdict code (`keep`, `mixed` or `quit`) and your trimmed note, separated by blank lines. The name is optional. A failed send keeps your note for another Submit. The month review also offers “Download this run”. Diagnostic import, export, pacing and people controls require exactly `?lab=1`.
 
 ## Saves, recording and replay
 
@@ -24,7 +24,7 @@ Current finite receiving routes include actual Murmur Aylin from signed source `
 
 [Human Framework](https://github.com/adam0white/human-framework) supplies the people, traits, skills, needs, trust, impressions, observation and social updates. Good Hands uses those APIs to form Nermin’s estimates and to resolve worker and household responses. The game owns the agency calendar, jobs, fees, dialogue, placement rules and mappings from HF traits and skills to qualities such as patience or reliability. Those mappings are game interpretations, not clinical assessments.
 
-The current game is app `0.1.0`, simulation edition 6, using exact HF package `3.0.0` with engine `2.23.0`. Frozen editions use the separate HF `2.9.0` alias. The adopted immutable lab artifacts are client `0.4.10` and kit `0.5.11`; newer SDK artifacts are not host adoption. This host does not yet expose the newly authorized “I’m stopping” and “I’m confused” Feedback choices.
+The current game is app `0.1.0`, simulation edition 6, using exact HF package `3.0.0` with engine `2.23.0`. Frozen editions use the separate HF `2.9.0` alias. The adopted immutable lab artifacts are client `0.4.11` and kit `0.5.12`. The ordinary Feedback form exposes the shared “I’m stopping” and “I’m confused” choices.
 
 ## Development and delivery
 

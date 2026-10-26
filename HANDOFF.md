@@ -1,5 +1,25 @@
 # Good Hands handoff
 
+## Current SDK delivery — 2026-10-25
+
+What remains: Adam’s readiness, cast and recording acceptance on 2026-11-03; the unverified WebKit IndexedDB row probe; recording-on transport, run chunks and a real Feedback receipt. Documentation delivery does not establish owner acceptance. GD’s 8-episode map and design/ledger work and the separate remaining-145 access plan stay with their assigned owners.
+
+Current deployed source is signed `d9a08a4cd2e58b51edc5486a44396a7b5d56fa7c`, exact green [CI 40261578771](https://github.com/adam0white/goodhands/actions/runs/40261578771), clean Cloudflare version `10a56a8f-6e05-43c6-8273-f0d0cd819e15`. The live manifest reports app0.1.0, HF3.0.0 and dirty:false. Source uses engine2.23.0, edition6, immutable client0.4.11 and kit0.5.12. Frozen editions1–4 retain exact HF2.9.0. Ordinary Feedback now has separate shared choices with local selection and Submit-only composition; [README.md](README.md) describes the actual form.
+
+Authority: `/Users/abdul/code/.lab-scratch/v3/goodhands-feedback/director-delivery-verified.json`, its `report.md` and `delivery-report.md`, and the 2026-10-26 03:12 UTC entry in `hfroad/V3-COORDINATION.md`. The director corrected an earlier copied full-SHA typo against actual CI and the live manifest; earlier receipt copies remain retained. One independent medium review found no P1/P2. The normal lane and clean deployment each passed 253 tests in 43 files. Source and release worktrees and branches were removed.
+
+Fresh WebKit and existing signed-in Chrome checked 360×690 and 1280×800 using bounded live checks and a literal-live-byte mirror with CSP blocking connections. Shared labels, selection/clear, edited text, unchecked sharing, reachable Submit (52px in Chrome) and no horizontal overflow passed. Six non-HTML files matched retained served bytes; Cloudflare’s Fonts HTML rewrite was recorded separately. Font fetches were blocked. No Submit, owner storage access, round or screenshot occurred. The recording-off transport and receipt control was mocked; it proves neither a real server receipt nor recording-on delivery, CAS or human acceptance. These checks do not close the historical WebKit IndexedDB probe.
+
+The finite Voice Selin, Murmur Aylin and Pass Zeynep proof and limitations below remain historical evidence. Their original signed outgoing artifacts are immutable; this SDK delivery does not restamp them or prove a new source journey. Owner recording policy, faith constraints, loaded-run preservation, fresh-play availability and Deferred ownership remain in force. Lab-panel rounds belong to the playtest director; docsweb runs no rounds. Friends’ playtests and Show HN remain paused.
+
+Use Node≥24 and `/opt/homebrew/bin` first on PATH. Run the normal `npm run check:lane` before every signed commit, with the Codex trailer. One independent reviewer is arranged by the director. Fetch/rebase, inspect drift and require exact green CI. This documentation-only change needs no app deployment. Preserve owner saves and preferences; remove owned merged worktrees and local/origin task branches after push.
+
+## Historical handoff snapshot — retained byte for byte, 2026-10-25
+
+The complete earlier handoff follows. Its current-state wording describes the earlier delivery; the SDK section above supersedes it.
+
+# Good Hands handoff
+
 ## Current handoff — 2026-10-25
 
 What remains: Adam’s readiness, cast and recording acceptance on 2026-11-03; and the unverified WebKit IndexedDB row probe. The bounded HF3 delivery is technically complete. Documentation delivery does not establish owner acceptance.
