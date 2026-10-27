@@ -48,7 +48,8 @@ import {
   validateContinuity,
   verifyImport,
 } from './export.ts';
-import { lab } from './lab.ts';
+import { createFileSession } from './file-session.ts';
+import { fileMode, lab, preservationStatus } from './lab.ts';
 import { cityFigurePositions, drawCity, MAP_HEIGHT, MAP_WIDTH } from './map.ts';
 import { drawOffice, officeSeats } from './office.ts';
 import { familySpeech, plainText } from './plain-english.ts';
@@ -85,7 +86,10 @@ const h = (value: string) => escapeHtml(plainText(value));
 const host = document.querySelector<HTMLDivElement>('#app');
 if (!host) throw new Error('Good Hands needs an app element.');
 const root = host;
-const recordingNotice = telemetryNotice();
+const recordingNotice = fileMode
+  ? telemetryNotice(undefined, { preservation: 'preserve' })
+  : telemetryNotice();
+const fileSession = fileMode ? createFileSession() : null;
 // Keep the SDK's actual node mounted outside the rerendered game.
 const noticeFooter = document.createElement('footer');
 noticeFooter.className = 'lab-notice-footer';
@@ -153,23 +157,26 @@ let moreChoices = false;
 let paceChoice: 'automatic' | 'slow' | 'steady' | 'fast' = 'automatic';
 let overlay: HTMLElement | null = null;
 let noticeUntil = 0;
-const shelf = personaChannel();
-const continuitySession = new ContinuitySession(shelf, lab, () => lab.build().c || 'development');
+const shelf = fileMode ? null : personaChannel();
+const continuitySession =
+  shelf && lab ? new ContinuitySession(shelf, lab, () => lab?.build().c || 'development') : null;
 let continuity: ContinuityBook = emptyContinuity();
 let stopTracking: (() => void) | undefined;
 let checkpointQueue: Promise<void> = Promise.resolve();
 let continuityStatus = '';
 let generation = 0;
 let fileSelection = 0;
+let pendingFileChoice = false;
 let openingMonth = false;
 function runExport(): RunExport {
   if (!state) throw new Error('Open a month first.');
-  return exportRun(state, inputs, continuity);
+  return fileSession?.snapshot() ?? exportRun(state, inputs, continuity);
 }
 function attachRecording(): void {
-  lab.setPersonaRecording(continuitySession.recordingKey);
+  if (!lab) return;
+  lab?.setPersonaRecording(continuitySession?.recordingKey ?? null);
   stopTracking?.();
-  stopTracking = lab.trackRun(() => (state ? runExport() : null), {
+  stopTracking = lab?.trackRun(() => (state ? runExport() : null), {
     runKey: () => (state ? sim.view(state).seed : 'title'),
     getLogs: () =>
       state
@@ -200,7 +207,7 @@ function button(label: string, fn: () => void, className = ''): HTMLButtonElemen
 function setScreen(name: 'title' | 'office' | 'city' | 'scene' | 'review' | 'menu'): void {
   if (screen === name) return;
   screen = name;
-  lab.screen(name);
+  lab?.screen(name);
 }
 function current(): View {
   if (!state) throw new Error('No month is open.');
@@ -226,9 +233,13 @@ function candidate(v: View): CandidateView | undefined {
 }
 function save(): void {
   if (!state) return;
+  if (fileMode) {
+    lab?.captureSave({ key: 'run', value: runExport() });
+    return;
+  }
   const run = runExport();
-  lab.setPersonaRecording(continuitySession.recordingKey);
-  lab.captureSave({ key: 'run', value: run });
+  lab?.setPersonaRecording(continuitySession?.recordingKey ?? null);
+  lab?.captureSave({ key: 'run', value: run });
   void put('run', run).then((ok) => {
     if (!ok) {
       notice = 'This browser could not save. Keep a copy from Feedback.';
@@ -243,23 +254,33 @@ function showNotice(): void {
 }
 function changed(previous: View, next: View): void {
   // Views are copied before a tick because the simulation may mutate its state.
-  for (const name of sim.milestones(previous, next)) lab.milestone(name);
+  for (const name of sim.milestones(previous, next)) lab?.milestone(name);
   for (const guest of next.guests ?? []) {
     const before = previous.guests?.find((g) => g.id === guest.id);
     if (!before)
-      lab.milestone(guest.id === 'zeynep-pass' ? 'onecast zeynep encounter' : 'onecast selin encounter');
+      lab?.milestone(guest.id === 'zeynep-pass' ? 'onecast zeynep encounter' : 'onecast selin encounter');
     if (before?.status !== 'complete' && guest.status === 'complete') void checkpoint();
   }
 }
 function send(input: Input): void {
-  if (openingMonth) return;
+  if (openingMonth || (fileSession && !fileSession.running)) return;
   // A finished Skip animation never blocks the next input, even if no frame cleared it.
   if (!state || waitActive()) return;
   const at = current().now;
   const previous = structuredClone(current());
   const skipFrom = input.type === 'wait-for' ? sim.skipStop(state) : null;
-  state = sim.apply(state, input);
-  inputs.push({ at, input: structuredClone(input) });
+  if (fileSession) {
+    try {
+      fileSession.apply(input);
+      syncFileState();
+    } catch (e) {
+      refuseFileAdvance(e);
+      return;
+    }
+  } else {
+    state = sim.apply(state, input);
+    inputs.push({ at, input: structuredClone(input) });
+  }
   changed(previous, current());
   if (input.type === 'wait-for' && current().now > previous.now) {
     const start = performance.now();
@@ -290,7 +311,11 @@ function topbar(label: string): string {
 }
 function title(): void {
   generation++;
-  continuitySession.invalidate();
+  if (fileSession) {
+    fileTitle();
+    return;
+  }
+  continuitySession?.invalidate();
   destroyStage();
   closeSheet(false);
   if (state) saved = verifyImport(JSON.stringify(runExport()));
@@ -344,10 +369,11 @@ function title(): void {
   actions?.append(credit);
 }
 async function newMonth(): Promise<void> {
+  if (fileMode || !shelf) return;
   if (openingMonth) return;
   openingMonth = true;
   const startup = ++generation;
-  continuitySession.invalidate();
+  continuitySession?.invalidate();
   const isCurrent = () => startup === generation;
   try {
     const seed = crypto.getRandomValues(new Uint32Array(1))[0] ?? 20261102;
@@ -366,7 +392,7 @@ async function newMonth(): Promise<void> {
       const batch = await claimCastChapterBatch(
         shelf,
         ALLOCATION.map((p) => p.castId),
-        agencySource(lab.build().c || 'development'),
+        agencySource(lab?.build().c || 'development'),
         async (inputs) => {
           const prepared = await prepareAgencyChapter(inputs, seed);
           sim.newGame(seed, 6, prepared.guests, prepared);
@@ -389,7 +415,7 @@ async function newMonth(): Promise<void> {
     continuityStatus = chapter.inputs.length
       ? `Loaded ${chapter.inputs.length} people together with their earlier history. Their starting state and ages are saved.`
       : 'This month starts with a new local cast. Earlier history has not been reset.';
-    lab.milestone('run started');
+    lab?.milestone('run started');
   } catch (e) {
     if (isCurrent()) {
       console.error('Could not open the agency month', e);
@@ -430,7 +456,7 @@ async function begin(
   }
   await validateContinuity(book, next, history);
   if (activeGeneration !== generation || !selectionIsCurrent()) return false;
-  await continuitySession.recording(book, fromFile);
+  await continuitySession?.recording(book, fromFile);
   if (activeGeneration !== generation || !selectionIsCurrent()) return false;
   if (fromFile) closeSheet(false);
   playing = false;
@@ -452,6 +478,7 @@ async function begin(
   return true;
 }
 function checkpoint(fork = false): Promise<void> {
+  if (fileMode || !shelf || !continuitySession) return Promise.resolve();
   const activeGeneration = generation;
   const pinned = state ? structuredClone(state) : null;
   const sourceInputCount = inputs.length;
@@ -483,7 +510,7 @@ function checkpoint(fork = false): Promise<void> {
         }
         const parent = continuity.heads.find((p) => p.castId === cast.castId);
         try {
-          const stamps = agencySource(lab.build().c || 'development');
+          const stamps = agencySource(lab?.build().c || 'development');
           let envelope: PersonaEnvelope;
           if (!person.body.alive) {
             if (!parent) {
@@ -554,7 +581,7 @@ function checkpoint(fork = false): Promise<void> {
           dispositions.push(
             `${cast.name}: accepted ${envelope.terminal ? 'terminal closure' : 'paused chapter checkpoint'}.`,
           );
-          await continuitySession.recording(continuity);
+          await continuitySession?.recording(continuity);
           save();
         } catch (e) {
           dispositions.push(`${cast.name}: refused — ${errorText(e)}`);
@@ -565,7 +592,7 @@ function checkpoint(fork = false): Promise<void> {
     });
   return checkpointQueue;
 }
-watchPersonaCheckpoint(() => checkpoint());
+if (!fileMode) watchPersonaCheckpoint(() => checkpoint());
 function shell(v: View): void {
   destroyStage();
   root.innerHTML = `<main class="game" data-testid="office">${topbar('<span data-date></span> · <strong data-time></strong>')}<div class="state-strip"><span data-money></span><progress class="rent-meter" max="${v.rent.amount}" value="${Math.max(0, v.cash)}" aria-label="Cash towards rent"></progress><span data-rent-due></span><span data-pace></span></div><section class="office-front" aria-label="The office"><div class="room lk-scene"><canvas id="office" role="img" aria-label="Nermin’s desk, telephone, window and the waiting bench"></canvas><div class="seat-targets"></div><div class="city-map" hidden><canvas id="city" role="img" aria-label="Izmir across the bay"></canvas><div class="city-targets"></div></div></div><p class="scene-status" data-status role="status"></p><p data-city-person class="city-person"></p><div class="phone-strip" hidden><button class="phone-control" type="button" data-action="phone"></button><p id="phone-reason" class="phone-reason reason"></p></div><button class="city-toggle" type="button" data-action="city">City</button></section><div class="caption-row"><button class="task now" type="button" aria-label="Task" data-testid="task" data-action="task"><span></span></button><button type="button" data-action="wait-for" aria-label="Skip to the next event" class="until-event"></button></div><section class="desk-sheet lk-sheet" data-content aria-label="Nermin’s desk"></section></main>`;
@@ -1068,7 +1095,15 @@ function review(v: View): void {
 }
 
 function closeSheet(restore = true): void {
-  if (!sheet) return;
+  const canceledFileChoice = pendingFileChoice;
+  if (pendingFileChoice) {
+    pendingFileChoice = false;
+    retireFileCallbacks();
+  }
+  if (!sheet) {
+    if (canceledFileChoice) fileTitle();
+    return;
+  }
   const opener = sheetOpener;
   sheet.remove();
   sheet = null;
@@ -1082,6 +1117,10 @@ function closeSheet(restore = true): void {
     sheetOpener = origin.opener;
     (root.querySelector('.game') ?? root.querySelector('main') ?? root).append(sheet);
   } else for (const previous of sheetOrigins.splice(0)) previous.node.remove();
+  if (canceledFileChoice) {
+    fileTitle();
+    return;
+  }
   const panel = root.querySelector<HTMLElement>('[data-content]');
   if (panel) panel.hidden = !!sheet;
   last = performance.now();
@@ -1148,10 +1187,18 @@ function menu(): void {
   if (state) save();
   const d = openSheet(
     'Game menu',
-    `<button type="button" data-action="send-run">Feedback</button><button type="button" data-action="fullscreen">Full screen</button><a href="${ALL_GAMES}" target="_top">All games</a><a href="https://human.adamwhite.work/lab/people/" target="_top">People between games</a><button type="button" data-new-game>New game</button>${state ? '<button type="button" data-action="day-notes">The day’s notes</button>' : ''}<div class="page-setting">Page ${['System', 'Light', 'Dark'].map((theme) => `<button type="button" data-theme-choice="${theme.toLowerCase()}">${theme}</button>`).join('')}</div><div class="pace-setting">Pace ${['Automatic', 'Slow', 'Steady', 'Fast'].map((speed) => `<button type="button" data-pace-choice="${speed.toLowerCase()}">${speed}</button>`).join('')}</div><div class="recording-footer"></div><div class="debug-footer" style="display:flex;align-items:baseline;gap:.75rem;flex-wrap:wrap"><a href="https://human.adamwhite.work/lab/privacy/" target="_top">Lab privacy</a><details><summary>Debug</summary><button type="button" data-action="title">To the title page</button><button type="button" data-action="import">Import a run</button>${state ? '<button type="button" data-action="download">Download this run</button>' : ''}</details></div>`,
+    `<button type="button" data-action="send-run">Feedback</button><button type="button" data-action="fullscreen">Full screen</button><a href="${ALL_GAMES}" target="_top">All games</a><a href="https://human.adamwhite.work/lab/people/" target="_top">People between games</a><button type="button" data-new-game>New game</button>${state ? '<button type="button" data-action="day-notes">The day’s notes</button>' : ''}<div class="page-setting">Page ${['System', 'Light', 'Dark'].map((theme) => `<button type="button" data-theme-choice="${theme.toLowerCase()}">${theme}</button>`).join('')}</div><div class="pace-setting"><span>Pace</span>${['Automatic', 'Slow', 'Steady', 'Fast'].map((speed) => `<button type="button" data-pace-choice="${speed.toLowerCase()}">${speed}</button>`).join('')}</div><div class="recording-footer"></div><div class="debug-footer" style="display:flex;align-items:baseline;gap:.75rem;flex-wrap:wrap"><a href="https://human.adamwhite.work/lab/privacy/" target="_top">Lab privacy</a><details><summary>Debug</summary><button type="button" data-action="title">To the title page</button><button type="button" data-action="import">${fileMode ? 'Choose a run file' : 'Import and replace saved month'}</button>${fileMode ? '' : '<a href="/file/">Continue a file without replacing the saved month</a>'}${state ? '<button type="button" data-action="download">Download this run</button>' : ''}</details></div>`,
     'menu',
   );
-  d.querySelector('.recording-footer')?.append(telemetryToggle(lab));
+  if (lab) d.querySelector('.recording-footer')?.append(telemetryToggle(lab));
+  if (fileSession) {
+    d.querySelector('[data-new-game]')?.remove();
+    const debug = d.querySelector('details');
+    debug?.append(button('Download original file', downloadOriginal));
+    const line = document.createElement('p');
+    line.textContent = fileStatus();
+    d.querySelector('.recording-footer')?.append(line);
+  }
   const confirmationContent = d.querySelector<HTMLElement>('.sheet-content');
   if (!confirmationContent) throw new Error('Missing new-game confirmation content.');
   d.querySelector('[data-new-game]')?.addEventListener('click', () => confirmNewGame(confirmationContent));
@@ -1398,6 +1445,10 @@ function placementSheet(id: string): void {
   updateInspection();
 }
 function importFile(): void {
+  if (fileSession) {
+    chooseFile();
+    return;
+  }
   const selection = ++fileSelection;
   const runGeneration = generation;
   const file = document.createElement('input');
@@ -1731,6 +1782,12 @@ function info(): void {
   updateClockIfPlaying();
 }
 function feedback(): void {
+  if (!lab) {
+    notice = fileStatus();
+    noticeUntil = Infinity;
+    showNotice();
+    return;
+  }
   closeSheet(false);
   const d = openSheet('Feedback', '', 'feedback');
   d.className = 'feedback-screen';
@@ -1776,7 +1833,7 @@ function feedback(): void {
   status.setAttribute('role', 'status');
   let sent = false;
   let busy = false;
-  const share = feedbackPersonaControl(lab);
+  const share = lab ? feedbackPersonaControl(lab) : null;
   if (share) body.querySelector('[data-feedback-persona]')?.append(share);
   const sendButton = button(
     'Submit',
@@ -1808,7 +1865,7 @@ function feedback(): void {
             // An unavailable optional run does not block the note.
           }
           const sharePlay = feedbackSharePlay(share);
-          await lab.sendFeedback(note, {
+          await lab?.sendFeedback(note, {
             name: who || undefined,
             run,
             sharePlay,
@@ -1874,7 +1931,16 @@ function gloss(element: HTMLElement): void {
   }
 }
 root.addEventListener('click', handleClick);
+let frameId = 0;
+function scheduleFrame(): number {
+  const epoch = fileSession?.epoch;
+  return requestAnimationFrame((now) => {
+    if (fileSession && fileSession.epoch !== epoch) return;
+    frame(now);
+  });
+}
 function frame(now: number): void {
+  if (fileSession && !fileSession.running) return;
   const dt = Math.min(Math.max((now - last) / 1000, 0), 0.5);
   last = now;
   if (
@@ -1897,7 +1963,15 @@ function frame(now: number): void {
       } else render();
     } else if (!v.ended && !v.dayCard) {
       const previous = structuredClone(v);
-      state = sim.advance(state, pace(v) * dt);
+      if (fileSession) {
+        try {
+          fileSession.advance(pace(v) * dt);
+          syncFileState();
+        } catch (e) {
+          refuseFileAdvance(e);
+          return;
+        }
+      } else state = sim.advance(state, pace(v) * dt);
       changed(previous, current());
       const latest = current().log.at(-1);
       if (latest && latest.id !== previous.log.at(-1)?.id) {
@@ -1912,53 +1986,185 @@ function frame(now: number): void {
       render();
     }
   }
-  requestAnimationFrame(frame);
+  frameId = scheduleFrame();
 }
 document.addEventListener('visibilitychange', () => {
   last = performance.now();
   if (document.hidden && state) {
     const run = runExport();
-    lab.setPersonaRecording(continuitySession.recordingKey);
-    lab.captureSave({ key: 'run', value: run });
-    putNow('run', run);
-    lab.flush();
+    lab?.setPersonaRecording(continuitySession?.recordingKey ?? null);
+    lab?.captureSave({ key: 'run', value: run });
+    if (!fileMode) putNow('run', run);
+    lab?.flush();
   }
 });
 window.addEventListener('pagehide', () => {
   fileSelection++;
+  if (fileSession) retireFileCallbacks();
   if (state) {
     const run = runExport();
-    lab.setPersonaRecording(continuitySession.recordingKey);
-    lab.captureSave({ key: 'run', value: run });
-    putNow('run', run);
+    lab?.setPersonaRecording(continuitySession?.recordingKey ?? null);
+    lab?.captureSave({ key: 'run', value: run });
+    if (!fileMode) putNow('run', run);
   }
 });
 window.addEventListener('hf-persona-preference', () => {
   generation++;
-  continuitySession.invalidate();
+  continuitySession?.invalidate();
 });
 window.addEventListener('storage', (event) => {
   if (event.key === null || event.key === 'hf-persona-opt-in') {
     generation++;
-    continuitySession.invalidate();
+    continuitySession?.invalidate();
   }
 });
 window.addEventListener('resize', redraw);
 window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', redraw);
 title();
-void get<RunExport>('run').then(async (row) => {
-  if (row) {
-    try {
-      const validated = verifyImport(JSON.stringify(row.value));
-      await validateContinuity(validated.continuity, validated.state, validated.inputs);
-      saved = validated;
-    } catch {
-      saved = null;
+if (!fileMode)
+  void get<RunExport>('run').then(async (row) => {
+    if (row) {
+      try {
+        const validated = verifyImport(JSON.stringify(row.value));
+        await validateContinuity(validated.continuity, validated.state, validated.inputs);
+        saved = validated;
+      } catch {
+        saved = null;
+      }
     }
-  }
-  saveReady = true;
-  if (!playing && !sheet && !openingMonth) title();
-});
-requestAnimationFrame(frame);
+    saveReady = true;
+    if (!playing && !sheet && !openingMonth) title();
+  });
+if (!fileMode) frameId = scheduleFrame();
 
 if (import.meta.hot) import.meta.hot.dispose(destroyStage);
+
+function syncFileState(): void {
+  const loaded = fileSession?.loaded();
+  if (!loaded) return;
+  state = loaded.state;
+  inputs = loaded.inputs;
+  continuity = loaded.continuity;
+}
+function retireFileCallbacks(): void {
+  fileSession?.invalidate();
+  cancelAnimationFrame(frameId);
+  frameId = 0;
+  waitAnimation = null;
+  playing = false;
+}
+function fileStatus(): string {
+  return `File session: native saves and people on the shelf are untouched. ${lab ? 'Recording follows your saved preference.' : `Recording unavailable (${preservationStatus}).`}`;
+}
+function refuseFileAdvance(error: unknown): void {
+  retireFileCallbacks();
+  fileTitle();
+  const line = root.querySelector('[role="status"]');
+  if (line) line.textContent = errorText(error);
+}
+function downloadOriginal(): void {
+  const original = fileSession?.original();
+  if (!original) return;
+  const url = URL.createObjectURL(
+    new Blob([original.bytes], { type: original.type || 'application/octet-stream' }),
+  );
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = original.name;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+function fileTitle(): void {
+  pendingFileChoice = false;
+  retireFileCallbacks();
+  destroyStage();
+  closeSheet(false);
+  shown = '';
+  setScreen('title');
+  root.innerHTML = `<main class="title-page">${topbar('File session')}<section class="title-body"><h1>Good Hands</h1><p>Continue a run in memory. Download it before leaving this page.</p><p>${h(fileStatus())}</p><p role="status"></p></section><div class="title-actions lk-commit"></div></main>`;
+  const actions = root.querySelector('.title-actions');
+  actions?.append(button('Choose a run file', chooseFile));
+  const original = fileSession?.original();
+  if (original) {
+    const label = root.querySelector('[role="status"]');
+    if (label)
+      label.textContent = `${original.name} · ${original.size} bytes · SHA-256 ${original.sha256}. ${fileSession?.compact ? 'Compact input: the state was reconstructed by replay; the file did not supply a full state.' : 'Full input: the complete state matched replay.'}`;
+    actions?.append(
+      button(
+        'Resume file',
+        () => {
+          try {
+            fileSession?.resume();
+            syncFileState();
+            selected = null;
+            tab = 'Bench';
+            city = false;
+            playing = true;
+            last = performance.now();
+            lastHour = Math.floor(current().now / 60);
+            notice = '';
+            attachRecording();
+            render(true);
+            cancelAnimationFrame(frameId);
+            frameId = scheduleFrame();
+          } catch (e) {
+            if (label) label.textContent = errorText(e);
+          }
+        },
+        'primary',
+      ),
+      button('Download original file', downloadOriginal),
+      button('Download current run', () => {
+        const run = fileSession?.snapshot();
+        if (run) downloadJson('goodhands-run.json', run);
+      }),
+    );
+  }
+}
+function chooseFile(): void {
+  retireFileCallbacks();
+  pendingFileChoice = true;
+  let selection = fileSession!.epoch;
+  const file = document.createElement('input');
+  file.type = 'file';
+  file.accept = '.json,.gz,application/json,application/gzip';
+  file.oncancel = () => {
+    if (fileSession!.epoch !== selection) return;
+    retireFileCallbacks();
+    fileTitle();
+  };
+  file.onchange = async () => {
+    if (fileSession!.epoch !== selection) return;
+    retireFileCallbacks();
+    const selected = file.files?.[0];
+    // select invalidates synchronously before even an empty selection is examined.
+    const pending = fileSession!.select(selected);
+    const epoch = fileSession!.epoch;
+    selection = epoch;
+    try {
+      const accepted = await pending;
+      if (fileSession!.epoch !== epoch) return;
+      if (!accepted) {
+        fileTitle();
+        return;
+      }
+      syncFileState();
+      fileTitle();
+    } catch (e) {
+      if (fileSession!.epoch !== epoch) return;
+      fileTitle();
+      const line = root.querySelector('[role="status"]');
+      if (line) line.textContent = errorText(e);
+    }
+  };
+  file.click();
+}
+if (fileMode)
+  document.addEventListener(
+    'click',
+    (event) => {
+      if ((event.target as HTMLElement).closest('a[href]')) retireFileCallbacks();
+    },
+    { capture: true },
+  );
+if (fileMode) window.addEventListener('popstate', retireFileCallbacks);
