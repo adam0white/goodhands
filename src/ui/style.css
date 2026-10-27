@@ -1370,12 +1370,15 @@ progress.rent-meter.short {
 }
 .pace-setting {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: max-content repeat(3, minmax(0, 1fr));
   align-items: center;
   gap: 3px;
   font-size: 0;
 }
 .pace-setting button {
+  white-space: nowrap;
+  overflow-wrap: normal;
+  word-break: normal;
   padding: 3px;
   font-size: clamp(14px, 1.15vw + 6px, 18px);
 }

@@ -45,6 +45,7 @@ try {
     await page.clock.install();
     await page.clock.pauseAt(new Date());
     await page.goto(`http://127.0.0.1:${port}/`);
+    await page.getByRole('button', { name: 'Open the office', exact: true }).waitFor();
     await page.evaluate(() => document.fonts.ready);
     const fits = async (name: string) => {
       const geometry = await page.evaluate(() => ({
@@ -212,7 +213,7 @@ try {
     await page.getByText('Debug', { exact: true }).click();
     page.on('dialog', (dialog) => void dialog.accept());
     const chooser = page.waitForEvent('filechooser');
-    await page.getByRole('button', { name: 'Import a run', exact: true }).click();
+    await page.locator('[data-action="import"]').click();
     await (await chooser).setFiles({
       name: 'fixture.json',
       mimeType: 'application/json',
@@ -232,7 +233,7 @@ try {
     await page.locator('[data-action="menu"]').click();
     await page.getByText('Debug', { exact: true }).click();
     const earlyChooser = page.waitForEvent('filechooser');
-    await page.getByRole('button', { name: 'Import a run', exact: true }).click();
+    await page.locator('[data-action="import"]').click();
     await (await earlyChooser).setFiles({
       name: 'early-ending.json',
       mimeType: 'application/json',
