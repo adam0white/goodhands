@@ -95,6 +95,8 @@ try {
     await fits('office');
     assert.deepEqual(await lifecycle(), { active: 1, mounts: 1 });
     const checkStage = async () => {
+      // Resize observers report on the next rendering step, so let one pass before reading the bounds.
+      await page.waitForTimeout(50);
       assert.ok(
         await page.locator('.game').evaluate((el) => {
           const scene = el.querySelector('.lk-scene')!.getBoundingClientRect();
@@ -134,6 +136,10 @@ try {
     );
     await page.locator('[data-action="interview"]').click();
     await fits('interview');
+    // A pace line that wraps moves the scene without resizing it. Keep it long through the menu and Feedback.
+    const longPace = await page.addStyleTag({
+      content: `[data-pace]::after { content: ' A much longer pace line wraps the state strip onto more lines at every width.'; }`,
+    });
     const sceneName = await page.locator('[data-testid="scene"]').getAttribute('aria-label');
     const held = await page.locator('[data-time]').innerText();
     await page.clock.runFor(3000);
@@ -163,6 +169,8 @@ try {
     assert.equal(await page.getByRole('region', { name: sceneName, exact: true }).count(), 0);
     assert.equal(await page.getByRole('button', { name: 'Close menu', exact: true }).count(), 0);
     assert.equal(await page.evaluate(() => history.length), historyLength);
+    await checkStage();
+    await longPace.evaluate((el) => (el as Element).remove());
     await checkStage();
     const pending = page.waitForEvent('download');
     await page.getByRole('button', { name: 'Keep a copy of this run ⤓', exact: true }).click();

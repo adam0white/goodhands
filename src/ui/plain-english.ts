@@ -205,6 +205,23 @@ const replacements: readonly (readonly [string, string])[] = [
     'You missed two rent payments. Mr Hüsnü took back the office key. The month ended early.',
   ],
   ['Your books hold the people you have met.', 'Your agency records list the people you have met.'],
+  // The player is Nermin: her own cast card speaks to her, not about asking her.
+  [
+    'Ask Nermin whether she wants to review an earlier agency decision',
+    'Look again at one of your earlier agency decisions',
+  ],
+  [
+    'Nermin can choose whether to discuss something besides the current work.',
+    'An old case from before this month is still on your mind.',
+  ],
+  [
+    'Nermin agrees to review her own account. She covers the details that identify the client.',
+    'You take out your own account of an old case and cover the details that identify the client.',
+  ],
+  [
+    'Help her correct the agency record and write to the worker first',
+    'Correct the agency record and write to the worker first',
+  ],
 ];
 
 /** Only a household speaker owns these words; observations keep report voice. */

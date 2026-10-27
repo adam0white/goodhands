@@ -2934,6 +2934,32 @@ function nextEvent(s: Sim): View['next'] {
   const next = events.filter((e) => e.at > s.now).sort((a, b) => a.at - b.at)[0];
   return next ? { ...next, label: cap(next.label), dateLabel: label(next.at) } : null;
 }
+/**
+ * Where Skip (`wait-for`) stops, as far as the office can know: the next event, an applicant on the bench
+ * starting to leave, or the 19:00 closing. A new arrival, call or scene can still stop it sooner. Pure reader.
+ */
+export function skipStop(state: State): { at: number; label: string } | null {
+  if (state.version < 5) return null;
+  const s = sim(state);
+  const next = nextEvent(s);
+  if (!next) return null;
+  const stops: { at: number; label: string }[] = [{ at: next.at, label: next.label }];
+  const bench = CANDIDATES.map((c) => ({ c, card: s.cards[c.id]! })).filter(
+    ({ card }) => card.status === 'bench',
+  );
+  // runTo stops when the first applicant reaches three hours on the bench, unless one already has.
+  if (!bench.some(({ card }) => s.now - card.arrived >= 180)) {
+    const first = bench.sort((a, b) => a.card.arrived - b.card.arrived)[0];
+    if (first)
+      stops.push({
+        at: Math.ceil(first.card.arrived + 180),
+        label: `${first.c.name} has waited three hours`,
+      });
+  }
+  const close = (s.now % DAY < 1140 ? day(s) : day(s) + 1) * DAY + 1140;
+  stops.push({ at: close, label: 'The office closes for the day' });
+  return stops.filter((x) => x.at > s.now).sort((a, b) => a.at - b.at)[0] ?? null;
+}
 function familyDisagreement(p: Placement): string {
   return familyDisagreementWords(p.family, name(p.candidate));
 }

@@ -108,7 +108,10 @@ let sheet: HTMLElement | null = null;
 let stage: ReturnType<typeof phoneStage> | null = null;
 let sheetOpener: HTMLElement | null = null;
 
+let stripObserver: ResizeObserver | null = null;
 function destroyStage(): void {
+  stripObserver?.disconnect();
+  stripObserver = null;
   stage?.destroy();
   stage = null;
 }
@@ -141,6 +144,11 @@ let waitAnimation: {
   end: number;
   label: string;
 } | null = null;
+/** The running Skip animation, cleared once its time is up even when no frame has run (menu, overlay, hidden tab). */
+function waitActive() {
+  if (waitAnimation && performance.now() >= waitAnimation.end) waitAnimation = null;
+  return waitAnimation;
+}
 let transcriptKey = '';
 let saveReady = false;
 let moreChoices = false;
@@ -247,9 +255,11 @@ function changed(previous: View, next: View): void {
 }
 function send(input: Input): void {
   if (openingMonth) return;
-  if (!state || waitAnimation) return;
+  // A finished Skip animation never blocks the next input, even if no frame cleared it.
+  if (!state || waitActive()) return;
   const at = current().now;
   const previous = structuredClone(current());
+  const skipFrom = input.type === 'wait-for' ? sim.skipStop(state) : null;
   state = sim.apply(state, input);
   inputs.push({ at, input: structuredClone(input) });
   changed(previous, current());
@@ -259,7 +269,7 @@ function send(input: Input): void {
       before: previous,
       start,
       end: start + 1200,
-      label: previous.next?.label ?? 'the next event',
+      label: skipFrom?.label ?? previous.next?.label ?? 'the next event',
     };
   }
   const latest = current().log.at(-1);
@@ -287,7 +297,7 @@ function title(): void {
   playing = false;
   shown = '';
   setScreen('title');
-  root.innerHTML = `<main class="title-page">${topbar(`<a href="${ALL_GAMES}" target="_top">All games</a>`)}<section class="title-body"><p class="eyebrow">Izmir · November 2026</p><div class="agency-mark" aria-hidden="true">G H<span>placement agency</span></div><h1>Good Hands</h1><p class="subtitle">You run Nermin’s agency for a month.</p><p class="goal">A family needs a nanny by Tuesday 08:00. Three job applicants are waiting on the bench in your office. Rent of ₺5,000 is due to Mr Hüsnü, your landlord, on Friday.</p>${labTools ? '<button type="button" data-action="other-ways">Lab tools</button>' : ''}<p class="title-status" role="status">${saveReady ? '' : 'Looking for a saved month…'}</p></section><div class="title-actions lk-commit"></div></main>`;
+  root.innerHTML = `<main class="title-page">${topbar(`<a href="${ALL_GAMES}" target="_top">All games</a>`)}<section class="title-body"><p class="eyebrow">Izmir · November 2026</p><div class="agency-mark" aria-hidden="true">G H<span>placement agency</span></div><h1>Good Hands</h1><p class="subtitle">You are Nermin, and you run Good Hands, a placement agency in Izmir, for one month.</p><p class="goal">A family needs a nanny by Tuesday 08:00. Three job applicants are waiting on the bench in your office. Rent of ₺5,000 is due to Mr Hüsnü, your landlord, on Friday.</p>${labTools ? '<button type="button" data-action="other-ways">Lab tools</button>' : ''}<p class="title-status" role="status">${saveReady ? '' : 'Looking for a saved month…'}</p></section><div class="title-actions lk-commit"></div></main>`;
   const actions = root.querySelector('.title-actions');
   if (saved) {
     actions?.append(
@@ -686,12 +696,19 @@ function shell(v: View): void {
         if (city) updateCity(displayedView());
       },
     });
+    // The kit observes the scene's size, not its position. A state strip that wraps or empties moves the
+    // scene without resizing it, so refresh the reported bounds whenever the strip's height changes.
+    const strip = game.querySelector<HTMLElement>('.state-strip');
+    if (strip && typeof ResizeObserver !== 'undefined') {
+      stripObserver = new ResizeObserver(() => stage?.refresh());
+      stripObserver.observe(strip);
+    }
     syncStage();
   }
   updateClock(v);
 }
 function pace(v: View): number {
-  if (overlay || modal === 'menu' || modal === 'feedback' || waitAnimation) return 0;
+  if (overlay || modal === 'menu' || modal === 'feedback' || waitActive()) return 0;
   const inspecting = !!sheet || (tab === 'Bench' && selected !== null);
   const automatic = automaticPace(v, inspecting);
   if (automatic <= 0.5 || (inspecting && v.bench.length)) return automatic;
@@ -701,7 +718,7 @@ function paceWords(v: View): string {
   if (overlay) return 'Paused while you read.';
   if (modal === 'menu') return 'Paused while the menu is open.';
   if (modal === 'feedback') return 'Paused for Feedback.';
-  if (waitAnimation) return 'Skipping to the next event.';
+  if (waitActive()) return 'Skipping to the next event.';
   if (v.scene)
     return `${v.scene.with ? `${person(v, v.scene.with).replace(/^the /, 'The ')} is talking.` : 'A conversation is in progress.'} Choices take time.`;
   if (v.phoneRinging) return 'Paused for the phone call.';
@@ -732,9 +749,14 @@ function updateClock(v: View): void {
   text('[data-pace]', paceWords(v));
   const wait = root.querySelector<HTMLButtonElement>('[data-action="wait-for"]');
   if (wait) {
-    wait.disabled = !!waitAnimation || !canWait(v) || !!sheet;
+    wait.disabled = !!waitActive() || !canWait(v) || !!sheet;
     wait.hidden = !canWait(v) || !!sheet || !!overlay;
-    wait.innerHTML = `Skip ⏩<small>${v.next ? `${clockLabels(v.next.at).timeLabel} · ${h(v.next.label)}` : ''}</small>`;
+    // Name where Skip really stops (an applicant leaving or the 19:00 closing can come before the next event).
+    const stop = state && !waitActive() ? sim.skipStop(state) : null;
+    const target = stop ?? v.next;
+    const words = target ? `${clockLabels(target.at).timeLabel} · ${plainText(target.label)}` : '';
+    wait.innerHTML = `Skip to ⏩<small>${h(words)}</small>`;
+    wait.setAttribute('aria-label', target ? `Skip to ${words}` : 'Skip to the next event');
   }
   text('[data-money]', money(v.cash));
   text(
@@ -755,8 +777,9 @@ function updateClock(v: View): void {
 }
 function displayedView(): View {
   const v = current();
-  if (!waitAnimation) return v;
-  const { before, start, end } = waitAnimation;
+  const animation = waitActive();
+  if (!animation) return v;
+  const { before, start, end } = animation;
   const progress = Math.max(0, Math.min(1, (performance.now() - start) / (end - start)));
   const now = before.now + (v.now - before.now) * progress;
   return { ...before, now, ...clockLabels(now) };
@@ -1532,7 +1555,7 @@ function guestsHtml(v: View): string {
     (v.castContacts ?? [])
       .map(
         (c) =>
-          `<article class="guest-card"><h3>${h(c.name)} · ${h(c.role)}</h3><p>${h(c.text)}</p>${c.choices.map((q) => `<button type="button" data-cast-person="${h(c.id)}" data-cast-choice="${h(q.id)}">${h(q.label)}</button>`).join('')}</article>`,
+          `<article class="guest-card"><h3>${h(c.name)} · ${h(c.role)}</h3><p>${h(c.text)}</p>${c.choices.map((q) => `<button type="button" data-cast-person="${h(c.id)}" data-cast-choice="${h(q.id)}">${h(c.id === 'nermin' && q.id === 'defer' ? 'Leave the old file closed for now' : q.label)}</button>`).join('')}</article>`,
       )
       .join('') +
     (v.guests ?? [])
@@ -1545,7 +1568,7 @@ function guestsHtml(v: View): string {
 }
 function handleClick(event: Event): void {
   const b = (event.target as HTMLElement).closest<HTMLButtonElement>('button');
-  if (!b || b.disabled || waitAnimation) return;
+  if (!b || b.disabled || waitActive()) return;
   const v = state ? current() : null;
   if (b.dataset.castPerson && b.dataset.castChoice) {
     send({
