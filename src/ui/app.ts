@@ -1,5 +1,7 @@
 import {
   anchorPersonaLife,
+  boundedPersonaJson,
+  canonicalPersona,
   claimCastChapterBatch,
   closePersonaBranch,
   createPersona,
@@ -165,6 +167,8 @@ let stopTracking: (() => void) | undefined;
 let checkpointQueue: Promise<void> = Promise.resolve();
 let continuityStatus = '';
 let generation = 0;
+// A departing page cannot start a fresh SDK checkpoint from its own queued pagehide watcher.
+let pageActive = true;
 let fileSelection = 0;
 let pendingFileChoice = false;
 let openingMonth = false;
@@ -477,19 +481,83 @@ async function begin(
   save();
   return true;
 }
-function checkpoint(fork = false): Promise<void> {
-  if (fileMode || !shelf || !continuitySession) return Promise.resolve();
+function checkpoint(fork = false, record = false): Promise<void> {
+  if (!pageActive || fileMode || !shelf || !continuitySession) return Promise.resolve();
   const activeGeneration = generation;
   const pinned = state ? structuredClone(state) : null;
   const sourceInputCount = inputs.length;
+  const sourceHistory = structuredClone(inputs);
+  const sourceFingerprint = pinned ? sim.fingerprint(pinned) : '';
+  const sourceIsCurrent = () =>
+    pageActive &&
+    activeGeneration === generation &&
+    !!state &&
+    inputs.length === sourceInputCount &&
+    sim.fingerprint(state) === sourceFingerprint;
+  // Six escaped JSON bytes per UTF-16 code unit bound every allowed 512-character result.
+  const reservedReport =
+    record && pinned
+      ? {
+          at: pinned.now,
+          inputCount: sourceInputCount,
+          fingerprint: sourceFingerprint,
+          results: CAST_KEYS.map(() => '\u0000'.repeat(512)),
+        }
+      : undefined;
+  const report = (results: string[]) => {
+    if (!record || !pinned || !sourceIsCurrent()) return;
+    const publications = [
+      ...(continuity.publications ?? []),
+      {
+        at: pinned.now,
+        inputCount: sourceInputCount,
+        fingerprint: sourceFingerprint,
+        results,
+      },
+    ];
+    // Preserve all existing reports and source metadata on refusal; never trim to fit.
+    try {
+      if (results.some((result) => result.length > 512)) throw new Error('Publication report is too long.');
+      boundedPersonaJson({ ...continuity, publications });
+      continuity.publications = publications;
+      save();
+    } catch {
+      continuityStatus +=
+        '\nThe complete publication report does not fit. Existing source and reports are unchanged. Keep a copy of this run.';
+    }
+  };
   checkpointQueue = checkpointQueue
     .catch(() => {})
     .then(async () => {
       await shelf.ready;
-      if (!shelf.enabled || !pinned || activeGeneration !== generation) return;
+      if (!pinned || !sourceIsCurrent()) return;
+      if (record && (continuity.publications?.length ?? 0) >= 32) {
+        continuityStatus =
+          'This run’s publication reports are full. Download the complete run. No checkpoint was published.';
+        return;
+      }
+      if (reservedReport) {
+        try {
+          boundedPersonaJson({
+            ...continuity,
+            publications: [...(continuity.publications ?? []), reservedReport],
+          });
+        } catch {
+          continuityStatus =
+            'This source has no room for another complete publication report. No checkpoint was published. Keep the full run.';
+          return;
+        }
+      }
+      if (!shelf.enabled) {
+        continuityStatus =
+          'People between games is off or unavailable. No checkpoint was published. Your source stays here.';
+        report([continuityStatus]);
+        return;
+      }
       if (continuity.fileOrigin && !fork) {
         continuityStatus =
           'This file remains a local history. An explicit new branch is required before publishing it.';
+        report([continuityStatus]);
         return;
       }
       if (
@@ -498,10 +566,13 @@ function checkpoint(fork = false): Promise<void> {
       ) {
         continuityStatus =
           'Pause this agency month before saving people who can leave. End their active placements through play first.';
+        report([continuityStatus]);
         return;
       }
+      if (!sourceIsCurrent()) return;
       const dispositions: string[] = [];
       for (const id of CAST_KEYS) {
+        if (!sourceIsCurrent()) return;
         const cast = CAST[id],
           person = pinned.people[id];
         if (!person) {
@@ -556,15 +627,13 @@ function checkpoint(fork = false): Promise<void> {
             });
           }
           if (activeGeneration !== generation) return;
-          await publishNativeCheckpoint(
-            shelf,
-            continuity,
-            envelope,
-            parent,
-            fork,
-            () => activeGeneration === generation,
-          );
-          if (activeGeneration !== generation) return;
+          await publishNativeCheckpoint(shelf, continuity, envelope, parent, fork, sourceIsCurrent, pinned, {
+            sourceInputCount,
+            reserveReport: reservedReport,
+            retainSource: async () =>
+              sourceIsCurrent() && (await put('run', exportRun(pinned, sourceHistory, continuity))),
+          });
+          if (!sourceIsCurrent()) return;
           const idx = continuity.heads.findIndex((p) => p.castId === cast.castId);
           if (idx < 0) continuity.heads.push(envelope);
           else continuity.heads[idx] = envelope;
@@ -578,8 +647,9 @@ function checkpoint(fork = false): Promise<void> {
             sourceMinute: pinned.now,
             sourceInputCount,
           });
+          if (modal === 'source') updateInspection?.();
           dispositions.push(
-            `${cast.name}: accepted ${envelope.terminal ? 'terminal closure' : 'paused chapter checkpoint'}.`,
+            `${cast.name}: published ${envelope.terminal ? 'terminal closure' : 'paused chapter checkpoint'} at person minute ${person.now}, agency minute ${pinned.now}. No receiver acceptance or departure acknowledgment.`,
           );
           await continuitySession?.recording(continuity);
           save();
@@ -589,6 +659,7 @@ function checkpoint(fork = false): Promise<void> {
           if (activeGeneration === generation) continuityStatus = dispositions.join('\n');
         }
       }
+      report(dispositions);
     });
   return checkpointQueue;
 }
@@ -1088,7 +1159,7 @@ function review(v: View): void {
     )
     .join(
       '',
-    )}<h2>Inside the houses</h2>${r.placements.map((p) => `<article>${p.story.map((line) => `<p>${h(line)}</p>`).join('')}</article>`).join('')}<h2>Who spoke to whom</h2><canvas id="review-city" role="img" aria-label="People who spoke to each other during the month"></canvas>${r.threads.map((t) => `<p>${h(person(v, t.from))} → ${h(person(v, t.to))} · ${h(t.place)}${t.about ? ` · ${h(person(v, t.about))}` : ''}</p>`).join('')}<p class="review-question">${h(r.question)}</p></section><div class="review-actions lk-commit"><button type="button" data-action="send-run">Feedback</button><button type="button" data-action="download">Download this run</button><button type="button" class="primary" data-action="new-month">New game</button></div></main>`;
+    )}<h2>Inside the houses</h2>${r.placements.map((p) => `<article>${p.story.map((line) => `<p>${h(line)}</p>`).join('')}</article>`).join('')}<h2>Who spoke to whom</h2><canvas id="review-city" role="img" aria-label="People who spoke to each other during the month"></canvas>${r.threads.map((t) => `<p>${h(person(v, t.from))} → ${h(person(v, t.to))} · ${h(t.place)}${t.about ? ` · ${h(person(v, t.about))}` : ''}</p>`).join('')}<p class="review-question">${h(r.question)}</p></section><div class="review-actions lk-commit"><button type="button" data-action="send-run">Feedback</button><button type="button" data-action="download">Download this run</button>${!fileMode && state?.version === 6 ? '<button type="button" data-action="source-offer">People after this month</button>' : ''}<button type="button" class="primary" data-action="new-month">New game</button></div></main>`;
   const canvas = root.querySelector<HTMLCanvasElement>('#review-city');
   if (canvas) drawCity(canvas, { ...v, city: { ...v.city, threads: r.threads } });
   gloss(root);
@@ -1183,11 +1254,158 @@ function confirmNewGame(container: Element): void {
   );
   container.append(confirm);
 }
+/** Publication is a source operation. The receiving game owns its admission decision. */
+function sourceOffer(): void {
+  if (!pageActive || fileMode || !state || state.version !== 6) return;
+  const pinned = state;
+  if (modal === 'source') closeSheet(false);
+  const d = openSheet(
+    'People after this month',
+    `<p>This agency source is at ${h(current().dateLabel)} · ${h(current().timeLabel)}.</p>
+    <p>Preparing a checkpoint records a pause. The agency clock stops after current activities finish. Jobs, promises and unpaid duties remain. Each person may refuse publication.</p>
+    <p>The complete month is saved in this browser before publication. Keep Download this run before starting another month, which replaces the browser save. The shelf receives a supported snapshot. Publication does not mean anyone has departed, arrived or been accepted by another game.</p>
+    <p>${h(continuity.fileOrigin ? 'This imported history cannot publish as an owned source. Keep its complete file.' : state.castPaused ? 'The source is paused.' : state.castPauseRequested ? 'Waiting for current activities to finish. Return to play, then check here again.' : 'The source has not been paused.')}</p>
+    <div data-source-status role="status">${h(continuityStatus || continuity.publications?.at(-1)?.results.join('\n') || '')}</div>
+    <a href="https://human.adamwhite.work/lab/people/" target="_top">People between games</a>
+    <button type="button" data-action="download">Download this run</button>`,
+    'source',
+  );
+  const content = d.querySelector('.sheet-content');
+  const accepted = continuity.rows.findLast((r) => r.probe === 'aylin' && r.stage === 'checkpoint');
+  const head = continuity.heads.find((p) => p.castId === CAST.aylin.castId);
+  if (
+    !continuity.fileOrigin &&
+    accepted &&
+    head &&
+    !head.terminal &&
+    accepted.revision === head.revision &&
+    accepted.sourceMinute === state.now &&
+    accepted.sourceInputCount === inputs.length &&
+    candidates(current()).some((c) => c.id === 'aylin')
+  ) {
+    const p = document.createElement('p');
+    p.textContent = 'Checking Aylin’s current shelf head…';
+    content?.append(p);
+    const offerGeneration = generation;
+    const offerMinute = state.now,
+      offerInputCount = inputs.length,
+      offerFingerprint = sim.fingerprint(state);
+    const offerRow = canonicalPersona(accepted);
+    const offerIsCurrent = () => {
+      const currentOwned = continuity.heads.find((person) => person.castId === head.castId);
+      const currentRow = continuity.rows.findLast(
+        (row) => row.probe === 'aylin' && row.stage === 'checkpoint',
+      );
+      return (
+        pageActive &&
+        generation === offerGeneration &&
+        state === pinned &&
+        d.isConnected &&
+        !!shelf?.enabled &&
+        state.now === offerMinute &&
+        inputs.length === offerInputCount &&
+        sim.fingerprint(state) === offerFingerprint &&
+        currentOwned?.revision === head.revision &&
+        currentOwned.branchId === head.branchId &&
+        !!currentRow &&
+        canonicalPersona(currentRow) === offerRow &&
+        currentRow.sourceMinute === offerMinute &&
+        currentRow.sourceInputCount === offerInputCount
+      );
+    };
+    updateInspection = () => {
+      if (d.isConnected && !offerIsCurrent())
+        p.textContent =
+          'This source checkpoint changed. No continuation is offered from the earlier receipt.';
+    };
+    void (async () => {
+      try {
+        await shelf?.ready;
+        if (!offerIsCurrent()) {
+          updateInspection?.();
+          return;
+        }
+        const currentHead = await shelf?.request<PersonaEnvelope | null>({
+          action: 'get',
+          castId: head.castId,
+        });
+        if (!offerIsCurrent()) {
+          updateInspection?.();
+          return;
+        }
+        if (!currentHead || currentHead.revision !== head.revision || currentHead.terminal) {
+          p.textContent =
+            'Aylin’s shelf head no longer matches this source checkpoint. No continuation is offered from this receipt.';
+          return;
+        }
+        p.innerHTML =
+          'Aylin’s current shelf head matches this source checkpoint. <a href="https://murmur.adamwhite.work" target="_top">Check Aylin’s continuation in Murmur</a>. Start a new week there to request its automatic admission check. An existing week stays its own edition. Murmur checks the actual head again and may refuse its skills or duties. No departure or receiver acceptance has been acknowledged here.';
+        p.querySelector('a')?.addEventListener('click', (event) => {
+          if (!offerIsCurrent()) {
+            event.preventDefault();
+            updateInspection?.();
+          }
+        });
+      } catch {
+        if (offerIsCurrent())
+          p.textContent =
+            'Aylin’s current shelf head could not be checked. No continuation is offered from this receipt.';
+      }
+    })();
+  }
+  if (!continuity.fileOrigin)
+    content?.append(
+      button(state.castPaused ? 'Publish paused checkpoints' : 'Pause and prepare checkpoints', () => {
+        if (!pageActive || state !== pinned) return;
+        if ((continuity.publications?.length ?? 0) >= 32) {
+          continuityStatus = 'This run’s publication reports are full. Download the complete run.';
+          sourceOffer();
+          return;
+        }
+        try {
+          boundedPersonaJson({
+            ...continuity,
+            publications: [
+              ...(continuity.publications ?? []),
+              {
+                at: state.now,
+                inputCount: inputs.length + (state.castPauseRequested ? 0 : 1),
+                fingerprint: '00000000',
+                results: CAST_KEYS.map(() => '\u0000'.repeat(512)),
+              },
+            ],
+          });
+        } catch {
+          continuityStatus =
+            'This source has no room for another complete publication report. Keep the full run.';
+          sourceOffer();
+          return;
+        }
+        if (!state.castPauseRequested) {
+          closeSheet(false);
+          send({ type: 'pause-cast' });
+        }
+        const requestGeneration = generation;
+        void checkpoint(false, true).then(() => {
+          if (generation === requestGeneration && state === pinned && (modal === 'source' || !sheet))
+            sourceOffer();
+        });
+      }),
+    );
+  if (state.castPaused || state.castPauseRequested)
+    content?.append(
+      button('Resume agency play', () => {
+        if (!pageActive || state !== pinned) return;
+        closeSheet(false);
+        send({ type: 'resume-cast' });
+      }),
+    );
+}
 function menu(): void {
   if (state) save();
   const d = openSheet(
     'Game menu',
-    `<button type="button" data-action="send-run">Feedback</button><button type="button" data-action="fullscreen">Full screen</button><a href="${ALL_GAMES}" target="_top">All games</a><a href="https://human.adamwhite.work/lab/people/" target="_top">People between games</a><button type="button" data-new-game>New game</button>${state ? '<button type="button" data-action="day-notes">The day’s notes</button>' : ''}<div class="page-setting">Page ${['System', 'Light', 'Dark'].map((theme) => `<button type="button" data-theme-choice="${theme.toLowerCase()}">${theme}</button>`).join('')}</div><div class="pace-setting"><span>Pace</span>${['Automatic', 'Slow', 'Steady', 'Fast'].map((speed) => `<button type="button" data-pace-choice="${speed.toLowerCase()}">${speed}</button>`).join('')}</div><div class="recording-footer"></div><div class="debug-footer" style="display:flex;align-items:baseline;gap:.75rem;flex-wrap:wrap"><a href="https://human.adamwhite.work/lab/privacy/" target="_top">Lab privacy</a><details><summary>Debug</summary><button type="button" data-action="title">To the title page</button><button type="button" data-action="import">${fileMode ? 'Choose a run file' : 'Import and replace saved month'}</button>${fileMode ? '' : '<a href="/file/">Continue a file without replacing the saved month</a>'}${state ? '<button type="button" data-action="download">Download this run</button>' : ''}</details></div>`,
+    `<button type="button" data-action="send-run">Feedback</button><button type="button" data-action="fullscreen">Full screen</button><a href="${ALL_GAMES}" target="_top">All games</a><a href="https://human.adamwhite.work/lab/people/" target="_top">People between games</a><button type="button" data-new-game>New game</button>${state ? '<button type="button" data-action="day-notes">The day’s notes</button>' : ''}${!fileMode && state?.version === 6 ? '<button type="button" data-action="source-offer">People after this month</button>' : ''}<div class="page-setting">Page ${['System', 'Light', 'Dark'].map((theme) => `<button type="button" data-theme-choice="${theme.toLowerCase()}">${theme}</button>`).join('')}</div><div class="pace-setting"><span>Pace</span>${['Automatic', 'Slow', 'Steady', 'Fast'].map((speed) => `<button type="button" data-pace-choice="${speed.toLowerCase()}">${speed}</button>`).join('')}</div><div class="recording-footer"></div><div class="debug-footer" style="display:flex;align-items:baseline;gap:.75rem;flex-wrap:wrap"><a href="https://human.adamwhite.work/lab/privacy/" target="_top">Lab privacy</a><details><summary>Debug</summary><button type="button" data-action="title">To the title page</button><button type="button" data-action="import">${fileMode ? 'Choose a run file' : 'Import and replace saved month'}</button>${fileMode ? '' : '<a href="/file/">Continue a file without replacing the saved month</a>'}${state ? '<button type="button" data-action="download">Download this run</button>' : ''}</details></div>`,
     'menu',
   );
   if (lab) d.querySelector('.recording-footer')?.append(telemetryToggle(lab));
@@ -1664,6 +1882,9 @@ function handleClick(event: Event): void {
       closeSheet(false);
       send({ type: 'wait-for' });
       break;
+    case 'source-offer':
+      sourceOffer();
+      break;
     case 'menu':
       menu();
       break;
@@ -1952,6 +2173,7 @@ function frame(now: number): void {
     !overlay &&
     modal !== 'menu' &&
     modal !== 'feedback' &&
+    modal !== 'source' &&
     !sheetOrigins.some((origin) => origin.kind === 'menu') &&
     !document.querySelector('.hflab-veil')
   ) {
@@ -1999,6 +2221,9 @@ document.addEventListener('visibilitychange', () => {
   }
 });
 window.addEventListener('pagehide', () => {
+  pageActive = false;
+  generation++;
+  continuitySession?.invalidate();
   fileSelection++;
   if (fileSession) retireFileCallbacks();
   if (state) {
@@ -2007,6 +2232,10 @@ window.addEventListener('pagehide', () => {
     lab?.captureSave({ key: 'run', value: run });
     if (!fileMode) putNow('run', run);
   }
+});
+window.addEventListener('pageshow', () => {
+  pageActive = true;
+  last = performance.now();
 });
 window.addEventListener('hf-persona-preference', () => {
   generation++;

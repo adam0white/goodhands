@@ -1,3 +1,9 @@
+## Source checkpoint/end offer candidate — 2026-10-27
+
+What remains: director's single independent review of the exact frozen diff, then authorized signed source/CI/merge/deployment checks. No delivery is claimed by this candidate. Owned departure, receiver acceptance, acknowledgment and ingestion remain separate upstream work, review2026-10-30 in docs/design.md. Adam accepts feel/readiness2026-11-03.
+
+The ordinary edition6 menu and actual month end offer the existing recorded source pause and supported native checkpoint publication. Publication saves the complete source first, checks the captured native projection/parent/generation and reports each result. Known Aylin receives a Murmur check link only after a public shelf get matches the published checkpoint at this exact input boundary; Murmur still decides admission against its actual shelf head. Imported histories cannot publish through this offer; file sessions remain nonpublishing with original bytes and caps unchanged. Explicit public attempts retain bounded publication/refusal reports in full and compact exports; report capacity refuses without trimming. Explicit local Resume records resume-cast; omitted new actions preserve previous behavior. No dependencies, framework, frozen editions or central source change. Exact checks and remaining clauses are frozen under `/Users/abdul/code/.lab-scratch/games-deferred/gd-resume-goodhands-departure`.
+
 ## Automatic recording source candidate — 2026-10-26
 
 Ordinary automated browsers now initialize the released `createLab({ game: 'goodhands' })`; the implicit webdriver no-op client is removed. The SDK, endpoint, Recording switch, stored off choices, DNT/GPC defaults and privacy override behavior are unchanged. Client 0.4.11 still suppresses localhost recording without its public `sendFromLocalhost` option. Future recorded local QA requires a reviewed use of that option and disclosure that the deployed SDK has no supported agent cohort marker.

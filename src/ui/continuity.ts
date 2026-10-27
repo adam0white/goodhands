@@ -39,6 +39,8 @@ export type ContinuityBook = {
   initialClaims?: PersonaEnvelope[];
   fileOrigin?: boolean;
   fileUnlinked?: boolean;
+  /** Explicit source-publication attempts only; transport reports never certify a receiver. No trimming. */
+  publications?: { at: number; inputCount: number; fingerprint: string; results: string[] }[];
   arrivals: Arrival[];
   heads: PersonaEnvelope[];
   rows: OneCastRow[];

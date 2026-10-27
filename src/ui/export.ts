@@ -91,7 +91,11 @@ export function exportRun(state: State, inputs: LoggedInput[], continuity?: Cont
     ...(state.castChapter ? { chapter: structuredClone(state.castChapter as AgencyChapter) } : {}),
     ...(state.version === 6 ? { castEdition: CAST_EDITION } : {}),
     ...(state.version === 6 ? { oneCast: structuredClone(continuity?.rows ?? []) } : {}),
-    ...(continuity && (continuity.arrivals.length || continuity.heads.length || continuity.chapter)
+    ...(continuity &&
+    (continuity.arrivals.length ||
+      continuity.heads.length ||
+      continuity.chapter ||
+      continuity.publications?.length)
       ? { continuity: structuredClone(continuity), oneCast: structuredClone(continuity.rows) }
       : {}),
     ...(state.version !== 1 ? { simulation: state.version } : {}),
@@ -286,7 +290,13 @@ export function verifyImport(text: string): {
     )
       throw new Error('Invalid pinned agency chapter.');
   } else if (continuity.chapter) throw new Error('Missing pinned agency chapter.');
-  if (simulation !== 6 && (continuity.arrivals.length || continuity.heads.length || continuity.chapter))
+  if (
+    simulation !== 6 &&
+    (continuity.arrivals.length ||
+      continuity.heads.length ||
+      continuity.chapter ||
+      continuity.publications?.length)
+  )
     throw new Error('Legacy runs cannot admit a guest.');
   if (simulation !== 6 && inputs.some((e) => e.input.type === 'guest-action'))
     throw new Error('Legacy editions have no guest actions.');
@@ -348,6 +358,24 @@ function readContinuity(value: unknown, rows: unknown): ContinuityBook {
     throw new Error('Invalid file recording state.');
   const book = value as unknown as ContinuityBook;
   if (
+    book.publications !== undefined &&
+    (!Array.isArray(book.publications) ||
+      book.publications.length > 32 ||
+      book.publications.some(
+        (r) =>
+          !record(r) ||
+          !Number.isSafeInteger(r.at) ||
+          r.at < 0 ||
+          !Number.isSafeInteger(r.inputCount) ||
+          r.inputCount < 0 ||
+          !/^[a-f0-9]{8}$/.test(r.fingerprint) ||
+          !Array.isArray(r.results) ||
+          r.results.length > 7 ||
+          r.results.some((s) => typeof s !== 'string' || s.length > 512),
+      ))
+  )
+    throw new Error('Invalid source publication report.');
+  if (
     book.forks !== undefined &&
     (!record(book.forks) ||
       Object.keys(book.forks).length > book.rows.length ||
@@ -406,6 +434,22 @@ export async function validateContinuity(
   savedState?: State,
   inputs: LoggedInput[] = [],
 ): Promise<void> {
+  for (const report of book.publications ?? []) {
+    if (
+      !savedState ||
+      savedState.version !== 6 ||
+      report.at > savedState.now ||
+      report.inputCount > inputs.length
+    )
+      throw new Error('Source publication report exceeds this run.');
+    const prefix = inputs.slice(0, report.inputCount);
+    if (
+      prefix.some((input) => input.at > report.at) ||
+      fingerprint(replay(savedState.seed, prefix, report.at, 6, book.chapter?.guests, book.chapter)) !==
+        report.fingerprint
+    )
+      throw new Error('Source publication report differs from its recorded source.');
+  }
   if (book.chapter) {
     await validateAgencyChapter(book.chapter);
     if (!savedState || canonicalPersona(savedState.castChapter) !== canonicalPersona(book.chapter))
