@@ -1,30 +1,44 @@
-import { type Browser, chromium, type Page } from 'playwright-core';
+import { type Browser, type BrowserServer, chromium, type Page } from 'playwright-core';
 import { createServer, type ViteDevServer } from 'vite';
 import { afterAll, beforeAll, expect, it } from 'vitest';
 
 let server: ViteDevServer;
 let browser: Browser;
+let browserServer: BrowserServer;
 let page: Page;
 beforeAll(async () => {
   server = await createServer({ server: { host: '127.0.0.1', port: 0, hmr: false, watch: null } });
   await server.listen();
-  browser = await chromium.launch({ channel: process.env.HF_BROWSER_CHANNEL });
+  browserServer = await chromium.launchServer({ channel: process.env.HF_BROWSER_CHANNEL });
+  browser = await chromium.connect(browserServer.wsEndpoint());
   page = await browser.newPage({ viewport: { width: 360, height: 690 } });
   await page.clock.install();
   await page.clock.pauseAt(new Date());
-  await page.goto(`${server.resolvedUrls?.local[0]}?lab=1`);
-  await page.getByRole('button', { name: 'Lab tools', exact: true }).click();
-  await page.getByRole('button', { name: 'People between games', exact: true }).click();
-  await page.getByRole('button', { name: 'Start a fresh month without history', exact: true }).click();
+  await page.goto(server.resolvedUrls!.local[0]!);
+  await page.getByRole('button', { name: 'Open the office', exact: true }).click();
+  await page.getByTestId('office').waitFor();
 }, 60_000); // Cold Vite/Chrome startup can exceed Vitest's default ten-second hook on CI.
 afterAll(async () => {
-  await browser?.close();
+  // Closing a clock-controlled page can wait on SDK unload work. Terminate only
+  // the browser process this fixture launched, then close its own Vite server.
+  await browserServer?.kill();
   await server?.close();
 });
+
 it('holds the menu and information, then resumes without speed inputs', async () => {
   const clock = page.locator('[data-time]');
   await page.getByRole('button', { name: 'Game menu', exact: true }).click();
   const held = await clock.innerText();
+  const debug = page.locator('.debug-footer details');
+  expect(await debug.getAttribute('open')).toBeNull();
+  expect(await page.locator('[data-action="import"]').isVisible()).toBe(false);
+  expect(await page.locator('[data-pace-choice]').count()).toBe(4);
+  expect(await page.getByRole('link', { name: 'People between games' }).getAttribute('href')).toBe(
+    'https://human.adamwhite.work/lab/people/',
+  );
+  await debug.locator('summary').click();
+  expect(await page.locator('[data-action="import"]').isVisible()).toBe(true);
+  await debug.locator('summary').click();
   await page.clock.runFor(6000);
   expect(await clock.innerText()).toBe(held);
   await page.getByRole('button', { name: 'Fast', exact: true }).click();

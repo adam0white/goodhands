@@ -203,20 +203,16 @@ for (const [name, engine] of [
           await page.keyboard.press('Escape');
           await page.locator('[data-action="menu"]').click();
           const menu = page.locator('.menu-sheet');
-          expect(await menu.locator('button').allTextContents()).toEqual([
-            '×',
-            'Feedback',
-            'Full screen',
-            'New game',
-            'Resume',
-          ]);
-          expect(
-            await menu
-              .locator(
-                '[data-action="people"], [data-pace-choice], [data-theme-choice], [data-action="import"]',
-              )
-              .count(),
-          ).toBe(0);
+          expect(await menu.locator('[data-pace-choice]').count()).toBe(4);
+          expect(await menu.locator('[data-theme-choice]').count()).toBe(3);
+          expect(await menu.getByRole('link', { name: 'People between games' }).getAttribute('href')).toBe(
+            'https://human.adamwhite.work/lab/people/',
+          );
+          expect(await menu.locator('.debug-footer details').getAttribute('open')).toBeNull();
+          expect(await menu.locator('[data-action="import"]').isVisible()).toBe(false);
+          await menu.getByText('Debug', { exact: true }).click();
+          expect(await menu.locator('[data-action="import"]').isVisible()).toBe(true);
+          await menu.getByText('Debug', { exact: true }).click();
           await page.getByRole('button', { name: 'Resume', exact: true }).click();
           await page.getByRole('button', { name: 'Gülce Aksoy', exact: true }).click();
           expect(await page.locator('.look').innerText()).toBe(
@@ -284,13 +280,11 @@ for (const [name, engine] of [
             ),
           ).toBe(true);
           expect(errors).toEqual([]);
-          // Exact flag: near-matches must never expose diagnostic controls.
-          for (const flag of ['true', '01']) {
-            await page.goto(`${origin}/?lab=${flag}`);
-            expect(await page.locator('[data-action="other-ways"]').count()).toBe(0);
-          }
-          await page.goto(`${origin}/?lab=1`);
-          expect(await page.locator('[data-action="other-ways"]').count()).toBe(1);
+          // Gameplay and diagnostics are public without a query switch.
+          await page.goto(origin);
+          await page.locator('[data-action="menu"]').click();
+          expect(await page.locator('[data-pace-choice]').count()).toBe(4);
+          expect(await page.locator('.debug-footer details').getAttribute('open')).toBeNull();
         } finally {
           await browser.close();
         }

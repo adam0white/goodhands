@@ -44,7 +44,7 @@ try {
       );
     await page.clock.install();
     await page.clock.pauseAt(new Date());
-    await page.goto(`http://127.0.0.1:${port}/?lab=1`);
+    await page.goto(`http://127.0.0.1:${port}/`);
     await page.evaluate(() => document.fonts.ready);
     const fits = async (name: string) => {
       const geometry = await page.evaluate(() => ({
@@ -89,9 +89,7 @@ try {
         'desktop Menu stays on one line',
       );
     }
-    await page.getByRole('button', { name: 'Lab tools', exact: true }).click();
-    await page.getByRole('button', { name: 'People between games', exact: true }).click();
-    await page.getByRole('button', { name: 'Start a fresh month without history', exact: true }).click();
+    await page.getByRole('button', { name: 'Open the office', exact: true }).click();
     await fits('office');
     assert.deepEqual(await lifecycle(), { active: 1, mounts: 1 });
     const checkStage = async () => {
@@ -207,11 +205,14 @@ try {
     const run = exportRun(fixture, fixture.inputs);
     verifyImport(JSON.stringify(run));
     await page.locator('[data-action="menu"]').click();
+    await page.getByText('Debug', { exact: true }).click();
     await page.getByRole('button', { name: 'To the title page', exact: true }).click();
     assert.equal((await lifecycle()).active, 0);
-    await page.getByRole('button', { name: 'Lab tools', exact: true }).click();
+    await page.locator('[data-action="menu"]').click();
+    await page.getByText('Debug', { exact: true }).click();
+    page.on('dialog', (dialog) => void dialog.accept());
     const chooser = page.waitForEvent('filechooser');
-    await page.getByRole('button', { name: 'Load a playtest run', exact: true }).click();
+    await page.getByRole('button', { name: 'Import a run', exact: true }).click();
     await (await chooser).setFiles({
       name: 'fixture.json',
       mimeType: 'application/json',
@@ -226,10 +227,12 @@ try {
     const earlyRun = exportRun(early, []);
     verifyImport(JSON.stringify(earlyRun));
     await page.locator('[data-action="menu"]').click();
+    await page.getByText('Debug', { exact: true }).click();
     await page.getByRole('button', { name: 'To the title page', exact: true }).click();
-    await page.getByRole('button', { name: 'Lab tools', exact: true }).click();
+    await page.locator('[data-action="menu"]').click();
+    await page.getByText('Debug', { exact: true }).click();
     const earlyChooser = page.waitForEvent('filechooser');
-    await page.getByRole('button', { name: 'Load a playtest run', exact: true }).click();
+    await page.getByRole('button', { name: 'Import a run', exact: true }).click();
     await (await earlyChooser).setFiles({
       name: 'early-ending.json',
       mimeType: 'application/json',
