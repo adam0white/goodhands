@@ -24,9 +24,7 @@ it('calls a doubtful patience answer evidence without endorsing it', () => {
   apply(state, { type: 'interview', candidate: 'sevda' });
   apply(state, { type: 'choose', scene: view(state).scene!.id, choice: 'q-patient' });
   const notes = view(state).scene!.added!;
-  expect(addedEvidence(notes)).toBe(
-    `${notes[0]!.from} told Nermin about this worker. Nermin’s reading: ${notes[0]!.phrase}`,
-  );
+  expect(addedEvidence(notes)).toBe(`${notes[0]!.from} said this. Nermin’s reading: ${notes[0]!.phrase}`);
   expect(addedEvidence(notes.map((n) => ({ ...n, crossedOut: true })))).toBe('');
 });
 
@@ -48,7 +46,7 @@ it('immediate evidence states the speaker and Nermin’s uncertain reading witho
   apply(state, { type: 'choose', scene: view(state).scene!.id, choice: 'q-patient' });
   const notes = view(state).scene!.added!;
   const original = structuredClone(notes);
-  expect(addedEvidence(notes)).toContain(`${notes[0]!.from} told Nermin`);
+  expect(addedEvidence(notes)).toContain(`${notes[0]!.from} said this`);
   expect(addedEvidence(notes)).toContain(notes[0]!.phrase);
   expect(notes).toEqual(original);
 });

@@ -10,6 +10,7 @@ import {
   INTRO,
   matchingReason,
   monthTally,
+  nextOpenWeekday,
   noteText,
   personName,
   phoneAvailability,
@@ -65,7 +66,7 @@ describe('player-facing render helpers', () => {
       'patient · Nermin observed this.',
     );
     expect(vouchLabel({ ...candidate, notes: [{ ...seen, crossedOut: true }, says] }, 'patient')).toBe(
-      'patient · Nermin told Nermin about this worker.',
+      'patient · Nermin said this.',
     );
     expect(vouchLabel({ ...candidate, notes: [{ ...note, source: 'heard' }] }, 'patient')).toBe(
       'patient · Nermin reported this to Nermin.',
@@ -229,4 +230,13 @@ it('resolves public people outside the applicant list without leaking IDs', () =
   expect(personName(v, 'arslans-0')).toBe('Suna');
   expect(personName(v, 'the Arslan family')).toBe('the Arslan family');
   expect(personName(v, 'internal-missing')).toBe('Someone');
+});
+
+describe('Sleep button day', () => {
+  it('names the next opening day, skipping Sundays except the last day', () => {
+    expect(nextOpenWeekday(0)).toBe('Tuesday');
+    expect(nextOpenWeekday(4)).toBe('Saturday');
+    expect(nextOpenWeekday(5)).toBe('Monday');
+    expect(nextOpenWeekday(26)).toBe('Sunday');
+  });
 });

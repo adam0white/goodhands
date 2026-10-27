@@ -1005,6 +1005,13 @@ legend {
   width: 100%;
   text-align: left;
 }
+/* Each part of a request or placement card on its own line. */
+.family-card > strong,
+.family-card > span,
+.placement-card > strong,
+.placement-card > span {
+  display: block;
+}
 .lk-term {
   min-width: 44px;
 }

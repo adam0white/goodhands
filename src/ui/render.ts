@@ -4,6 +4,13 @@ import { plainText } from './plain-english.ts';
 export const INTRO =
   'You run Good Hands, a small placement agency. A household needs a nanny by Tuesday 08:00. Three applicants are waiting on your bench. Rent is due Friday.';
 
+/** The weekday Sleep opens on. Mirrors the sim's Sleep input: day 0 is Monday 2 November; Sundays are skipped except day 27. */
+export function nextOpenWeekday(day: number): string {
+  let next = day + 1;
+  if (next % 7 === 6 && next !== 27) next++;
+  return ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'][next % 7]!;
+}
+
 export function escapeHtml(value: string): string {
   return value.replace(
     /[&<>"']/g,
@@ -20,7 +27,7 @@ export function noteSource(note: Note): string {
   return note.source === 'seen'
     ? 'Nermin observed this.'
     : note.source === 'says'
-      ? `${note.from} told Nermin about this worker.`
+      ? `${note.from.replace(/ says$/, '')} said this.`
       : `${note.from} reported this to Nermin.`;
 }
 

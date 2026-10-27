@@ -283,6 +283,7 @@ export function plainText(value: string): string {
       '$1We need a $2 for the agreed hours.',
     )
     .replace(/^(.+?) placed with (.+?)\. /u, '$1 was placed with $2. ')
+    .replace(/^(The [\p{L}]+ family): The family needs /u, '$1 needs ')
     .replace(
       /(We need a (?:nanny|carer|driver|cook|housekeeper)) for the agreed hours/gu,
       '$1 for the hours we discuss',

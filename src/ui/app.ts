@@ -64,6 +64,7 @@ import {
   matchingReason,
   money,
   monthTally,
+  nextOpenWeekday,
   noteSource,
   noteText,
   personName,
@@ -205,6 +206,15 @@ function candidates(v: View): CandidateView[] {
 function person(v: View, id: string): string {
   return personName(v, id);
 }
+/** Display only: sentence-start capital for names stored as "the Arslan family". */
+function capFirst(text: string): string {
+  return text.charAt(0).toUpperCase() + text.slice(1);
+}
+/** The default bench description contradicts an applicant who is already at the desk or at home. */
+const WAITING_LOOK = 'This applicant is waiting with an application form.';
+function withoutWaitingLook(text: string, narration: boolean): string {
+  return narration ? text.replace(` ${WAITING_LOOK}`, '') : text;
+}
 function candidate(v: View): CandidateView | undefined {
   return candidates(v).find((c) => c.id === selected);
 }
@@ -277,7 +287,7 @@ function title(): void {
   playing = false;
   shown = '';
   setScreen('title');
-  root.innerHTML = `<main class="title-page">${topbar(`<a href="${ALL_GAMES}" target="_top">All games</a>`)}<section class="title-body"><p class="eyebrow">Izmir · November 2026</p><div class="agency-mark" aria-hidden="true">G H<span>placement agency</span></div><h1>Good Hands</h1><p class="subtitle">You run Nermin’s agency for a month.</p><p class="goal">A household needs a nanny by Tuesday 08:00. Three applicants are waiting on your bench. Rent is due Friday.</p>${labTools ? '<button type="button" data-action="other-ways">Lab tools</button>' : ''}<p class="title-status" role="status">${saveReady ? '' : 'Looking for a saved month…'}</p></section><div class="title-actions lk-commit"></div></main>`;
+  root.innerHTML = `<main class="title-page">${topbar(`<a href="${ALL_GAMES}" target="_top">All games</a>`)}<section class="title-body"><p class="eyebrow">Izmir · November 2026</p><div class="agency-mark" aria-hidden="true">G H<span>placement agency</span></div><h1>Good Hands</h1><p class="subtitle">You run Nermin’s agency for a month.</p><p class="goal">A family needs a nanny by Tuesday 08:00. Three job applicants are waiting on the bench in your office. Rent of ₺5,000 is due to Mr Hüsnü, your landlord, on Friday.</p>${labTools ? '<button type="button" data-action="other-ways">Lab tools</button>' : ''}<p class="title-status" role="status">${saveReady ? '' : 'Looking for a saved month…'}</p></section><div class="title-actions lk-commit"></div></main>`;
   const actions = root.querySelector('.title-actions');
   if (saved) {
     actions?.append(
@@ -693,7 +703,7 @@ function paceWords(v: View): string {
   if (modal === 'feedback') return 'Paused for Feedback.';
   if (waitAnimation) return 'Skipping to the next event.';
   if (v.scene)
-    return `The clock is paused. ${v.scene.with ? `${person(v, v.scene.with).replace(/^the /, 'The ')} is talking.` : 'A conversation is in progress.'}`;
+    return `${v.scene.with ? `${person(v, v.scene.with).replace(/^the /, 'The ')} is talking.` : 'A conversation is in progress.'} Choices take time.`;
   if (v.phoneRinging) return 'Paused for the phone call.';
   if (v.dayCard || !v.open) return 'Paused. The office is closed.';
   if (v.heldScene) return `Paused for ${v.heldScene.title}.`;
@@ -727,7 +737,10 @@ function updateClock(v: View): void {
     wait.innerHTML = `Skip ⏩<small>${v.next ? `${clockLabels(v.next.at).timeLabel} · ${h(v.next.label)}` : ''}</small>`;
   }
   text('[data-money]', money(v.cash));
-  text('[data-rent-due]', `${money(v.rent.amount)} Fri ${v.rent.label.match(/\d{2}:\d{2}/)?.[0] ?? '17:00'}`);
+  text(
+    '[data-rent-due]',
+    `Rent ${money(v.rent.amount)} · Fri ${v.rent.label.match(/\d{2}:\d{2}/)?.[0] ?? '17:00'}`,
+  );
   const meter = root.querySelector<HTMLProgressElement>('.rent-meter');
   if (meter) {
     meter.value = Math.max(0, v.cash);
@@ -909,7 +922,7 @@ function benchHtml(v: View): string {
       : undefined);
   const reason =
     unavailable || interviewLimit ? `<p class="reason">${h(unavailable ?? interviewLimit ?? '')}</p>` : '';
-  const card = `<article class="candidate-card"><div class="card-heading"><h2>${h(c.name)}</h2><span>${h(c.roles.join(' / '))}</span></div><p class="look">${h(c.look)}</p>${c.arrival ? `<p>${h(c.name)} is coming · ${h(c.arrival.dateLabel)}</p>` : ''}${(state?.version ?? 0) < 3 ? '<p class="reason">This month uses earlier rules. Start a new month for office visits and negotiated placements.</p>' : ''}<div class="candidate-actions">${(state?.version ?? 0) >= 3 && c.presence === 'home' ? action('Call in to the office', 'call-in', unavailable, 'The journey takes time.') : action('Interview', 'interview', unavailable ?? interviewLimit, 'This takes about 30 minutes.')}${action((state?.version ?? 0) >= 3 ? 'Negotiate placement' : 'Place', 'place', unavailable, (state?.version ?? 0) >= 3 ? 'Agree on the terms with both sides.' : 'Choose which qualities to promise.')}${action('Call a reference', 'references', unavailable, 'This takes about 15 minutes.')}${action('Send for a trial', 'trial', unavailable, 'The applicant will spend the next morning with the family.')}${action('Keep the phone number', 'take-number', unavailable ?? (c.status !== 'bench' ? 'You already have this applicant’s number.' : undefined), 'This takes 2 minutes. The applicant goes home, and you keep the phone number.')}</div>${reason}${c.wants ? `<p class="candidate-wants handwritten">Needs: ${h(c.wants)}</p>` : ''}<details class="notes-details"><summary>Nermin’s notes · ${c.wage === null ? 'Wage not yet asked' : `${money(c.wage)} a month`}</summary><div class="card-notes">${QUALITIES.map(
+  const card = `<article class="candidate-card"><div class="card-heading"><h2>${h(c.name)}</h2><span>${h(c.roles.join(' / '))}</span></div>${c.presence === 'home' && c.look === WAITING_LOOK ? '' : `<p class="look">${h(c.look)}</p>`}${c.arrival ? `<p>${h(c.name)} is coming · ${h(c.arrival.dateLabel)}</p>` : ''}${(state?.version ?? 0) < 3 ? '<p class="reason">This month uses earlier rules. Start a new month for office visits and negotiated placements.</p>' : ''}<div class="candidate-actions">${(state?.version ?? 0) >= 3 && c.presence === 'home' ? action('Call in to the office', 'call-in', unavailable, 'The journey takes time.') : action('Interview', 'interview', unavailable ?? interviewLimit, 'This takes about 30 minutes.')}${action((state?.version ?? 0) >= 3 ? 'Negotiate placement' : 'Place', 'place', unavailable, (state?.version ?? 0) >= 3 ? 'Agree on the terms with both sides.' : 'Choose which qualities to promise.')}${action('Call a reference', 'references', unavailable, 'This takes about 15 minutes.')}${action('Send for a trial', 'trial', unavailable, 'The applicant will spend the next morning with the family.')}${action('Keep the phone number', 'take-number', unavailable ?? (c.status !== 'bench' ? 'You already have this applicant’s number.' : undefined), 'This takes 2 minutes. The applicant goes home, and you keep the phone number.')}</div>${reason}${c.wants ? `<p class="candidate-wants handwritten">Needs: ${h(c.wants)}</p>` : ''}<details class="notes-details"><summary>Nermin’s notes · ${c.wage === null ? 'Wage not yet asked' : `${money(c.wage)} a month`}</summary><div class="card-notes">${QUALITIES.map(
     (q) => {
       const notes = c.notes.filter((n) => n.quality === q);
       const read = notes.findLast((n) => !n.crossedOut) ?? notes.at(-1);
@@ -939,7 +952,7 @@ function familiesHtml(v: View): string {
     open
       .map(
         (r) =>
-          `<button type="button" class="family-card card-target" data-family="${h(r.family)}" aria-label="${h(person(v, r.family))}"><strong>${h(person(v, r.family))}</strong><span>“${h(r.wants)}”</span><span>${h(r.role)} · ${money(r.wage)} a month</span><span class="deadline">By ${h(r.byLabel)}</span></button>`,
+          `<button type="button" class="family-card card-target" data-family="${h(r.family)}" aria-label="${h(person(v, r.family))}"><strong>${h(capFirst(person(v, r.family)))}</strong><span>“${h(r.wants)}”</span><span>${h(r.role)} · ${money(r.wage)} a month</span><span class="deadline">By ${h(r.byLabel)}</span></button>`,
       )
       .join('') || '<p>No families have open requests. Use Placed to see current placements.</p>';
   return (
@@ -989,7 +1002,7 @@ function sceneHtml(v: View): string {
     const householdSpeaker =
       l.side === 'family' ||
       v.families.some((f) => f.name === l.speaker || f.household.some((member) => member.name === l.speaker));
-    return `<p data-scene-line ${l.side ? `data-scene-side="${l.side}"` : ''} class="${l.kind === 'speech' && !narration ? 'speech' : l.kind === 'notice' || narration ? 'notice-line' : ''} ${l.side ? `side-${l.side}` : ''}">${l.speaker && !narration ? `<strong>${h(l.speaker)}:</strong> ` : ''}${h(householdSpeaker ? familySpeech(l.text) : l.text)}</p>`;
+    return `<p data-scene-line ${l.side ? `data-scene-side="${l.side}"` : ''} class="${l.kind === 'speech' && !narration ? 'speech' : l.kind === 'notice' || narration ? 'notice-line' : ''} ${l.side ? `side-${l.side}` : ''}">${l.speaker && !narration ? `<strong>${h(capFirst(l.speaker))}:</strong> ` : ''}${h(withoutWaitingLook(householdSpeaker ? familySpeech(l.text) : l.text, narration))}</p>`;
   };
   return `<section class="scene-sheet ${moreChoices ? 'all-questions' : ''} ${s.kind === 'interview' ? 'interview-sheet' : ''}" data-testid="scene" data-scene-id="${h(s.id)}" aria-label="${h(s.title)}"><header class="sheet-heading lk-sheet-head"><h2>${moreChoices ? `All ${s.kind === 'interview' ? 'questions' : 'choices'} · ${choices.length}` : h(s.title)}</h2>${moreChoices ? '<button type="button" data-action="fewer-choices">Fewer</button>' : ''}</header><div class="lk-sheet-body scene-reading"><div class="exchange" role="region" aria-label="Latest words">${(moreChoices ? latest.slice(-1) : s.lines).map(line).join('')}</div>${s.kind === 'negotiation' && s.negotiation ? `<p class="terms-summary">${h(termsLine(s.negotiation.terms))}</p>` : ''}${
     s.added?.length ? `<p class="added" role="status">${h(addedEvidence(s.added))}</p>` : ''
@@ -1003,7 +1016,7 @@ function sceneHtml(v: View): string {
 function dayHtml(v: View): string {
   const d = v.dayCard;
   if (!d) return '';
-  return `<section class="day-card lk-sheet-body"><h2>${h(d.dateLabel)} · Office closed</h2>${d.lines.map((l) => `<p>${h(l)}</p>`).join('')}${guestsHtml(v)}<p class="tomorrow">${h(d.tomorrow)}</p></section><div class="lk-commit"><button type="button" class="primary" data-action="sleep">Sleep · open ${h(d.tomorrow.match(/(?:Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)/)?.[0] ?? 'tomorrow')} 08:30</button></div>`;
+  return `<section class="day-card lk-sheet-body"><h2>${h(d.dateLabel)} · Office closed</h2>${d.lines.map((l) => `<p>${h(l)}</p>`).join('')}${guestsHtml(v)}<p class="tomorrow">${h(d.tomorrow)}</p></section><div class="lk-commit"><button type="button" class="primary" data-action="sleep">Sleep · open ${nextOpenWeekday(d.day)} 08:30</button></div>`;
 }
 function cityHtml(v: View): string {
   return `<h2>In the city</h2>${v.city.figures.map((f) => `<button type="button" data-city-figure="${h(f.id)}" aria-pressed="${cityPerson === f.id}">${h(f.name)} · ${h(f.place ?? 'in the city')}</button>`).join('')}`;
@@ -1364,10 +1377,13 @@ function familySheet(id: string): void {
     f = v.families.find((f) => f.id === id);
   if (!f) return;
   openSheet(
-    f.name,
+    capFirst(f.name),
     `<p>${h(f.district)} · ${h(f.trust)}</p>${f.household.map((p) => `<p>${h(p.name)} · ${h(p.who)}</p>`).join('')}${f.line ? `<p class="speech">“${h(f.line)}”</p>` : ''}${v.requests
       .filter((r) => r.family === id)
-      .map((r) => `<p>“${h(r.wants)}”</p><p>${money(r.wage)} a month · by ${h(r.byLabel)} · ${r.status}</p>`)
+      .map(
+        (r) =>
+          `${r.wants === f.line ? '' : `<p>“${h(r.wants)}”</p>`}<p>${money(r.wage)} a month · by ${h(r.byLabel)} · ${r.status}</p>`,
+      )
       .join(
         '',
       )}${(state?.version ?? 0) >= 3 ? `<button type="button" data-phone-family="${h(id)}">Phone ${h(f.name)}</button>` : ''}<button type="button" data-action="choose-worker">Choose a worker from the bench</button>`,
