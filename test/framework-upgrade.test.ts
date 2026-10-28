@@ -1,14 +1,15 @@
+/** Historical HF3 passport and replay controls; current HF4 portable controls are in hf4-game.test.ts. */
 import { readFileSync } from 'node:fs';
-import { restore, snapshot } from '@adam0white/human-framework';
-import { createPersona, initialPersonaLife, preparePersonaLife } from '@adam0white/lab-client';
+import { restore, snapshot } from '@adam0white/human-framework-legacy3';
+import { createPersona, initialPersonaLife, preparePersonaLife } from '@adam0white/lab-client-legacy3';
 import { expect, test } from 'vitest';
-import { CAST, freshCast } from '../src/sim/cast.ts';
-import { agencyTransfer, prepareAgencyChapter } from '../src/sim/cast-chapter.ts';
-import { freshGuest, prepareGuest } from '../src/sim/guests.ts';
-import { advance, apply, fingerprint, newGame, replay, view } from '../src/sim/index.ts';
-import { prepareSiteSelin } from '../src/sim/site-selin.ts';
-import { emptyContinuity } from '../src/ui/continuity.ts';
-import { compactRun, exportRun, verifyImport } from '../src/ui/export.ts';
+import { CAST, freshCast } from '../src/sim/v6/cast.ts';
+import { agencyTransfer, prepareAgencyChapter } from '../src/sim/v6/cast-chapter.ts';
+import { emptyContinuity } from '../src/sim/v6/continuity.ts';
+import { compactRun, exportRun, verifyImport } from '../src/sim/v6/export.ts';
+import { freshGuest, prepareGuest } from '../src/sim/v6/guests.ts';
+import { advance, apply, fingerprint, newGame, replay, view } from '../src/sim/v6/index.ts';
+import { prepareSiteSelin } from '../src/sim/v6/site-selin.ts';
 
 test('fresh local and canonical starts pin plain narration and replay current exports', async () => {
   expect(freshCast('nermin', 7, 510).lexicon?.plainEnglish).toBe(true);

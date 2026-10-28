@@ -45,6 +45,7 @@ import {
 } from '../sim/types.ts';
 import {
   exportRun,
+  exportWorkingRun,
   guestCheckpointTransfer,
   type RunExport,
   validateContinuity,
@@ -81,7 +82,7 @@ import {
   vouchLabel,
 } from './render.ts';
 import { resumeForPlay } from './resume.ts';
-import { get, put, putNow } from './store.ts';
+import { get, put, putNow, retainSourceArchive } from './store.ts';
 
 const h = (value: string) => escapeHtml(plainText(value));
 
@@ -176,6 +177,10 @@ function runExport(): RunExport {
   if (!state) throw new Error('Open a month first.');
   return fileSession?.snapshot() ?? exportRun(state, inputs, continuity);
 }
+function workingRun() {
+  if (!state) throw new Error('Open a month first.');
+  return fileSession?.workingSnapshot() ?? exportWorkingRun(state, inputs, continuity);
+}
 function attachRecording(): void {
   if (!lab) return;
   lab?.setPersonaRecording(continuitySession?.recordingKey ?? null);
@@ -244,7 +249,7 @@ function save(): void {
   const run = runExport();
   lab?.setPersonaRecording(continuitySession?.recordingKey ?? null);
   lab?.captureSave({ key: 'run', value: run });
-  void put('run', run).then((ok) => {
+  void put('run', workingRun()).then((ok) => {
     if (!ok) {
       notice = 'This browser could not save. Keep a copy from Feedback.';
       noticeUntil = Number.POSITIVE_INFINITY;
@@ -322,7 +327,7 @@ function title(): void {
   continuitySession?.invalidate();
   destroyStage();
   closeSheet(false);
-  if (state) saved = verifyImport(JSON.stringify(runExport()));
+  if (state) saved = verifyImport(JSON.stringify(workingRun()));
   playing = false;
   shown = '';
   setScreen('title');
@@ -631,7 +636,8 @@ function checkpoint(fork = false, record = false): Promise<void> {
             sourceInputCount,
             reserveReport: reservedReport,
             retainSource: async () =>
-              sourceIsCurrent() && (await put('run', exportRun(pinned, sourceHistory, continuity))),
+              sourceIsCurrent() &&
+              !!(await retainSourceArchive(exportRun(pinned, sourceHistory, continuity))),
           });
           if (!sourceIsCurrent()) return;
           const idx = continuity.heads.findIndex((p) => p.castId === cast.castId);
@@ -1409,6 +1415,10 @@ function menu(): void {
     'menu',
   );
   if (lab) d.querySelector('.recording-footer')?.append(telemetryToggle(lab));
+  if (state)
+    d.querySelector('.file-actions')?.append(
+      button('Download complete source archive', () => downloadJson('goodhands-source.json', runExport())),
+    );
   if (fileSession) {
     d.querySelector('[data-new-game]')?.remove();
     d.querySelector('.file-actions')?.append(button('Download original file', downloadOriginal));
@@ -1929,7 +1939,10 @@ function handleClick(event: Event): void {
       render(true);
       break;
     case 'download':
-      if (state) downloadJson('goodhands-run.json', runExport());
+      if (state) downloadJson('goodhands-run.json', workingRun());
+      break;
+    case 'download-source':
+      if (state) downloadJson('goodhands-source.json', runExport());
       break;
     case 'send-run':
       feedback();
@@ -2215,7 +2228,7 @@ document.addEventListener('visibilitychange', () => {
     const run = runExport();
     lab?.setPersonaRecording(continuitySession?.recordingKey ?? null);
     lab?.captureSave({ key: 'run', value: run });
-    if (!fileMode) putNow('run', run);
+    if (!fileMode) putNow('run', workingRun());
     lab?.flush();
   }
 });
@@ -2229,7 +2242,7 @@ window.addEventListener('pagehide', () => {
     const run = runExport();
     lab?.setPersonaRecording(continuitySession?.recordingKey ?? null);
     lab?.captureSave({ key: 'run', value: run });
-    if (!fileMode) putNow('run', run);
+    if (!fileMode) putNow('run', workingRun());
   }
 });
 window.addEventListener('pageshow', () => {
@@ -2343,7 +2356,7 @@ function fileTitle(): void {
       ),
       button('Download original file', downloadOriginal),
       button('Download current run', () => {
-        const run = fileSession?.snapshot();
+        const run = fileSession?.workingSnapshot();
         if (run) downloadJson('goodhands-run.json', run);
       }),
     );

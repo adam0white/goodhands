@@ -1,8 +1,40 @@
+## Current HF4 source status — 2026-10-28
+
+Current source adopts published HF4.7.0/client0.5.3/kit0.5.21. It is not deployed; HANDOFF.md retains the verified live HF3 receipt. The earlier HF4.5.1/G4 audit below is historical. The source uses HF's public condition readings, self reports, decisions, inputs, inspection and restore. No game feature flag selects a different actor engine.
+
+Agreed job start/end and role demands produce actual work receipts and psychological/skill consequences. Care waits for a busy activity's natural end and admits new inputs after a closed timestamp. The10:00 household report uses today's actual admitted work, or an unreported completed late shift from the previous workday. It records the actual workday exactly once and invents no prior history.
+
+Current SDK portable claims preserve complete source provenance and use the public ownership operation. One fork-aware host metadata check validates owned heads back to their accepted initial claim, including ordinary branch identity and explicit forks. Checksum-valid changes to source evidence, parent, branch or ownership refuse. Historical HF3 passport controls and raw hashes use the explicit legacy runtime and SDK.
+
+The actual public-input month reached ended/review clock40020; its complete JSON is71920350bytes and compact working wire258101bytes. The sole corrected cold Resume/source-custody browser phase passed:4483s cold reconstruction,4502s total. The original complete source matches every JSON value and byte; actual Resume, both viewports, compact working JSON and complete immutable source readback pass. Compact default download has identical JSON values with different property order/hash. Full normal-lane success, exactly one hosted manual review and technical delivery remain pending. This evidence establishes no real shared-shelf journey or Adam's play acceptance; readiness remains2026-11-03.
+
+## Current replayable working saves — 2026-10-28
+
+Ordinary browser saves, pagehide saves, default run downloads and file-session working copies use the existing compact run format: complete game inputs, pinned chapter, continuity, clock, seed and full-state fingerprint. One helper constructs this wire, and the existing importer reconstructs the state through replay. The file-session reader preserves the original bytes and unknown top-level fields. It still distinguishes a compact supplied history from a supplied full state.
+
+The existing file limits bound serialized input and working files. They do not certify a bound on reconstructed simulation memory. No product byte limit was raised. Complete playtest/feedback exports and the explicit complete-source download retain the full HF archive and every accepted input. Before shelf publication, the complete source is committed under an immutable content-addressed IndexedDB key and read back exactly. A coalesced ordinary save is not a source-custody receipt. The compact resumable `run` key remains separate.
+
+This choice follows actual day-five measurements: the complete source was16,205,582 bytes, while the existing compact wire was43,031 bytes. Runtime and completed-month replay remain measured separately; compact storage does not make replay free.
+
+## Current HF4 host receipts — 2026-10-28
+
+The current host schema is `goodhands-hf4/2`. The current source keeps its complete booking and completion index. One host receipt reducer updates that index in live play and reconstructs it during cold restore from complete public HF offers, requests and action resolutions. Restore rejects an inconsistent saved index. It does not interpret clipped event journals as complete history.
+
+The duplicate `world.hostState` payload now contains only the host schema and revision. Game actions do not read that duplicate cache. Every accepted input and actual completed, failed or interrupted outcome remains in HF history. A measured negotiated-placement checkpoint before this change was 28,475,328 bytes; repeated copies of the host ledger used 21,883,757 bytes. The earlier artifact remains in scratch as evidence. Published source pins and the actual forward-calendar month control are recorded in HANDOFF.md. The cold Resume/custody phase passed. The current claimed-person browser cases passed after host recovery; full-suite CI remains required.
+
+## Current HF4 numerical resolution — 2026-10-28
+
+The current chapter uses HF's public daily fidelity, anchored at the start of the declared November calendar, for every Run step. Good Hands keeps every actor, timestamped input, accepted action, actual host receipt and replay input. HF retains its ordinary owners and physical and semantic boundaries. This is an HF numerical-resolution choice. The game does not implement a second body or need model. Frozen simulation editions keep their original rules and hashes.
+
+The measured fine path was too slow for this month with 84 actors: the actual placement reached the next day's 10:00 checkpoint in roughly 210 seconds, and a separate overnight account remained inside one public Run step after several minutes. These are local candidate measurements, not deployed results. Fine and daily paths need not produce identical floating-point states; each exported current path must replay exactly. The published source uses this daily route. The actual forward-calendar and single cold Resume/custody controls completed. Final normal-lane verification and delivery remain blocked by the host session. These timings make no responsiveness or fine-path parity claim.
+
 # Good Hands: design
 
 **What done means.** For this first increment: a public, playable build at https://goodhands.adamwhite.work with a playtest export that replays, HF-character playtester runs and source-unread LLM playtester runs recorded verbatim in `docs/playtests/`, polish rounds from them (up to four, or until a fresh persona says they would return tomorrow), and an entry on https://human.adamwhite.work/games/ and the lab dashboard. Adam (owner) accepts it by playing it. Later work goes in the Deferred list below, each item with a date.
 
 ## HF 4 port blocked by G4 — 2026-10-28
+
+Historical4.5.1 audit, superseded by the HF4.7 source status above. Its dependency and version statements describe that earlier audit.
 
 What remains: HF must expose reserve-filtered outward condition signs and spoken condition reports through its public run API. Then port the actor bridge, update the lab client, and prove the complete current playtest export on the new exact pin. This is the existing **G4 — Knowledge-bounded readings and forecast output** row, specifically the Good Hands condition-reading need in [hf4-game-needs.md](https://github.com/adam0white/human-framework/blob/v4.5.1/docs/hf4-game-needs.md#good-hands). Review this dependency on **2026-11-17**. Retain the released HF3.0.0 game while blocked; this audit does not deliver an HF4 game or change its save contract.
 

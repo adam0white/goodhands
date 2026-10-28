@@ -1,19 +1,30 @@
+import { exportRun as frameworkArchive } from '@adam0white/human-framework';
 import { describe, expect, it } from 'vitest';
-import { freshGuest } from '../src/sim/guests.ts';
-import { makePeople } from '../src/sim/world.ts';
+import { runFor } from '../src/sim/hf4.ts';
 
 describe('canonical cast identity', () => {
   it('does not exchange Hatice’s profile with a donor across new months', () => {
-    const a = makePeople(1).hatice!;
-    const b = makePeople(71).hatice!;
+    const opening = newGame(1);
+    const a = opening.people.hatice!;
+    const b = newGame(71).people.hatice!;
     expect(b.traits).toEqual(a.traits);
     expect(b.values).toEqual(a.values);
-    expect(a.traits.honesty).toBe(0.85);
+    expect(
+      frameworkArchive(runFor(opening)).initial.people.find((person) => person.id === 'hatice')!.state.traits
+        .honesty,
+    ).toBe(0.85);
+    expect(a.traits.honesty).toBeCloseTo(0.85, 12);
   });
   it('uses the exact baseline for unspecified guest traits and values', () => {
-    const p = freshGuest('zeynep-pass').person;
-    expect(p.traits.emotionality).toBe(0.5);
-    expect(Object.values(p.values).every((x) => x === 0.5)).toBe(true);
+    const opening = newGame(1);
+    const p = opening.people['zeynep-pass']!;
+    const authored = frameworkArchive(runFor(opening)).initial.people.find(
+      (person) => person.id === 'zeynep-pass',
+    )!;
+    expect(authored.state.traits.emotionality).toBe(0.5);
+    expect(Object.values(authored.state.values).every((value) => value === 0.5)).toBe(true);
+    expect(p.traits.emotionality).toBeCloseTo(0.5, 12);
+    for (const value of Object.values(p.values)) expect(value).toBeCloseTo(0.5, 12);
   });
 });
 

@@ -1,8 +1,9 @@
 import { readFileSync } from 'node:fs';
-import type { CalendarPersonaSnapshot, PersonaProjectionSnapshot } from '@adam0white/human-framework';
-import { projectPersona, snapshot } from '@adam0white/human-framework';
+import type { CalendarPersonaSnapshot, PersonaProjectionSnapshot } from '@adam0white/human-framework-legacy3';
+import { projectPersona, snapshot } from '@adam0white/human-framework-legacy3';
 import { canonicalPersona, createPersona } from '@adam0white/lab-client';
 import { describe, expect, it } from 'vitest';
+import * as v4 from '../src/sim/v4/index.ts';
 import {
   advance,
   apply,
@@ -13,20 +14,19 @@ import {
   prepareGuest,
   replay,
   view,
-} from '../src/sim/index.ts';
-import * as v4 from '../src/sim/v4/index.ts';
+} from '../src/sim/v6/index.ts';
 
 const base = (p: PersonaProjectionSnapshot | CalendarPersonaSnapshot) =>
   p.format === 'hf-persona-calendar/1' ? p.person : p;
 
-import { type ContinuityBook, continuityRow } from '../src/ui/continuity.ts';
+import { type ContinuityBook, continuityRow } from '../src/sim/v6/continuity.ts';
 import {
   compactRun,
   exportRun,
   guestCheckpointTransfer,
   validateContinuity,
   verifyImport,
-} from '../src/ui/export.ts';
+} from '../src/sim/v6/export.ts';
 
 function runTo(s: ReturnType<typeof newGame>, at: number) {
   while (s.now < at) advance(s, Math.min(60, at - s.now));
@@ -50,7 +50,7 @@ function trial(seed: number, level: number, arm: 'fresh' | 'biography' | 'contin
   apply(s, { type: 'guest-action', guest: 'zeynep-pass', action: 'offer-trial' });
   return { s, a, result: view(s).guests!.find((g) => g.id === 'zeynep-pass')!.trial! };
 }
-describe('one cast guest edition', () => {
+describe('historical HF3 one cast guest edition', () => {
   it('keeps the historical Pass fixture inspectable but refuses it as the expanded cast edition', async () => {
     const transfer = JSON.parse(
       readFileSync(new URL('./fixtures/pass-departure.json', import.meta.url), 'utf8'),

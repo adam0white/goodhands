@@ -5,7 +5,30 @@ import { pausedRun } from './paused-run.ts';
 
 it('keeps the occupied native month when pagehide cancels a confirmed import during final validation', async () => {
   const run = await pausedRun(true);
-  const server = await createServer({ server: { host: '127.0.0.1', port: 0, hmr: false, watch: null } });
+  // Pause the real final validation boundary after confirmation. The ordinary fixture
+  // has no portable-person digest, so a crypto hook would never reach this boundary.
+  const server = await createServer({
+    server: { host: '127.0.0.1', port: 0, hmr: false, watch: null },
+    plugins: [
+      {
+        name: 'test-final-import-validation',
+        enforce: 'pre',
+        transform(code, id) {
+          if (!id.split('?')[0]!.endsWith('/src/ui/app.ts')) return;
+          return code.replace(
+            '  await validateContinuity(book, next, history);',
+            `
+  await validateContinuity(book, next, history);
+  if (globalThis.__holdConfirmedImport) {
+    globalThis.__holdConfirmedImport = false;
+    globalThis.importHeld = true;
+    await new Promise(resolve => { globalThis.releaseImport = resolve; });
+  }`,
+          );
+        },
+      },
+    ],
+  });
   await server.listen();
   const ownedBrowser = await chromium.launchServer({ channel: process.env.HF_BROWSER_CHANNEL });
   try {
@@ -23,18 +46,9 @@ it('keeps the occupied native month when pagehide cancels a confirmed import dur
     await expect.poll(nativeRun).toBeTruthy();
     const original = await nativeRun();
     await page.evaluate(() => {
-      const fixture = window as typeof window & { importHeld?: boolean; releaseImport?: () => void };
+      const fixture = window as typeof window & { __holdConfirmedImport?: boolean };
       window.confirm = () => {
-        const digest = crypto.subtle.digest.bind(crypto.subtle);
-        crypto.subtle.digest = async (...args: Parameters<SubtleCrypto['digest']>) => {
-          if (!fixture.importHeld) {
-            fixture.importHeld = true;
-            await new Promise<void>((resolve) => {
-              fixture.releaseImport = resolve;
-            });
-          }
-          return digest(...args);
-        };
+        fixture.__holdConfirmedImport = true;
         return true;
       };
     });

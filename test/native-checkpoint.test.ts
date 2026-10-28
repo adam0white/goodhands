@@ -7,9 +7,44 @@ import {
 import { expect, test } from 'vitest';
 import { CAST } from '../src/sim/cast.ts';
 import { agencyTransfer, prepareAgencyChapter } from '../src/sim/cast-chapter.ts';
+import { ENGINE_VERSION } from '../src/sim/hf4.ts';
 import { advance, apply, newGame } from '../src/sim/index.ts';
 import { publishNativeCheckpoint } from '../src/ui/checkpoint.ts';
 import { continuityRow, emptyContinuity } from '../src/ui/continuity.ts';
+
+test('refuses publication when the complete current source archive did not commit', async () => {
+  const state = newGame(7);
+  apply(state, { type: 'pause-cast' });
+  const envelope = await createPersona({
+    format: 'hf-persona/1',
+    castId: CAST.nermin.castId,
+    castRevision: CAST.nermin.revision,
+    branchId: 'archive-refusal',
+    parentRevision: null,
+    source: { game: 'goodhands', build: 'test', engine: ENGINE_VERSION, rules: 'goodhands-6' },
+    transfer: {
+      ...(await agencyTransfer(state, 'nermin')),
+      life: initialPersonaLife(CAST.nermin.castId, 'archive-refusal', 0),
+    },
+    limitations: [],
+  });
+  const requests: PersonaRequest[] = [];
+  const shelf = {
+    enabled: true,
+    ready: Promise.resolve(true),
+    setEnabled() {},
+    async request<T>(request: PersonaRequest): Promise<T> {
+      requests.push(request);
+      return request.envelope as T;
+    },
+  };
+  await expect(
+    publishNativeCheckpoint(shelf, emptyContinuity(), envelope, undefined, false, () => true, state, {
+      retainSource: async () => false,
+    }),
+  ).rejects.toThrow(/complete source run could not be saved/);
+  expect(requests).toEqual([]);
+});
 
 test('first native checkpoint publishes with recording OFF, no parent and no recording query', async () => {
   const state = newGame(7);
@@ -20,7 +55,7 @@ test('first native checkpoint publishes with recording OFF, no parent and no rec
     castRevision: CAST.hulya.revision,
     branchId: 'native-hulya',
     parentRevision: null,
-    source: { game: 'goodhands', build: 'test', engine: '2.23.0', rules: 'goodhands-6' },
+    source: { game: 'goodhands', build: 'test', engine: ENGINE_VERSION, rules: 'goodhands-6' },
     transfer: {
       ...(await agencyTransfer(state, 'hulya')),
       life: initialPersonaLife(CAST.hulya.castId, 'native-hulya', 0),
@@ -69,19 +104,19 @@ test('first native checkpoint publishes with recording OFF, no parent and no rec
   ).rejects.toThrow(/explicit new branch/);
 });
 
-test('native ownership replay pins the agency boundary while retaining an idle person clock', async () => {
+test('native ownership replay pins the agency boundary and refuses a different source minute', async () => {
   const chapter = await prepareAgencyChapter([], 7);
   const state = newGame(7, 6, chapter.guests, chapter);
   advance(state, 15);
   apply(state, { type: 'pause-cast' });
-  expect(state.people.hulya!.now).toBeLessThan(state.now);
+  expect(state.now).toBe(525);
   const envelope = await createPersona({
     format: 'hf-persona/1',
     castId: CAST.hulya.castId,
     castRevision: CAST.hulya.revision,
     branchId: 'idle-native',
     parentRevision: null,
-    source: { game: 'goodhands', build: 'test', engine: '2.23.0', rules: 'goodhands-6' },
+    source: { game: 'goodhands', build: 'test', engine: ENGINE_VERSION, rules: 'goodhands-6' },
     transfer: {
       ...(await agencyTransfer(state, 'hulya')),
       life: initialPersonaLife(CAST.hulya.castId, 'idle-native', 0),
@@ -101,7 +136,7 @@ test('native ownership replay pins the agency boundary while retaining an idle p
   await validateContinuity(book, state, state.inputs);
   apply(state, { type: 'resume-cast' });
   await validateContinuity(book, state, state.inputs);
-  book.rows[0]!.sourceMinute = state.people.hulya!.now;
+  book.rows[0]!.sourceMinute = state.now - 1;
   await expect(validateContinuity(book, state, state.inputs)).rejects.toThrow(/prefix|boundary/);
 });
 
@@ -115,7 +150,7 @@ test('publication refuses a mismatched complete source before touching the publi
     castRevision: CAST.aylin.revision,
     branchId: 'source-aylin',
     parentRevision: null,
-    source: { game: 'goodhands', build: 'test', engine: '2.23.0', rules: 'goodhands-6' },
+    source: { game: 'goodhands', build: 'test', engine: ENGINE_VERSION, rules: 'goodhands-6' },
     transfer: { ...transfer, life: initialPersonaLife(CAST.aylin.castId, 'source-aylin', 0) },
     limitations: [],
   });
@@ -150,7 +185,8 @@ test('publication refuses a mismatched complete source before touching the publi
   );
   await refused(state, await createPersona({ ...body, terminal: { kind: 'dead', at: state.now } }));
   const changed = structuredClone(state);
-  changed.people.aylin!.rng.a++;
+  // Current actor projections are read-only views. Forge the public archive binding instead.
+  (changed.hf4 as { archive: { hashes: { full: string } } }).archive.hashes.full = '0'.repeat(64);
   await refused(changed);
   book.heads = [envelope];
   await refused(state, envelope, true);
@@ -178,7 +214,7 @@ test('a complete paused Aylin source publishes without mutation and full/compact
     castRevision: CAST.aylin.revision,
     branchId: 'complete-aylin',
     parentRevision: null,
-    source: { game: 'goodhands', build: 'test', engine: '2.23.0', rules: 'goodhands-6' },
+    source: { game: 'goodhands', build: 'test', engine: ENGINE_VERSION, rules: 'goodhands-6' },
     transfer: {
       ...(await agencyTransfer(state, 'aylin')),
       life: initialPersonaLife(CAST.aylin.castId, 'complete-aylin', 0),
@@ -239,18 +275,22 @@ test('a complete paused Aylin source publishes without mutation and full/compact
   await expect(validateContinuity(bad.continuity, bad.state, bad.inputs)).rejects.toThrow(/recorded source/);
 });
 
-test('actual App offers source checkpoints at its menu and synthetic natural end', async () => {
-  const { execFileSync } = await import('node:child_process');
-  const output = execFileSync(
+test('actual App offers source checkpoints at its menu and bounded world-only end', async () => {
+  const { spawnSync } = await import('node:child_process');
+  const result = spawnSync(
     process.execPath,
     ['scripts/verify-source-offer.ts', String(49000 + (process.pid % 500))],
     {
       cwd: new URL('..', import.meta.url),
       encoding: 'utf8',
       timeout: 120000,
+      killSignal: 'SIGKILL',
     },
   );
-  expect(output).toContain('full/compact replay: PASS');
+  const diagnostics = `${result.stdout ?? ''}\n${result.stderr ?? ''}`;
+  expect(result.error, diagnostics).toBeUndefined();
+  expect(result.status, diagnostics).toBe(0);
+  expect(result.stdout).toContain('full/compact replay: PASS');
 }, 125000);
 
 test('staged native receipt refuses aggregate capacity before put and keeps the complete original export', async () => {
@@ -280,7 +320,7 @@ test('staged native receipt refuses aggregate capacity before put and keeps the 
     castRevision: CAST.aylin.revision,
     branchId: 'capacity-aylin',
     parentRevision: null,
-    source: { game: 'goodhands', build: 'test', engine: '2.23.0', rules: 'goodhands-6' },
+    source: { game: 'goodhands', build: 'test', engine: ENGINE_VERSION, rules: 'goodhands-6' },
     transfer: {
       ...(await agencyTransfer(state, 'aylin')),
       life: initialPersonaLife(CAST.aylin.castId, 'capacity-aylin', 0),

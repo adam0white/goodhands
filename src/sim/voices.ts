@@ -1,5 +1,5 @@
-import { outwardSigns, type Person, selfReport } from '@adam0white/human-framework';
 import { authoredTraitAnswer } from './dialogue.ts';
+import { outwardSigns, type Person, selfReport } from './hf4.ts';
 import { QUALITIES, type Quality, type Role } from './types.ts';
 import { quality, ROLE_SKILL } from './world.ts';
 
@@ -286,8 +286,14 @@ function deliver(text: string, band: Band, index: number): string {
   return band === 'quiet' ? text : `${openings[band][index]}${text}`;
 }
 
-function notice(person: Person, variant: number): string {
-  const signs = outwardSigns(person);
+type InterviewCondition = {
+  fatigue: number;
+  fear: number;
+  pain: number;
+  mood?: number;
+};
+
+function notice(person: Pick<Person, 'name'>, signs: InterviewCondition, variant: number): string {
   let pool: Six;
   if (signs.fatigue > 0.3) {
     pool = [
@@ -357,16 +363,42 @@ export function answer(
   variant: number,
 ): { text: string; quality: Quality; claim: number; notice: string } {
   const q = QUALITIES.find((item) => `q-${item}` === questionId) ?? 'reliable';
+  return answerFromReadings(
+    person,
+    { outwardSigns: outwardSigns(person), selfReport: selfReport(person) },
+    {
+      quality: quality(person, q),
+      skill: person.skills[ROLE_SKILL[role]]?.level ?? 0,
+      honesty: person.traits.honesty,
+    },
+    presentation,
+    role,
+    questionId,
+    variant,
+  );
+}
+
+/** The HF4 bridge supplies explicit condition projections. Host dialogue owns the claims. */
+export function answerFromReadings(
+  person: { id: string; name: string },
+  condition: { outwardSigns: InterviewCondition; selfReport: InterviewCondition },
+  character: { quality: number; skill: number; honesty: number },
+  presentation: string,
+  role: Role,
+  questionId: string,
+  variant: number,
+): { text: string; quality: Quality; claim: number; notice: string } {
+  const q = QUALITIES.find((item) => `q-${item}` === questionId) ?? 'reliable';
   const band = bandOf(presentation);
   const index = ((Math.trunc(variant) % 6) + 6) % 6;
-  const report = selfReport(person);
+  const report = condition.selfReport;
   // HF selfReport covers condition, not character. Character claims are host-authored
   // from HF traits/skills via quality(), with concealment and modesty applied here.
   const strain = report.fatigue * 0.08 + report.pain * 0.04 + report.fear * 0.06;
-  const skill = person.skills[ROLE_SKILL[role]]?.level ?? 0;
+  const skill = character.skill;
   const skillWeight = q === 'patient' || q === 'hardworking' ? 0.12 : 0;
-  const truth = quality(person, q) * (1 - skillWeight) + skill * skillWeight;
-  const honesty = person.traits.honesty;
+  const truth = character.quality * (1 - skillWeight) + skill * skillWeight;
+  const honesty = character.honesty;
   const ideal = 0.9;
   const concealment = Math.max(0, (0.65 - honesty) / 0.65);
   let claim = (honesty < 0.35 ? ideal : truth + (ideal - truth) * concealment) - strain;
@@ -384,6 +416,6 @@ export function answer(
     text,
     quality: q,
     claim,
-    notice: notice(person, index),
+    notice: notice(person, condition.outwardSigns, index),
   };
 }

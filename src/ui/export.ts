@@ -1,13 +1,15 @@
-import type { CalendarPersonaSnapshot, PersonaProjectionSnapshot } from '@adam0white/human-framework';
+import type { CalendarPersonaSnapshot, PersonaProjectionSnapshot } from '@adam0white/human-framework-legacy3';
 import {
   boundedPersonaJson,
   canonicalPersona,
+  claimPortablePerson,
   type PersonaEnvelope,
   validatePersona,
 } from '@adam0white/lab-client';
 import { CAST, CAST_EDITION } from '../sim/cast.ts';
 import { type AgencyChapter, validateAgencyChapter } from '../sim/cast-chapter.ts';
 import { exportGuest, type GuestId, prepareGuest } from '../sim/guests.ts';
+import { ENGINE_VERSION, saveFramework } from '../sim/hf4.ts';
 import { fingerprint, replay, view } from '../sim/index.ts';
 import { type Input, type LoggedInput, QUALITIES, type State } from '../sim/types.ts';
 import { type ContinuityBook, castIds, emptyContinuity, type OneCastRow } from './continuity.ts';
@@ -83,11 +85,23 @@ export async function guestCheckpointTransfer(state: State, id: GuestId, origin:
 }
 
 export function exportRun(state: State, inputs: LoggedInput[], continuity?: ContinuityBook): RunExport {
+  return { ...exportWorkingRun(state, inputs, continuity), state: structuredClone(state) };
+}
+/** Replayable working wire. Full source archives remain available through exportRun. */
+export function exportWorkingRun(
+  state: State,
+  inputs: LoggedInput[],
+  continuity?: ContinuityBook,
+  source: Record<string, unknown> = {},
+): CompactRunExport & Record<string, unknown> {
+  if (state.version === 6) saveFramework(state);
   const visible = view(state);
+  const { state: _suppliedState, ...retained } = source;
   return {
+    ...structuredClone(retained),
     game: 'goodhands',
     version: 1,
-    ...(state.version === 6 ? { framework: '3.0.0' } : {}),
+    ...(state.version === 6 ? { framework: ENGINE_VERSION } : {}),
     ...(state.castChapter ? { chapter: structuredClone(state.castChapter as AgencyChapter) } : {}),
     ...(state.version === 6 ? { castEdition: CAST_EDITION } : {}),
     ...(state.version === 6 ? { oneCast: structuredClone(continuity?.rows ?? []) } : {}),
@@ -102,7 +116,6 @@ export function exportRun(state: State, inputs: LoggedInput[], continuity?: Cont
     seed: visible.seed,
     minute: visible.now,
     inputs: structuredClone(inputs),
-    state: structuredClone(state),
     fingerprint: fingerprint(state),
   };
 }
@@ -276,13 +289,13 @@ export function verifyImport(text: string): {
   if (simulation === 6 && data.castEdition !== CAST_EDITION)
     throw new Error('This version cannot load that cast. Start a new game.');
   const continuity = readContinuity(data.continuity, data.oneCast);
-  if (simulation === 6 && data.framework !== '3.0.0')
+  if (simulation === 6 && data.framework !== ENGINE_VERSION)
     throw new Error('This file uses an older version of the Human Framework. Start a new game.');
   if (data.chapter !== undefined) {
     boundedPersonaJson(data.chapter);
     if (
       !record(data.chapter) ||
-      data.chapter.version !== 'goodhands-chapter/1' ||
+      data.chapter.version !== 'goodhands-chapter/2' ||
       !Array.isArray(data.chapter.inputs) ||
       data.chapter.inputs.length > 7 ||
       data.chapter.seed !== data.seed ||
@@ -428,6 +441,40 @@ function readContinuity(value: unknown, rows: unknown): ContinuityBook {
   }
   return structuredClone(book);
 }
+function requireClaimLineage(
+  book: ContinuityBook,
+  head: PersonaEnvelope,
+  claim: Pick<PersonaEnvelope, 'revision' | 'branchId'>,
+): void {
+  let cursor: string | null = head.revision;
+  let branch = head.branchId;
+  const visited = new Set<string>();
+  while (cursor !== claim.revision) {
+    if (!cursor || visited.has(cursor)) throw new Error('Pinned head has no claim lineage.');
+    visited.add(cursor);
+    const ancestor = book.rows.find((r) => r.revision === cursor && r.castId === head.castId);
+    if (!ancestor) throw new Error('Pinned head has incomplete claim lineage.');
+    if (ancestor.branchId !== branch) throw new Error('Pinned head changed branch without an explicit fork.');
+    cursor = ancestor.parentRevision;
+    if (cursor === null && ancestor.stage === 'checkpoint') {
+      const forkOf =
+        book.forks?.[ancestor.revision] ??
+        (ancestor.revision === head.revision
+          ? (head.transfer.admission as Record<string, unknown> | undefined)?.forkOf
+          : undefined);
+      if (typeof forkOf === 'string' && !visited.has(forkOf)) {
+        const origin =
+          forkOf === claim.revision
+            ? claim
+            : book.rows.find((row) => row.revision === forkOf && row.castId === head.castId);
+        if (!origin) throw new Error('Pinned fork has incomplete claim lineage.');
+        branch = origin.branchId;
+        cursor = forkOf;
+      }
+    }
+  }
+  if (branch !== claim.branchId) throw new Error('Pinned head changed branch without an explicit fork.');
+}
 /** Run only after deterministic replay validation, before restoring a pinned head or attaching uploads. */
 export async function validateContinuity(
   book: ContinuityBook,
@@ -469,25 +516,21 @@ export async function validateContinuity(
       await validatePersona(claim);
       const { revision: parentRevision, ...parentBody } = input.parent;
       const { revision: _claimRevision, ...claimBody } = claim;
-      // client0.4.11 claims inherit the parent body, replacing only these three fields.
+      // The public SDK owns portable receiver ownership. Arrival claims retain
+      // every source-provenance field and replace only parent, ownership and life.
       const expected = {
         ...parentBody,
         parentRevision,
-        source: claim.source,
-        transfer: { ...parentBody.transfer, life: input.life },
+        transfer: { ...claimPortablePerson(input.parent, 'goodhands'), life: input.life },
       };
-      if (
-        claim.source.game !== 'goodhands' ||
-        claim.source.rules !== 'goodhands-6' ||
-        !['2.17.0', '2.21.0', '2.23.0'].includes(claim.source.engine) ||
-        canonicalPersona(claimBody) !== canonicalPersona(expected)
-      )
+      if (canonicalPersona(claimBody) !== canonicalPersona(expected))
         throw new Error('Batch claim changed the pinned passport.');
     }
     for (const head of book.heads) {
       await validatePersona(head);
       const claim = claims.find((p) => p.castId === head.castId);
       if (claim?.revision === head.revision) continue;
+      if (claim) requireClaimLineage(book, head, claim);
       if (head.source.game !== 'goodhands' || head.source.rules !== 'goodhands-6')
         throw new Error('Invalid owned source receipt.');
       const row = book.rows.find(
@@ -523,7 +566,7 @@ export async function validateContinuity(
       const { agencyTransfer } = await import('../sim/cast-chapter.ts');
       const expected = await agencyTransfer(source, (await import('../sim/cast.ts')).castKey(head.castId));
       if (
-        canonicalPersona(expected.agencyPerson) !== canonicalPersona(head.transfer.agencyPerson) ||
+        canonicalPersona(expected.portable) !== canonicalPersona(head.transfer.portable) ||
         expected.checkpoint.checkpointDigest !== cp.checkpointDigest
       )
         throw new Error('Owned checkpoint differs from the pinned source replay.');
@@ -564,25 +607,7 @@ export async function validateContinuity(
     );
     if (!row || head.source.game !== 'goodhands' || head.source.rules !== 'goodhands-6')
       throw new Error('Pinned head has no accepted target checkpoint.');
-    let cursor: string | null = head.revision;
-    const visited = new Set<string>();
-    while (cursor !== arrival.claim.revision) {
-      if (!cursor || visited.has(cursor)) throw new Error('Pinned head has no claim lineage.');
-      visited.add(cursor);
-      const ancestor = book.rows.find((r) => r.revision === cursor && r.castId === head.castId);
-      if (!ancestor) throw new Error('Pinned head has incomplete claim lineage.');
-      cursor = ancestor.parentRevision;
-      if (cursor === null && ancestor.stage === 'checkpoint') {
-        const forkOf =
-          book.forks?.[ancestor.revision] ??
-          (ancestor.revision === head.revision
-            ? (head.transfer.admission as Record<string, unknown> | undefined)?.forkOf
-            : undefined);
-        if (typeof forkOf === 'string' && !visited.has(forkOf)) {
-          cursor = forkOf;
-        }
-      }
-    }
+    requireClaimLineage(book, head, arrival.claim);
     const checkpoint = head.transfer.checkpoint as Record<string, unknown> | undefined;
     if (
       !savedState ||

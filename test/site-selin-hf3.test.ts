@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
-import { snapshot } from '@adam0white/human-framework';
+import { snapshot } from '@adam0white/human-framework-legacy3';
 import {
   canonicalPersona,
   createPersona,
@@ -11,12 +11,12 @@ import {
   validatePersona,
 } from '@adam0white/lab-client';
 import { expect, test } from 'vitest';
-import { agencyTransfer, prepareAgencyChapter } from '../src/sim/cast-chapter.ts';
-import type { GuestAdmission } from '../src/sim/guests.ts';
-import { advance, apply, fingerprint, newGame, replay, view } from '../src/sim/index.ts';
-import { prepareSiteSelin } from '../src/sim/site-selin.ts';
-import { emptyContinuity } from '../src/ui/continuity.ts';
-import { compactRun, exportRun, verifyImport } from '../src/ui/export.ts';
+import { agencyTransfer, prepareAgencyChapter } from '../src/sim/v6/cast-chapter.ts';
+import { emptyContinuity } from '../src/sim/v6/continuity.ts';
+import { compactRun, exportRun, verifyImport } from '../src/sim/v6/export.ts';
+import type { GuestAdmission } from '../src/sim/v6/guests.ts';
+import { advance, apply, fingerprint, newGame, replay, view } from '../src/sim/v6/index.ts';
+import { prepareSiteSelin } from '../src/sim/v6/site-selin.ts';
 
 const present = <T>(value: T | undefined): T => {
   assert(value !== undefined);

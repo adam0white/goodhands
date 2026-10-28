@@ -3,7 +3,7 @@ import { chromium } from 'playwright-core';
 import { createServer } from 'vite';
 import { expect, it } from 'vitest';
 import { apply } from '../src/sim/index.ts';
-import { compactRun } from '../src/ui/export.ts';
+import { compactRun, verifyImport } from '../src/ui/export.ts';
 import { pausedRun } from './paused-run.ts';
 
 it('uses the full game in /file/ without native DB or Shelf, and retains ordinary native Resume', async () => {
@@ -40,6 +40,39 @@ it('uses the full game in /file/ without native DB or Shelf, and retains ordinar
     expect(
       await page.evaluate(`import('/src/ui/store.ts').then(({put}) => put('run', ${JSON.stringify(run)}))`),
     ).toBe(true);
+    const custody = await page.evaluate<{
+      key: unknown;
+      retained: unknown;
+      failure: unknown;
+      working: unknown;
+      overwritten: unknown;
+      queuedOverwrite: unknown;
+      retainedAgain: unknown;
+    }>(`(async () => {
+      const source = ${JSON.stringify(run)};
+      const storage = await import('/src/ui/store.ts');
+      const key = await storage.retainSourceArchive(source);
+      const retained = key ? await storage.get(key) : null;
+      const originalAdd = IDBObjectStore.prototype.add;
+      let failure;
+      try {
+        IDBObjectStore.prototype.add = () => { throw new Error('synthetic archive commit failure'); };
+        failure = await storage.retainSourceArchive({ ...source, custodyFailure: true });
+      } finally {
+        IDBObjectStore.prototype.add = originalAdd;
+      }
+      const overwritten = await storage.put(key, { forged: true });
+      const queuedOverwrite = storage.putNow(key, { forged: true });
+      return { key, retained: retained?.value, failure, working: (await storage.get('run'))?.value,
+        overwritten, queuedOverwrite, retainedAgain: (await storage.get(key))?.value };
+    })()`);
+    expect(custody.key).toMatch(/^source:[a-f0-9]{64}$/);
+    expect(custody.retained).toEqual(run);
+    expect(custody.failure).toBeNull();
+    expect(custody.working).toEqual(run);
+    expect(custody.overwritten).toBe(false);
+    expect(custody.queuedOverwrite).toBe(false);
+    expect(custody.retainedAgain).toEqual(run);
     await page.goto(`${base}file/`);
     await page.getByRole('button', { name: 'Choose a run file', exact: true }).waitFor();
     await page.clock.install();
@@ -73,7 +106,9 @@ it('uses the full game in /file/ without native DB or Shelf, and retains ordinar
       const stream = await artifact.createReadStream();
       const chunks: Buffer[] = [];
       for await (const chunk of stream!) chunks.push(chunk);
-      expect(JSON.parse(Buffer.concat(chunks).toString()).state).toEqual(run.state);
+      const downloaded = JSON.parse(Buffer.concat(chunks).toString());
+      expect(downloaded).not.toHaveProperty('state');
+      expect(verifyImport(JSON.stringify(downloaded)).state).toEqual(run.state);
       await page.getByRole('button', { name: 'Resume file', exact: true }).click();
       await page.getByTestId('office').waitFor();
       await page.evaluate((first) => {
@@ -96,7 +131,10 @@ it('uses the full game in /file/ without native DB or Shelf, and retains ordinar
       const continuedChunks: Buffer[] = [];
       for await (const chunk of continued!) continuedChunks.push(chunk);
       const continuedRun = JSON.parse(Buffer.concat(continuedChunks).toString());
-      expect(continuedRun.state).toEqual(apply(structuredClone(run.state), { type: 'resume-cast' }));
+      expect(continuedRun).not.toHaveProperty('state');
+      expect(verifyImport(JSON.stringify(continuedRun)).state).toEqual(
+        apply(structuredClone(run.state), { type: 'resume-cast' }),
+      );
       expect(continuedRun.inputs).toEqual([
         ...run.inputs,
         { at: run.minute, input: { type: 'resume-cast' } },
@@ -137,6 +175,10 @@ it('uses the full game in /file/ without native DB or Shelf, and retains ordinar
     expect(saved).toMatchObject({
       inputs: [...run.inputs, { at: run.minute, input: { type: 'resume-cast' } }],
     });
+    expect(saved).not.toHaveProperty('state');
+    expect(verifyImport(JSON.stringify(saved)).state).toEqual(
+      apply(structuredClone(run.state), { type: 'resume-cast' }),
+    );
     expect(errors).toEqual([]);
   } finally {
     await owned.kill();

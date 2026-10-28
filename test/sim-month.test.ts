@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest';
-import { CANDIDATES, FAMILIES, makePeople, quality } from '../src/sim/world.ts';
+import { CANDIDATES, FAMILIES, makePeople, quality } from '../src/sim/v2/world.ts';
 import { advance, apply, fingerprint, milestones, newGame, replay, view } from './previous-simulation.ts';
 
 function until(s: ReturnType<typeof newGame>, target: number) {

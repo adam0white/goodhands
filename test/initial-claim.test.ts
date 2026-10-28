@@ -1,3 +1,4 @@
+/** Historical HF3 passport and replay controls; current HF4 portable controls are in hf4-game.test.ts. */
 /** Local SDK transformation controls; no shelf service or ownership proof. */
 import { readFileSync } from 'node:fs';
 import {
@@ -5,12 +6,12 @@ import {
   createPersona,
   type PersonaEnvelope,
   preparePersonaLife,
-} from '@adam0white/lab-client';
+} from '@adam0white/lab-client-legacy3';
 import { expect, test } from 'vitest';
-import { prepareAgencyChapter } from '../src/sim/cast-chapter.ts';
-import { newGame } from '../src/sim/index.ts';
-import { emptyContinuity } from '../src/ui/continuity.ts';
-import { compactRun, exportRun, validateContinuity, verifyImport } from '../src/ui/export.ts';
+import { prepareAgencyChapter } from '../src/sim/v6/cast-chapter.ts';
+import { emptyContinuity } from '../src/sim/v6/continuity.ts';
+import { compactRun, exportRun, validateContinuity, verifyImport } from '../src/sim/v6/export.ts';
+import { newGame } from '../src/sim/v6/index.ts';
 
 test('full and compact imports require initial claims to preserve every inherited parent field', async () => {
   const parent: PersonaEnvelope = JSON.parse(

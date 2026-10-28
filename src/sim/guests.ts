@@ -1,23 +1,13 @@
-import type { CalendarPersonaSnapshot } from '@adam0white/human-framework';
+import type { CalendarPersonaSnapshot } from '@adam0white/human-framework-legacy3';
 import {
   type Affordance,
   admitPersona,
-  advanceAgenda,
-  begin,
-  createPerson,
-  decide,
-  finish,
   type Person,
   type PersonaProjectionSnapshot,
-  perceive,
   projectPersona,
-  promise,
-  readPerson,
   snapshot,
-  successChance,
-  tick,
   validatePersonaProjection,
-} from '@adam0white/human-framework';
+} from '@adam0white/human-framework-legacy3';
 import { canonicalPersona, validatePersona } from '@adam0white/lab-client';
 import { castProfile } from './cast.ts';
 import {
@@ -27,6 +17,19 @@ import {
   returnCalendarGuest,
   startCalendarRoutine,
 } from './guest-calendar.ts';
+import {
+  advanceAgenda,
+  begin,
+  completedAction,
+  createPerson,
+  decide,
+  finish,
+  perceive,
+  promise,
+  readPerson,
+  successChance,
+  tick,
+} from './hf4.ts';
 import type { Input, LogEntry, State } from './types.ts';
 
 export type GuestId = 'zeynep-pass' | 'selin-voice';
@@ -375,10 +378,19 @@ function attendAnswer(p: Person, text: string): string | undefined {
   ]);
   return p.memory.episodes.findLast((e) => !before.has(e.id))?.id;
 }
+function finishTrial(s: GuestState, g: Guest, p: Person) {
+  g.status = 'complete';
+  g.text = `The daytime cold-supper preparation is finished. ${g.trial?.succeeded ? 'The cold dishes were ready as agreed.' : 'The cold dishes needed correction.'} Nermin has ended her duty for this trial. Zeynep still keeps her agreed daily time at home with her family.`;
+  const account = `Nermin: The household reports that the cold dishes ${g.trial?.succeeded ? 'were ready as agreed' : 'needed correction'}. Your short trial is finished; you have no further agency duty.`;
+  g.encounterEpisode = attendAnswer(p, account) ?? g.encounterEpisode;
+  record(s, account);
+}
 export function stepGuests(state: State) {
   const s = state as GuestState;
   for (const g of s.guests ?? []) {
     const p = s.people[g.id]!;
+    // Any actor can advance the shared Run through this guest's completion.
+    if (g.status === 'working' && completedAction(p, 'cold-food-trial')) finishTrial(s, g, p);
     if (s.now < p.now) continue;
     if (g.calendar) g.calendarDay = maintainCalendarGuest(p, g.calendar.calendarHost, g.calendarDay);
     if (p.activity && s.now >= p.activity.endsAt) {
@@ -409,15 +421,7 @@ export function stepGuests(state: State) {
           : a.label,
       });
       advanceAgenda(p, p.now);
-      if (trial) {
-        g.status = 'complete';
-        g.encounterEpisode = p.memory.episodes.at(-1)?.id;
-        g.text = `The daytime cold-supper preparation is finished. ${g.trial?.succeeded ? 'The cold dishes were ready as agreed.' : 'The cold dishes needed correction.'} Nermin has ended her duty for this trial. Zeynep still keeps her agreed daily time at home with her family.`;
-        const account = `Nermin: The household reports that the cold dishes ${g.trial?.succeeded ? 'were ready as agreed' : 'needed correction'}. Your short trial is finished; you have no further agency duty.`;
-        // A bounded account of this host-resolved trial, heard by the cook herself.
-        g.encounterEpisode = attendAnswer(p, account) ?? g.encounterEpisode;
-        record(s, account);
-      }
+      if (trial) finishTrial(s, g, p);
     }
     tick(p, s.now);
     advanceAgenda(p, s.now);

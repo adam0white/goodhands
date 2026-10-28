@@ -1,8 +1,9 @@
 /** Voluntary, scoped discoveries. No biography import grants player knowledge.
  * These encounters author bounded choices, not therapeutic success or clinical work.
  */
-import { perceive } from '@adam0white/human-framework';
+
 import { CAST, type CastKey } from './cast.ts';
+import { perceive } from './hf4.ts';
 import type { State } from './types.ts';
 
 export interface CastContact {

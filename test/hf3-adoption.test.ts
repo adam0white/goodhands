@@ -1,11 +1,11 @@
 import { readFileSync } from 'node:fs';
-import { ENGINE_VERSION } from '@adam0white/human-framework';
+import { ENGINE_VERSION } from '@adam0white/human-framework-legacy3';
 import { createPersona, preparePersonaLife } from '@adam0white/lab-client';
 import { expect, test } from 'vitest';
-import { prepareAgencyChapter } from '../src/sim/cast-chapter.ts';
-import { advance, fingerprint, newGame } from '../src/sim/index.ts';
-import { emptyContinuity } from '../src/ui/continuity.ts';
-import { compactRun, exportRun, verifyImport } from '../src/ui/export.ts';
+import { prepareAgencyChapter } from '../src/sim/v6/cast-chapter.ts';
+import { emptyContinuity } from '../src/sim/v6/continuity.ts';
+import { compactRun, exportRun, verifyImport } from '../src/sim/v6/export.ts';
+import { advance, fingerprint, newGame } from '../src/sim/v6/index.ts';
 
 const fixture = () =>
   JSON.parse(readFileSync(new URL('./fixtures/murmur-hf3-aylin.json', import.meta.url), 'utf8'));
@@ -46,9 +46,9 @@ test('Murmur admission refuses other rules, roles, engines, maps and checkpoint 
 });
 
 test('browser claims and native checkpoints identify the actual current engine', async () => {
-  const { ContinuitySession } = await import('../src/ui/continuity.ts');
-  const { agencyTransfer } = await import('../src/sim/cast-chapter.ts');
-  const { apply } = await import('../src/sim/index.ts');
+  const { ContinuitySession } = await import('../src/sim/v6/continuity.ts');
+  const { agencyTransfer } = await import('../src/sim/v6/cast-chapter.ts');
+  const { apply } = await import('../src/sim/v6/index.ts');
   const state = newGame(7);
   apply(state, { type: 'pause-cast' });
   const session = new ContinuitySession(

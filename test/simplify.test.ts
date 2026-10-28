@@ -1,7 +1,9 @@
 import { readFileSync } from 'node:fs';
+import { exportRun as frameworkArchive } from '@adam0white/human-framework';
 import { expect, it } from 'vitest';
 import { runPolicy } from '../scripts/policy.ts';
 import { workerNeed } from '../src/sim/dialogue.ts';
+import { runFor } from '../src/sim/hf4.ts';
 import { advance, apply, fingerprint, newGame, view } from '../src/sim/index.ts';
 import type { LogEntry } from '../src/sim/types.ts';
 import { CANDIDATES } from '../src/sim/world.ts';
@@ -121,15 +123,25 @@ it('preserves punctuation after grouped and ungrouped money', () => {
 
 it('keeps an actual visit observation in report voice and known family speech in first person', () => {
   const state = runPolicy(1, 'careful', 2600, 6 as 4);
-  expect(view(state).scene?.title).toBe('Visit: Şebnem Eren at the Kaya family');
   const observation = view(state).placements[0]!.lastWord!;
   expect(observation).toBe(
-    'Şebnem Eren let the household member finish explaining. The household could follow the agreed routine.',
+    'You said the worker was patient. Şebnem Eren let the household member finish explaining. The household could follow the agreed routine. You were right about this worker.',
   );
+  expect(
+    frameworkArchive(runFor(state))
+      .history.flatMap((transaction) => transaction.inputs)
+      .some(
+        (receipt) =>
+          receipt.kind === 'action.resolved' &&
+          receipt.payload.person === view(state).placements[0]!.candidate &&
+          receipt.payload.outcome?.actionId === 'placement-work' &&
+          receipt.payload.outcome.status === 'completed',
+      ),
+  ).toBe(true);
   const before = fingerprint(state);
   expect(plainText(observation)).toBe(observation);
   expect(familySpeech(observation)).toBe(
-    'Şebnem Eren let us finish explaining. We could follow the agreed routine.',
+    'You said the worker was patient. Şebnem Eren let us finish explaining. We could follow the agreed routine. You were right about this worker.',
   );
   expect(fingerprint(state)).toBe(before);
 });

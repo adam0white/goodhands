@@ -1,6 +1,7 @@
 /** Public profiles come from the immutable released canonical registry. Private discoveries stay host-authored. */
-import { createPerson, type Person, type Traits, type Values } from '@adam0white/human-framework';
+
 import { canonicalCast, castForGame } from '@adam0white/lab-client';
+import { createPerson, type Person, type Traits, type Values } from './hf4.ts';
 export const CAST_EDITION = 'goodhands-one-cast-1';
 export const CAST_KEYS = [
   'nermin',

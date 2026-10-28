@@ -53,10 +53,16 @@ describe('run exports', () => {
     }).replace('9000', '1e400');
     expect(() => verifyImport(overflowing)).toThrow('Invalid input history.');
   });
-  it('rejects an envelope clock beyond the actual end', () => {
-    const state = replay(17, [], 40320);
+  it('rejects a historical original-edition envelope clock beyond its actual end', () => {
+    const state = replay(17, [], 40320, 1);
     const run = compactRun(exportRun(state, []));
     expect(() => verifyImport(JSON.stringify({ ...run, minute: run.minute + 1 }))).toThrow('clock');
+  });
+  it('rejects a current envelope clock before the actual opening', () => {
+    const run = compactRun(exportRun(newGame(17), []));
+    expect(() => verifyImport(JSON.stringify({ ...run, minute: run.minute - 1 }))).toThrow(
+      'The run is incomplete.',
+    );
   });
   it('rejects malformed input types, values, ordering and clocks', () => {
     const run = compactRun(fixture());

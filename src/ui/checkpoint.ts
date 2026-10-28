@@ -1,5 +1,5 @@
 /** Fictional source ownership is independent of the menu recording preference (F-491). */
-import { ENGINE_VERSION } from '@adam0white/human-framework';
+
 import {
   boundedPersonaJson,
   canonicalPersona,
@@ -8,6 +8,7 @@ import {
 } from '@adam0white/lab-client';
 import { CAST, castKey } from '../sim/cast.ts';
 import { agencyTransfer } from '../sim/cast-chapter.ts';
+import { ENGINE_VERSION } from '../sim/hf4.ts';
 import type { State } from '../sim/types.ts';
 import { type ContinuityBook, continuityRow, type Shelf } from './continuity.ts';
 /** One producer stamp for browser claims, checkpoints and bounded source exports. */
