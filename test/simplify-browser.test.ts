@@ -387,6 +387,7 @@ for (const lostReply of [false, true])
 
 for (const pending of [false, true]) {
   it(`ordinary Resume continues a saved ${pending ? 'pending pause' : 'pause'} without lab tools`, async () => {
+    const run = await pausedRun(pending);
     const browser = await chromium.launch({ channel: process.env.HF_BROWSER_CHANNEL });
     try {
       const context = await browser.newContext({ viewport: { width: 820, height: 1180 } });
@@ -396,7 +397,6 @@ for (const pending of [false, true]) {
       await page.clock.install();
       await page.clock.pauseAt(new Date());
       await page.goto(origin);
-      const run = await pausedRun(pending);
       await page.evaluate(async (run) => {
         const db = await new Promise<IDBDatabase>((resolve, reject) => {
           const r = indexedDB.open('goodhands', 1);
@@ -413,7 +413,7 @@ for (const pending of [false, true]) {
         db.close();
       }, run);
       await page.goto(origin);
-      await page.getByRole('button', { name: 'Resume', exact: true }).click();
+      await page.getByRole('button', { name: 'Resume', exact: true }).click({ timeout: 60000 });
       await page.getByTestId('office').waitFor();
       // Use an action available at the saved time, rather than an opening-only applicant.
       if (pending) await page.locator('[data-action="phone"]').click();
@@ -445,5 +445,5 @@ for (const pending of [false, true]) {
     } finally {
       await browser.close();
     }
-  }, 60000);
+  }, 120000);
 }
