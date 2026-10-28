@@ -86,6 +86,10 @@ it('uses the full game in /file/ without native DB or Shelf, and retains ordinar
       }, first);
       first = false;
       await page.locator('[data-action="menu"]').click();
+      expect(await page.locator('[data-action="import"]').isVisible()).toBe(true);
+      expect(await page.locator('[data-action="title"]').isVisible()).toBe(true);
+      expect(await page.locator('[data-action="download"]').isVisible()).toBe(true);
+      expect(await page.getByRole('button', { name: 'Download original file' }).isVisible()).toBe(true);
       const continuedDownload = page.waitForEvent('download');
       await page.locator('[data-action="download"]').evaluate((b: HTMLButtonElement) => b.click());
       const continued = await (await continuedDownload).createReadStream();

@@ -209,7 +209,7 @@ for (const [name, engine] of [
             'https://human.adamwhite.work/lab/people/',
           );
           expect(await menu.locator('.debug-footer details').getAttribute('open')).toBeNull();
-          expect(await menu.locator('[data-action="import"]').isVisible()).toBe(false);
+          expect(await menu.locator('[data-action="import"]').isVisible()).toBe(true);
           await menu.getByText('Debug', { exact: true }).click();
           expect(await menu.locator('[data-action="import"]').isVisible()).toBe(true);
           await menu.getByText('Debug', { exact: true }).click();

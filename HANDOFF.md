@@ -1,3 +1,11 @@
+## Public gameplay menu audit — 2026-10-27
+
+What remains: technical delivery of this menu change and the existing source-ownership/receiver-ACK and player-acceptance work below. Normal and file menus expose title navigation, import, current-run download and file continuation; file play also exposes its original-file download. Debug is collapsed beside Lab privacy and holds build and storage diagnostics. The central People between games link remains in the ordinary menu.
+
+A normal new month prepares the shared cast automatically and enables the shelf on supported origins. Existing checkpoints only publish living people at a paused cast boundary; the shelf watcher does not establish an automatic outgoing transfer from an unpaused month. File play deliberately remains local and nonpublishing. The source-ownership and receiver-ACK limits below remain open.
+
+The current source has no query-string gameplay selector or localStorage gameplay toggle. The only direct application localStorage use is the optional feedback name. The development-only hot-module hook disposes the stage; hidden office controls follow the actual scene and game state. Frozen editions retain their replay behavior.
+
 ## Delivered source and remaining acceptance — 2026-10-27
 
 What remains: the public source-ownership/receiver-ACK contract and separately supported source routes (source-owner review 2026-10-30); actual owner-profile persistence/active-service-worker safety, live admission/claim, receipt/ACK and ingestion evidence; Adam’s feel/readiness and fresh source-unread return judgment (2026-11-03). No new panel or retest is authorized. None of these outcomes follows from a source field, clean release or synthetic admission.

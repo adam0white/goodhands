@@ -17,7 +17,6 @@ it('keeps the occupied native month when pagehide cancels a confirmed import dur
     await page.getByRole('button', { name: 'Open the office', exact: true }).click();
     await page.getByTestId('office').waitFor();
     await page.locator('[data-action="menu"]').click();
-    await page.getByText('Debug', { exact: true }).click();
     // Wait for the real native save made by the menu before taking its complete baseline.
     const nativeRun = () =>
       page.evaluate("import('/src/ui/store.ts').then(async ({get}) => (await get('run'))?.value)");

@@ -31,7 +31,12 @@ it('holds the menu and information, then resumes without speed inputs', async ()
   const held = await clock.innerText();
   const debug = page.locator('.debug-footer details');
   expect(await debug.getAttribute('open')).toBeNull();
-  expect(await page.locator('[data-action="import"]').isVisible()).toBe(false);
+  expect(await page.locator('[data-action="import"]').isVisible()).toBe(true);
+  expect(await page.locator('[data-action="title"]').isVisible()).toBe(true);
+  expect(await page.locator('[data-action="download"]').isVisible()).toBe(true);
+  expect(
+    await page.getByRole('link', { name: 'Continue a file without replacing the saved month' }).isVisible(),
+  ).toBe(true);
   expect(await page.locator('[data-pace-choice]').count()).toBe(4);
   expect(await page.getByRole('link', { name: 'People between games' }).getAttribute('href')).toBe(
     'https://human.adamwhite.work/lab/people/',
