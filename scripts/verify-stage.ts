@@ -5,7 +5,21 @@ import { createServer } from 'vite';
 import { advance, apply, newGame, view } from '../src/sim/index.ts';
 import { exportRun, verifyImport } from '../src/ui/export.ts';
 
+const phaseStart = performance.now();
+const phase = (stage: string) =>
+  console.log(JSON.stringify({ stage, milliseconds: Math.round(performance.now() - phaseStart) }));
 const port = Number(process.argv[2] ?? 4492);
+phase('prepare current opening import');
+const current = newGame(1);
+const currentRun = exportRun(current, current.inputs);
+verifyImport(JSON.stringify(currentRun));
+phase('prepare historical early ending');
+const early = newGame(1, 4);
+for (let n = 0; n < 2000 && !view(early).ended; n++) advance(early, 40000);
+assert.equal(view(early).dateLabel, 'Friday 13 November');
+const earlyRun = exportRun(early, []);
+verifyImport(JSON.stringify(earlyRun));
+phase('fixtures ready');
 const server = await createServer({
   server: { host: '127.0.0.1', port, strictPort: true, hmr: false, watch: null },
 });
@@ -16,6 +30,7 @@ try {
     { width: 360, height: 690 },
     { width: 1280, height: 800 },
   ]) {
+    phase(`viewport ${viewport.width}`);
     const page = await browser.newPage({ viewport });
     const errors: string[] = [];
     page.on('pageerror', (e) => errors.push(e.message));
@@ -190,21 +205,8 @@ try {
     assert.equal(await page.locator('[data-time]').innerText(), held);
     await page.keyboard.press('Escape');
     assert.deepEqual(await lifecycle(), { active: 1, mounts: 1 });
-    // Fixture uses only public simulation actions; the import must replay unchanged.
-    let fixture = newGame(1);
-    for (let n = 0; n < 30 && !view(fixture).ended; n++) {
-      const v = view(fixture);
-      fixture = apply(
-        fixture,
-        v.dayCard
-          ? { type: 'sleep' }
-          : v.scene
-            ? { type: 'close-scene', scene: v.scene.id }
-            : { type: 'wait-for' },
-      );
-    }
-    const run = exportRun(fixture, fixture.inputs);
-    verifyImport(JSON.stringify(run));
+    // Reuse the publicly replayed current-edition opening import at both viewports.
+    phase('import current opening');
     await page.locator('[data-action="menu"]').click();
     await page.getByRole('button', { name: 'To the title page', exact: true }).click();
     assert.equal((await lifecycle()).active, 0);
@@ -215,16 +217,12 @@ try {
     await (await chooser).setFiles({
       name: 'fixture.json',
       mimeType: 'application/json',
-      buffer: Buffer.from(JSON.stringify(run)),
+      buffer: Buffer.from(JSON.stringify(currentRun)),
     });
     await page.waitForTimeout(50);
     await fits('imported');
-    // Two unpaid rents can end a month before the calendar's final day.
-    const early = newGame(1);
-    for (let n = 0; n < 2000 && !view(early).ended; n++) advance(early, 40000);
-    assert.equal(view(early).dateLabel, 'Friday 13 November');
-    const earlyRun = exportRun(early, []);
-    verifyImport(JSON.stringify(earlyRun));
+    // The natural two-rent calendar/date fixture is the historical edition 4.
+    phase('import historical early ending');
     await page.locator('[data-action="menu"]').click();
     await page.getByRole('button', { name: 'To the title page', exact: true }).click();
     await page.locator('[data-action="menu"]').click();
@@ -238,6 +236,7 @@ try {
     await page.locator('.review').waitFor();
     assert.equal(await page.locator('.topbar-label').innerText(), 'Month’s end · 13 Nov');
     await fits('early-ending');
+    phase('historical early ending imported');
     assert.equal((await lifecycle()).active, 0);
     assert.deepEqual(errors, []);
     await page.close();
