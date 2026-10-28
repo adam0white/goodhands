@@ -24,6 +24,7 @@ import {
   estimate,
   glimpse,
   hear,
+  interruptPlacement,
   observeAct,
   outwardSigns,
   perceive,
@@ -1633,6 +1634,7 @@ function applyInput(state: State, input: Input): State {
       return s;
     }
     if (input.type === 'withdraw') {
+      interruptPlacement(s.people[p.candidate]!, s.now);
       reopen(s, p);
       p.status = 'withdrawn';
       delete p.pending;
@@ -2095,6 +2097,7 @@ function moment(s: Sim, p: Placement, q: Quality, ordinal: number, workAt = s.no
 }
 function endPlacement(s: Sim, p: Placement, status: Placement['status'], words: string) {
   if (!['trial', 'kept'].includes(p.status)) return;
+  interruptPlacement(s.people[p.candidate]!, s.now);
   p.status = status;
   delete p.pending;
   delete p.warning;
@@ -3063,6 +3066,7 @@ function intervention(s: Sim, p: Placement, sc: SceneView, choice: string) {
     return;
   }
   if (choice === 'withdraw') {
+    interruptPlacement(s.people[p.candidate]!, s.now);
     reopen(s, p);
     p.status = 'withdrawn';
     p.reportedStatus = 'withdrawn';

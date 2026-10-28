@@ -824,6 +824,25 @@ export function successChance(p: Person, id: string, difficulty: number, _capaci
     }),
   ).skill!.successChance;
 }
+export function nextDutyId(p: Person) {
+  const c = context(p);
+  return `goodhands-duty:${p.id}:${c.authors.get(p.id)!.state.agenda.commitments.length}`;
+}
+
+export function interruptPlacement(p: Person, minute: number) {
+  const c = context(p);
+  const active = c.bridge?.host.active.find(
+    (a) => a.person === p.id && a.offer.actionId === 'placement-work',
+  );
+  if (active)
+    sendBatch(c, minute, [
+      {
+        kind: 'activity.interrupted',
+        payload: { person: p.id, activityId: active.id, reason: 'placement ended' },
+      },
+    ]);
+}
+
 export function promise(
   p: Person,
   commitment: Parameters<typeof import('@adam0white/human-framework-legacy3').promise>[1],
@@ -831,7 +850,7 @@ export function promise(
   const c = context(p);
   const d = {
     ...commitment,
-    id: `goodhands-duty:${p.id}:${c.authors.get(p.id)!.state.agenda.commitments.length}`,
+    id: nextDutyId(p),
     from: Math.round(commitment.from * MINUTE),
     until: Math.round(commitment.until * MINUTE),
     ...(commitment.recurEvery ? { recurEveryMs: Math.round(commitment.recurEvery * MINUTE) } : {}),

@@ -1,0 +1,110 @@
+import { exportRun as archive } from '@adam0white/human-framework';
+import { expect, test } from 'vitest';
+import { applyGuest } from '../src/sim/guests.ts';
+import { bindFramework, runFor, saveFramework, schedulePlacement, tick } from '../src/sim/hf4.ts';
+import type { HostState } from '../src/sim/hf4-host.ts';
+import { apply, newGame } from '../src/sim/index.ts';
+
+test('withdrawing a placement interrupts its admitted shift', () => {
+  const state = newGame(7);
+  const worker = state.people.gul!;
+  const placement = { id: 'test-placement', candidate: 'gul', family: 'arslans', status: 'trial', story: [] };
+  (state.placements as unknown[]).push(placement);
+  schedulePlacement(worker, state.now, 120, { skill: 'childcare', psychological: { autonomy: 0.1 } });
+  tick(worker, state.now + 1);
+  saveFramework(state);
+  expect(
+    (state.hf4 as { host: HostState }).host.active.some(
+      (a) => a.person === 'gul' && a.offer.actionId === 'placement-work',
+    ),
+  ).toBe(true);
+  state.scene = {
+    id: 'test-scene',
+    kind: 'two-sides',
+    title: 'Test',
+    with: 'arslans',
+    lines: [],
+    choices: [{ id: 'withdraw', label: 'Withdraw' }],
+    canLeave: true,
+  };
+  (state.scenePlacements as Record<string, string>)['test-scene'] = placement.id;
+  apply(state, { type: 'choose', scene: 'test-scene', choice: 'withdraw' });
+  saveFramework(state);
+  const host = (state.hf4 as { host: HostState }).host;
+  expect(host.active.some((a) => a.person === 'gul' && a.offer.actionId === 'placement-work')).toBe(false);
+  const receipt = archive(runFor(state))
+    .history.flatMap((t) => t.inputs)
+    .find(
+      (i) =>
+        i.kind === 'action.resolved' &&
+        i.payload.outcome?.actionId === 'placement-work' &&
+        i.payload.disposition === 'interrupted',
+    );
+  expect(receipt?.kind).toBe('action.resolved');
+  if (receipt?.kind === 'action.resolved') expect(receipt.payload.outcome?.actual.practice).toBeUndefined();
+  expect(
+    host.completed.some(
+      (a) => a.person === 'gul' && a.actionId === 'placement-work' && a.status === 'interrupted',
+    ),
+  ).toBe(true);
+}, 60000);
+
+test('direct withdrawal interrupts an admitted shift', () => {
+  const state = newGame(7);
+  const worker = state.people.gul!;
+  (state.placements as unknown[]).push({
+    id: 'direct',
+    candidate: 'gul',
+    family: 'arslans',
+    status: 'trial',
+    story: [],
+  });
+  schedulePlacement(worker, state.now, 120, { skill: 'childcare' });
+  tick(worker, state.now + 1);
+  saveFramework(state);
+  apply(state, { type: 'withdraw', placement: 'direct' });
+  saveFramework(state);
+  const host = (state.hf4 as { host: HostState }).host;
+  expect(host.active.some((a) => a.person === 'gul' && a.offer.actionId === 'placement-work')).toBe(false);
+  expect(
+    host.completed.some(
+      (a) => a.person === 'gul' && a.actionId === 'placement-work' && a.status === 'interrupted',
+    ),
+  ).toBe(true);
+  const restored = structuredClone(state);
+  bindFramework(restored);
+  tick(restored.people.gul!, state.now + 130);
+  saveFramework(restored);
+  expect(
+    (restored.hf4 as { host: HostState }).host.completed.some(
+      (a) => a.person === 'gul' && a.actionId === 'placement-work' && a.status === 'completed',
+    ),
+  ).toBe(false);
+}, 60000);
+
+test('an accepted guest trial completes its actual duty', () => {
+  const state = newGame(7);
+  const guest = (
+    state as unknown as { guests: { id: string; status: string; trial?: { verdict: string } }[] }
+  ).guests.find((g) => g.id === 'zeynep-pass')!;
+  guest.status = 'available';
+  tick(state.people.gul!, 540);
+  state.now = 540;
+  applyGuest(state, { type: 'guest-action', guest: 'zeynep-pass', action: 'offer-trial' });
+  expect(guest.trial?.verdict).toBe('assented');
+  const actor = state.people['zeynep-pass']!;
+  const duty = actor.agenda.commitments.find((c) => c.kind === 'duty')!;
+  expect(duty).toBeDefined();
+  tick(actor, state.now + 91);
+  const completed = archive(runFor(state))
+    .history.flatMap((t) => t.inputs)
+    .find(
+      (i) =>
+        i.kind === 'action.resolved' &&
+        i.payload.outcome?.actionId === 'cold-food-trial' &&
+        i.payload.disposition === 'completed',
+    );
+  expect(completed?.kind).toBe('action.resolved');
+  if (completed?.kind === 'action.resolved') expect(completed.payload.outcome?.fulfills).toContain(duty.id);
+  expect(actor.agenda.commitments.find((c) => c.id === duty.id)?.status).toBe('kept');
+}, 60000);

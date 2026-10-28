@@ -24,6 +24,7 @@ import {
   createPerson,
   decide,
   finish,
+  nextDutyId,
   perceive,
   promise,
   readPerson,
@@ -492,6 +493,7 @@ export function applyGuest(state: State, input: Extract<Input, { type: 'guest-ac
       skill: { id: 'cold', difficulty: 0.65 },
       advertises: { competence: 0.45 },
       tags: ['work'],
+      fulfills: [nextDutyId(p)],
     });
     const rest = offer('guest-wait', 'rest', 15, { advertises: { leisure: 0.05 } });
     const decision = decide(p, [a, rest], {
