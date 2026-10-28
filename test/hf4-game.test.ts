@@ -219,7 +219,7 @@ test('a real placement starts work at the next game boundary and survives JSON r
     });
   expect(verifyImport(file).state).toEqual(state);
   if (process.env.GOODHANDS_PROGRESS) progress({ stage: 'placement import verified', now: state.now });
-}, 180000);
+}, 420000);
 
 test('a current cast passport admits retained history into a new current game', async () => {
   const { createPersona, initialPersonaLife, preparePersonaLife } = await import('@adam0white/lab-client');

@@ -439,6 +439,9 @@ for (const pending of [false, true]) {
         true,
       );
       expect(await page.locator('[data-action="people"]').count()).toBe(0);
+    } catch (error) {
+      console.error('Resume browser failure:', error);
+      throw error;
     } finally {
       await browser.close();
     }

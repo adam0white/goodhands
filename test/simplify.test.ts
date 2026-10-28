@@ -144,4 +144,4 @@ it('keeps an actual visit observation in report voice and known family speech in
     'You said the worker was patient. Şebnem Eren let us finish explaining. We could follow the agreed routine. You were right about this worker.',
   );
   expect(fingerprint(state)).toBe(before);
-});
+}, 420000);

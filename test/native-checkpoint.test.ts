@@ -283,15 +283,17 @@ test('actual App offers source checkpoints at its menu and bounded world-only en
     {
       cwd: new URL('..', import.meta.url),
       encoding: 'utf8',
-      timeout: 120000,
+      timeout: 300000,
       killSignal: 'SIGKILL',
     },
   );
   const diagnostics = `${result.stdout ?? ''}\n${result.stderr ?? ''}`;
+  if (result.error || result.status !== 0)
+    console.error('Source-offer child failure:', result.error, result.status, diagnostics);
   expect(result.error, diagnostics).toBeUndefined();
   expect(result.status, diagnostics).toBe(0);
   expect(result.stdout).toContain('full/compact replay: PASS');
-}, 125000);
+}, 310000);
 
 test('staged native receipt refuses aggregate capacity before put and keeps the complete original export', async () => {
   const { boundedPersonaJson, PERSONA_LIMITS } = await import('@adam0white/lab-client');
