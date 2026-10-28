@@ -1,3 +1,9 @@
+## HF 4 port dependency — 2026-10-28
+
+What remains: existing G4 must expose HF reserve-filtered outward signs and spoken condition reports; then finish the HF4 actor/client bridge and exact game-export replay. Published4.5.1 was tested, but is not adopted. Keep the released HF3.0.0 game. [The dated design entry](docs/design.md#hf-4-port-blocked-by-g4--2026-10-28) records the concrete calls, published-package control, design decision and 2026-11-17 dependency review. The worker report is `~/code/.lab-scratch/codex/goodhands-hf4.md`.
+
+The managed baseline is origin/main2236bf1, including PR#6's public menu/file tools. No new public-menu gap was found. Existing automatic source-departure/receiver-acknowledgment work remains open as described below. No actor source, package pin, legacy replay test or HF file changed in this audit. This documentation change does not require an app deploy and must not be called the deployed app revision.
+
 ## Public gameplay menu audit — 2026-10-27
 
 What remains: technical delivery of this menu change and the existing source-ownership/receiver-ACK and player-acceptance work below. Normal and file menus expose title navigation, import, current-run download and file continuation; file play also exposes its original-file download. Debug is collapsed beside Lab privacy and holds build and storage diagnostics. The central People between games link remains in the ordinary menu.
