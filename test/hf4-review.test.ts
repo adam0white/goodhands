@@ -1,7 +1,7 @@
-import { exportRun as archive } from '@adam0white/human-framework';
+import { exportRun as archive, replay as frameworkReplay } from '@adam0white/human-framework';
 import { expect, test } from 'vitest';
 import { applyGuest } from '../src/sim/guests.ts';
-import { bindFramework, runFor, saveFramework, schedulePlacement, tick } from '../src/sim/hf4.ts';
+import { bindFramework, decide, runFor, saveFramework, schedulePlacement, tick } from '../src/sim/hf4.ts';
 import type { HostState } from '../src/sim/hf4-host.ts';
 import { apply, newGame } from '../src/sim/index.ts';
 
@@ -107,4 +107,54 @@ test('an accepted guest trial completes its actual duty', () => {
   expect(completed?.kind).toBe('action.resolved');
   if (completed?.kind === 'action.resolved') expect(completed.payload.outcome?.fulfills).toContain(duty.id);
   expect(actor.agenda.commitments.find((c) => c.id === duty.id)?.status).toBe('kept');
+}, 60000);
+
+test('ending with an accepted meal records interruption and permits a cast checkpoint', async () => {
+  const state = newGame(7);
+  const person = state.people.nermin!;
+  decide(person, [
+    { id: 'ending-meal', action: 'eat', label: 'Dinner', duration: 20, effort: 0, advertises: { food: 0.6 } },
+  ]);
+  saveFramework(state);
+  expect(
+    (state.hf4 as { host: HostState }).host.active.some(
+      (a) => a.person === 'nermin' && a.offer.id === 'ending-meal',
+    ),
+  ).toBe(true);
+  // Test-only world overlay uses the ordinary second-rent decision as a bounded ending.
+  state.cash = 0;
+  state.missedRent = 1;
+  state.scene = {
+    id: 'ending-rent',
+    kind: 'rent',
+    title: 'Rent',
+    with: 'hüsnü',
+    lines: [],
+    choices: [{ id: 'promise', label: 'Promise' }],
+    canLeave: false,
+  };
+  apply(state, { type: 'choose', scene: 'ending-rent', choice: 'promise' });
+  expect(state.ended).toBe(true);
+  apply(state, { type: 'pause-cast' });
+  expect(state.castPaused).toBe(true);
+  saveFramework(state);
+  const receipt = archive(runFor(state))
+    .history.flatMap((t) => t.inputs)
+    .find(
+      (i) =>
+        i.kind === 'action.resolved' &&
+        i.payload.outcome?.offerId === 'ending-meal' &&
+        i.payload.disposition === 'interrupted',
+    );
+  expect(receipt?.kind).toBe('action.resolved');
+  if (receipt?.kind === 'action.resolved') expect(receipt.payload.outcome?.actual.consumed).toBeUndefined();
+  const { agencyTransfer } = await import('../src/sim/cast-chapter.ts');
+  expect(await agencyTransfer(state, 'nermin')).toBeDefined();
+  const restored = structuredClone(state);
+  bindFramework(restored);
+  expect((restored.hf4 as { host: HostState }).host).toEqual((state.hf4 as { host: HostState }).host);
+  const source = archive(runFor(state));
+  const replayed = frameworkReplay(source);
+  expect(replayed.ok).toBe(true);
+  if (replayed.ok) expect(replayed.value.fullHash).toBe(source.hashes.full);
 }, 60000);

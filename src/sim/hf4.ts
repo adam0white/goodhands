@@ -829,18 +829,24 @@ export function nextDutyId(p: Person) {
   return `goodhands-duty:${p.id}:${c.authors.get(p.id)!.state.agenda.commitments.length}`;
 }
 
-export function interruptPlacement(p: Person, minute: number) {
+function interruptActive(p: Person, minute: number, reason: string, actionId?: string) {
   const c = context(p);
   const active = c.bridge?.host.active.find(
-    (a) => a.person === p.id && a.offer.actionId === 'placement-work',
+    (a) => a.person === p.id && (!actionId || a.offer.actionId === actionId),
   );
   if (active)
     sendBatch(c, minute, [
       {
         kind: 'activity.interrupted',
-        payload: { person: p.id, activityId: active.id, reason: 'placement ended' },
+        payload: { person: p.id, activityId: active.id, reason },
       },
     ]);
+}
+export function interruptPlacement(p: Person, minute: number) {
+  interruptActive(p, minute, 'placement ended', 'placement-work');
+}
+export function interruptEndingActivity(p: Person, minute: number) {
+  interruptActive(p, minute, 'agency chapter ended');
 }
 
 export function promise(

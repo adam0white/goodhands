@@ -24,6 +24,7 @@ import {
   estimate,
   glimpse,
   hear,
+  interruptEndingActivity,
   interruptPlacement,
   observeAct,
   outwardSigns,
@@ -611,6 +612,7 @@ export function newGame(
   return s;
 }
 function finish(s: Sim, why: string) {
+  for (const id of Object.keys(CAST)) interruptEndingActivity(s.people[id]!, s.now);
   s.ended = true;
   s.heldScene = null;
   s.scene = null;
