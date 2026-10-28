@@ -3589,7 +3589,18 @@ function householdReply(s: Sim, sc: SceneView, family: string, member: string, t
   const trusted = trustOf(person, 'nermin') > 0.45;
   let words: string;
   if (topic === 'smooth') {
-    person.affect.mood.valence = clamp((person.affect.mood.valence + 1) / 2 + 0.04) * 2 - 1;
+    perceive(person, [
+      {
+        at: s.now,
+        channel: 'social',
+        kind: 'calm-conversation',
+        actorId: 'nermin',
+        targetId: person.id,
+        salience: 0.5,
+        valence: 0.08,
+        summary: 'Nermin spoke calmly about settling the disagreement.',
+      },
+    ]);
     sourceResponse(person, 'nermin', person.traits.agreeableness > 0.35, s.now);
     words =
       person.traits.agreeableness > 0.35

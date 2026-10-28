@@ -158,3 +158,25 @@ test('ending with an accepted meal records interruption and permits a cast check
   expect(replayed.ok).toBe(true);
   if (replayed.ok) expect(replayed.value.fullHash).toBe(source.hashes.full);
 }, 60000);
+
+test('a calm household call records its actual social observation in HF and replays it', () => {
+  const state = newGame(7);
+  const initialMood = state.people['arslans-0']!.affect.mood.valence;
+  apply(state, { type: 'call-household', family: 'arslans', member: 'arslans-0', topic: 'smooth' });
+  expect(state.people['arslans-0']!.affect.mood.valence).toBeGreaterThan(initialMood);
+  saveFramework(state);
+  const source = archive(runFor(state));
+  const observations = source.history
+    .flatMap((t) => t.inputs)
+    .filter((i) => i.kind === 'observation.received' && i.payload.person === 'arslans-0');
+  expect(
+    observations.some(
+      (i) =>
+        i.kind === 'observation.received' &&
+        i.payload.percepts.some((p) => p.summary === 'Nermin spoke calmly about settling the disagreement.'),
+    ),
+  ).toBe(true);
+  const replayed = frameworkReplay(source);
+  expect(replayed.ok).toBe(true);
+  if (replayed.ok) expect(replayed.value.fullHash).toBe(source.hashes.full);
+}, 60000);
