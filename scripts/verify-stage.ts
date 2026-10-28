@@ -206,11 +206,9 @@ try {
     const run = exportRun(fixture, fixture.inputs);
     verifyImport(JSON.stringify(run));
     await page.locator('[data-action="menu"]').click();
-    await page.getByText('Debug', { exact: true }).click();
     await page.getByRole('button', { name: 'To the title page', exact: true }).click();
     assert.equal((await lifecycle()).active, 0);
     await page.locator('[data-action="menu"]').click();
-    await page.getByText('Debug', { exact: true }).click();
     page.on('dialog', (dialog) => void dialog.accept());
     const chooser = page.waitForEvent('filechooser');
     await page.locator('[data-action="import"]').click();
@@ -228,10 +226,8 @@ try {
     const earlyRun = exportRun(early, []);
     verifyImport(JSON.stringify(earlyRun));
     await page.locator('[data-action="menu"]').click();
-    await page.getByText('Debug', { exact: true }).click();
     await page.getByRole('button', { name: 'To the title page', exact: true }).click();
     await page.locator('[data-action="menu"]').click();
-    await page.getByText('Debug', { exact: true }).click();
     const earlyChooser = page.waitForEvent('filechooser');
     await page.locator('[data-action="import"]').click();
     await (await earlyChooser).setFiles({
