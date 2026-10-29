@@ -18,6 +18,7 @@ import { agencyTransfer } from '../src/sim/cast-chapter.ts';
 import { ENGINE_VERSION } from '../src/sim/hf4.ts';
 import { apply, newGame } from '../src/sim/index.ts';
 import { exportRun, type RunExport, verifyImport } from '../src/ui/export.ts';
+import { closeFixtureBrowser } from './browser-fixture.ts';
 import { pausedRun } from './paused-run.ts';
 
 let server: ViteDevServer;
@@ -411,11 +412,7 @@ for (const [name, engine] of [
           expect(await page.locator('[data-pace-choice]').count()).toBe(4);
           expect(await page.locator('.debug-footer details').getAttribute('open')).toBeNull();
         } finally {
-          for (const context of browser.contexts()) {
-            await context.setOffline(true);
-            await context.unrouteAll({ behavior: 'wait' });
-          }
-          await browser.close();
+          await closeFixtureBrowser(browser);
         }
       },
       120_000,
@@ -515,11 +512,7 @@ for (const lostReply of [false, true])
       expect(recovered.continuity.initialClaims?.length).toBe(1);
       expect(recovered.continuity.chapter?.skipped?.some((p) => p.castId === CAST.hulya.castId)).toBe(true);
     } finally {
-      for (const context of browser.contexts()) {
-        await context.setOffline(true);
-        await context.unrouteAll({ behavior: 'wait' });
-      }
-      await browser.close();
+      await closeFixtureBrowser(browser);
     }
   }, 60_000);
 
@@ -581,11 +574,7 @@ for (const pending of [false, true]) {
       console.error('Resume browser failure:', error);
       throw error;
     } finally {
-      for (const context of browser.contexts()) {
-        await context.setOffline(true);
-        await context.unrouteAll({ behavior: 'wait' });
-      }
-      await browser.close();
+      await closeFixtureBrowser(browser);
     }
   }, 120000);
 }
@@ -660,13 +649,8 @@ for (const mode of ['abort', 'cancel'] as const) {
       expect(afterReload.native).toEqual(sentinel);
       expect(afterReload.journal?.phase ?? null).toBe(mode === 'cancel' ? 'prepared' : null);
       expect(shelf.writes()).toBe(0);
-      await context.unrouteAll({ behavior: 'wait' });
     } finally {
-      for (const context of browser.contexts()) {
-        await context.setOffline(true);
-        await context.unrouteAll({ behavior: 'wait' });
-      }
-      await browser.close();
+      await closeFixtureBrowser(browser);
     }
   }, 60_000);
 }
@@ -756,11 +740,7 @@ for (const denial of ['open', 'capture'] as const) {
       expect(retained).toEqual({ native: sentinel, journal: null });
       expect(shelf.writes()).toBe(0);
     } finally {
-      for (const context of browser.contexts()) {
-        await context.setOffline(true);
-        await context.unrouteAll({ behavior: 'wait' });
-      }
-      await browser.close();
+      await closeFixtureBrowser(browser);
     }
   }, 60_000);
 }
@@ -863,10 +843,6 @@ for (const phase of ['sending', 'acknowledged'] as const)
       expect(await inspect()).toEqual(original);
       expect(shelf.writes()).toBe(phase === 'sending' ? 1 : 0);
     } finally {
-      for (const context of browser.contexts()) {
-        await context.setOffline(true);
-        await context.unrouteAll({ behavior: 'wait' });
-      }
-      await browser.close();
+      await closeFixtureBrowser(browser);
     }
   }, 60_000);
