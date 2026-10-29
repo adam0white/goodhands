@@ -43,6 +43,7 @@ import {
   type State,
   type View,
 } from '../sim/types.ts';
+import { ARCHIVE_LIMIT } from './archive-import.ts';
 import {
   exportRun,
   exportWorkingRun,
@@ -171,6 +172,13 @@ let generation = 0;
 // A departing page cannot start a fresh SDK checkpoint from its own queued pagehide watcher.
 let pageActive = true;
 let fileSelection = 0;
+let archiveWorker: Worker | null = null;
+let archiveSelection = 0;
+function cancelArchive() {
+  archiveSelection++;
+  archiveWorker?.terminate();
+  archiveWorker = null;
+}
 let pendingFileChoice = false;
 let openingMonth = false;
 function runExport(): RunExport {
@@ -456,6 +464,7 @@ async function begin(
   book = emptyContinuity(),
   fromFile = false,
   selectionIsCurrent: () => boolean = () => true,
+  prevalidated = false,
 ): Promise<boolean> {
   if (!next || !selectionIsCurrent()) return false;
   const activeGeneration = ++generation;
@@ -463,7 +472,7 @@ async function begin(
     book.fileOrigin = true;
     book.fileUnlinked = true;
   }
-  await validateContinuity(book, next, history);
+  if (!prevalidated) await validateContinuity(book, next, history);
   if (activeGeneration !== generation || !selectionIsCurrent()) return false;
   await continuitySession?.recording(book, fromFile);
   if (activeGeneration !== generation || !selectionIsCurrent()) return false;
@@ -1172,6 +1181,7 @@ function review(v: View): void {
 }
 
 function closeSheet(restore = true): void {
+  cancelArchive();
   const canceledFileChoice = pendingFileChoice;
   if (pendingFileChoice) {
     pendingFileChoice = false;
@@ -1212,6 +1222,7 @@ function closeSheet(restore = true): void {
   }
 }
 function openSheet(title: string, content: string, kind = 'inspect'): HTMLElement {
+  if (modal === 'archive') cancelArchive();
   const opener = document.activeElement instanceof HTMLElement ? document.activeElement : null;
   if (sheet) {
     sheetOrigins.push({
@@ -1418,6 +1429,10 @@ function menu(): void {
   if (state)
     d.querySelector('.file-actions')?.append(
       button('Download complete source archive', () => downloadJson('goodhands-source.json', runExport())),
+    );
+  if (!fileSession)
+    d.querySelector('.file-actions')?.append(
+      button('Verify and import complete source archive', importArchive),
     );
   if (fileSession) {
     d.querySelector('[data-new-game]')?.remove();
@@ -1670,6 +1685,102 @@ function placementSheet(id: string): void {
     for (const control of d.querySelectorAll<HTMLButtonElement>('[data-check]')) control.disabled = !!reason;
   };
   updateInspection();
+}
+function importArchive(): void {
+  cancelArchive();
+  const selection = archiveSelection;
+  const runGeneration = generation;
+  const currentSelection = () => selection === archiveSelection && runGeneration === generation && pageActive;
+  const d = openSheet(
+    'Import complete source archive',
+    '<p>Choose a complete JSON archive up to 100 MiB. Verification can take a long time and may use substantial memory.</p><p class="archive-status" role="status">Choose an archive.</p><button type="button" data-archive-choose>Choose archive</button><button type="button" data-archive-cancel>Cancel</button>',
+    'archive',
+  );
+  const status = d.querySelector<HTMLElement>('.archive-status')!;
+  const choose = d.querySelector<HTMLButtonElement>('[data-archive-choose]')!;
+  d.querySelector('[data-archive-cancel]')?.addEventListener('click', () => closeSheet());
+  choose.addEventListener('click', () => {
+    const file = document.createElement('input');
+    file.type = 'file';
+    file.accept = '.json,application/json';
+    file.onchange = async () => {
+      const chosen = file.files?.[0];
+      if (!chosen || !currentSelection()) return;
+      if (chosen.size > ARCHIVE_LIMIT) {
+        status.textContent = 'This archive is too large. The limit is 100 MiB.';
+        return;
+      }
+      choose.disabled = true;
+      status.textContent = 'Reading archive…';
+      try {
+        const bytes = await chosen.arrayBuffer();
+        if (!currentSelection()) return;
+        if (bytes.byteLength !== chosen.size || bytes.byteLength > ARCHIVE_LIMIT)
+          throw new Error('File size changed.');
+        const worker = new Worker(new URL('./archive-worker.ts', import.meta.url), { type: 'module' });
+        archiveWorker = worker;
+        status.textContent = 'Verifying replay and complete state…';
+        worker.onerror = () => {
+          if (currentSelection()) {
+            status.textContent = 'Archive verification failed.';
+            choose.disabled = false;
+          }
+          worker.terminate();
+          if (archiveWorker === worker) archiveWorker = null;
+        };
+        worker.onmessage = async (
+          event: MessageEvent<{ ok: boolean; run?: ReturnType<typeof verifyImport>; error?: string }>,
+        ) => {
+          worker.terminate();
+          if (!currentSelection()) return;
+          archiveWorker = null;
+          if (!event.data.ok || !event.data.run) {
+            status.textContent = event.data.error ?? 'Archive verification failed.';
+            choose.disabled = false;
+            return;
+          }
+          status.textContent = 'Archive verified and ready to import.';
+          if (
+            !window.confirm(
+              'Replace the saved month with this verified archive? Cancel to keep the saved month.',
+            )
+          ) {
+            choose.disabled = false;
+            return;
+          }
+          const run = event.data.run;
+          try {
+            if (
+              await begin(
+                run.state,
+                run.inputs,
+                run.continuity,
+                true,
+                () => selection === archiveSelection && pageActive,
+                true,
+              )
+            ) {
+              notice = 'The verified archive has loaded.';
+              noticeUntil = performance.now() + 6000;
+              showNotice();
+            }
+          } catch (error) {
+            if (selection === archiveSelection && pageActive) {
+              status.textContent = errorText(error);
+              choose.disabled = false;
+            }
+          }
+        };
+        worker.postMessage(bytes, [bytes]);
+      } catch (error) {
+        if (currentSelection()) {
+          status.textContent = errorText(error);
+          choose.disabled = false;
+        }
+      }
+    };
+    file.click();
+  });
 }
 function importFile(): void {
   if (fileSession) {
@@ -2233,6 +2344,7 @@ document.addEventListener('visibilitychange', () => {
   }
 });
 window.addEventListener('pagehide', () => {
+  cancelArchive();
   pageActive = false;
   generation++;
   continuitySession?.invalidate();

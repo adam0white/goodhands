@@ -248,15 +248,20 @@ function clock(value: unknown): value is number {
   return typeof value === 'number' && Number.isFinite(value) && value >= 510 && value <= 28 * 1440;
 }
 
-export function verifyImport(text: string): {
+export function verifyImport(
+  text: string,
+  options: { maxCharacters?: number; requireFull?: boolean } = {},
+): {
   state: State;
   inputs: LoggedInput[];
   continuity: ContinuityBook;
 } {
-  if (text.length > 30_000_000) throw new Error('This run is too large.');
+  if (text.length > (options.maxCharacters ?? 30_000_000)) throw new Error('This run is too large.');
   const data: unknown = JSON.parse(text);
   if (!record(data) || data.game !== 'goodhands' || data.version !== 1)
     throw new Error('This is not a Good Hands run.');
+  if (options.requireFull && !Object.hasOwn(data, 'state'))
+    throw new Error('This is not a complete source archive.');
   if (
     !Number.isSafeInteger(data.seed) ||
     !clock(data.minute) ||
