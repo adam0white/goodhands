@@ -167,16 +167,16 @@ async function fixture(context: BrowserContext, reject: () => boolean, carry = f
         url.origin === 'https://human.adamwhite.work' &&
         url.pathname.startsWith('/lab/api/')
       )
-        return route.fulfill({
+        return await route.fulfill({
           status: 200,
           contentType: 'application/json',
           headers: { 'Access-Control-Allow-Origin': '*' },
           body: JSON.stringify({ id: 'local-stored-receipt', ok: true }),
         });
       if (route.request().method() === 'POST' && url.hostname.endsWith('adamwhite.work'))
-        return route.abort();
+        return await route.abort();
       if (url.origin === origin && url.pathname === '/@vite/client')
-        return route.fulfill({
+        return await route.fulfill({
           contentType: 'text/javascript',
           body: `
         // Fixtures need Vite CSS injection, but no development WebSocket on a routed HTTPS origin.
@@ -206,12 +206,12 @@ async function fixture(context: BrowserContext, reject: () => boolean, carry = f
             `export const PORTABLE_READERS = ${JSON.stringify(readers)};`,
           );
           expect(fixtureSource).not.toBe(source);
-          return route.fulfill({ response, body: fixtureSource });
+          return await route.fulfill({ response, body: fixtureSource });
         }
-        return route.fulfill({ response });
+        return await route.fulfill({ response });
       }
       if (url.origin === 'https://human.adamwhite.work' && url.pathname === '/lab/identity/')
-        return route.fulfill({
+        return await route.fulfill({
           contentType: 'text/html',
           body: `<script>addEventListener('message', async e => {
         if (e.data?.type !== 'hf-persona-consent' && e.data?.type !== 'hf-persona-request') return;
@@ -220,7 +220,7 @@ async function fixture(context: BrowserContext, reject: () => boolean, carry = f
         if (e.ports[0]) e.ports[0].postMessage(result); else e.source.postMessage(result, e.origin);
       });</script>`,
         });
-      return route.continue();
+      return await route.continue();
     } catch (error) {
       // Navigation/teardown can abort a routed Vite fetch. Ignore only an
       // already-handled route with an actual browser-reported request failure.

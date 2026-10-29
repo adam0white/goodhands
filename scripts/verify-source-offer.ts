@@ -129,7 +129,7 @@ try {
     }
     await seed(exportRun(opening, opening.inputs, book));
     await page.locator('[data-action="menu"]').click();
-    await page.getByRole('button', { name: 'People after this month', exact: true }).click();
+    await page.getByRole('button', { name: 'What happens to these people next', exact: true }).click();
     assert.equal(requests.length, 0, 'reading an offer never publishes or pauses');
     await page.getByRole('button', { name: 'Pause and prepare checkpoints', exact: true }).click();
     await page
@@ -197,7 +197,7 @@ try {
     requests.length = 0;
     await seed(exportRun(opening, opening.inputs, book), 'met');
     await page.locator('[data-action="menu"]').click();
-    await page.getByRole('button', { name: 'People after this month', exact: true }).click();
+    await page.getByRole('button', { name: 'What happens to these people next', exact: true }).click();
     await page.getByRole('button', { name: 'Pause and prepare checkpoints', exact: true }).click();
     await page
       .locator('[data-source-status]')
@@ -217,7 +217,7 @@ try {
     requests.length = 0;
     await seed(exportRun(opening, opening.inputs, book));
     await page.locator('[data-action="menu"]').click();
-    await page.getByRole('button', { name: 'People after this month', exact: true }).click();
+    await page.getByRole('button', { name: 'What happens to these people next', exact: true }).click();
     await page.evaluate(() => {
       const control = window as Window & {
         sourceDigestHeld?: boolean;
