@@ -10,7 +10,9 @@ These are host persistence and technical recovery controls. The SDK response is 
 
 ## HF 4.8.1 migration — 2026-10-29
 
-What remains for owner acceptance: the separate feel/readiness work due2026-11-03. The migration delivery receipt and any outstanding technical gates are in ~/code/.lab-scratch/codex/goodhands-hf481.md. This migration is technically done when its commit serves HF4.8.1/client0.5.7/kit0.5.24 with dirty:false and its browser playtest export replays exactly. Adam accepts the existing separate feel/readiness work on2026-11-03.
+What remains for owner acceptance: the separate feel/readiness work due2026-11-03. PR10 delivered the migration at dccf97d65d8e144ae125758b6e56630db0f348a3: HF4.8.1/client0.5.7/kit0.5.24, exact source CI40821407993 and merged CI40822691866 green, normal clean deployment and live dirty:false, with all14 served assets matching. Its browser playtest export replays exactly. The actual receipt is ~/code/.lab-scratch/codex/goodhands-hf481.md. The follow-through above has separate source/merged CI and deployment gates; migration delivery does not satisfy those new gates. Adam accepts the existing separate feel/readiness work on2026-11-03.
+
+Current HF4 has one behavior. Current-edition exports must replay exactly; unsupported older current saves may refuse plainly with their originals preserved. Frozen HF2.9 editions1–4, named HF3 validators, aliases and golden files retain historical replay checks. They do not authorize an active legacy current path or a feature selector.
 
 The new client binds portable identities to authored roles. Every portable claim/checkpoint/fork/terminal write uses its default-closed peer gate; no reader deployment is certified by this game. Blocked people keep their source histories and are omitted individually from the receiving month. Nermin is required to run the agency, so an unavailable Nermin refuses the opening before batch acceptance. Null source heads still permit fresh local characters. Admission validates the complete prospective opening before any claim write.
 
@@ -18,7 +20,9 @@ Retained guests enter through HF's public person.arrived input at their schedule
 
 A real 360x690 browser run interviewed Gülce, heard the Arslan family, negotiated the terms and agreed a placement for a2250lira deposit. Its11-input download at minute643.647050000009 replays to identical full and compact game states and HF full hash00dbd3a987c1dec38be73698eeedbff02bbae00fd2ba8f4c0f7b3ff1ad3fbc7e. A separate one-hour seed81 control matches after restore. An actual old-save browser fixture showed the start-new-game message, no Resume button and the older save still stored until a fresh opening; the public menu uses the shared People across games constant without mobile overflow. These controls do not establish a whole-month playtest or genuine cross-origin shelf delivery. Receipts and final delivery are recorded in ~/code/.lab-scratch/codex/goodhands-hf481.md.
 
-## Current HF4 source and remaining delivery — 2026-10-28
+## Historical HF4.7 candidate and remaining delivery at that time — 2026-10-28
+
+This dated record preserves the earlier candidate and its measurements. Its undeployed/source/version statements are historical, superseded by the delivered HF4.8.1 migration and current follow-through above.
 
 What remains: complete hosted review follow-up, sign the fixes, pass exact full-suite CI, then deploy and verify the live release. Both current claimed-person browser cases pass with an independent available second person. The lock-free precommit lane runs lint and types; CI runs the full suite. The source is not deployed. Adam accepts feel, readiness and source-unread return judgment on2026-11-03. Real shared-shelf ownership, departure, receiver acceptance/ACK and ingestion remain separate evidence.
 
