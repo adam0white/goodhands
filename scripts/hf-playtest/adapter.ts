@@ -1,7 +1,7 @@
 /** HF sees only the public View and chooses the same Inputs as the office UI. */
-import { advance, apply, fingerprint, newGame, view } from '../../src/sim/index.ts';
-import type { Input, Quality, State, View } from '../../src/sim/types.ts';
-import { QUALITIES, SPEEDS } from '../../src/sim/types.ts';
+import { advance, apply, fingerprint, newGame, view } from '../../src/sim/v6/index.ts';
+import type { Input, Quality, State, View } from '../../src/sim/v6/types.ts';
+import { QUALITIES, SPEEDS } from '../../src/sim/v6/types.ts';
 import { clockLabels } from '../../src/ui/render.ts';
 
 type Action = {

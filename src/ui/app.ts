@@ -2711,7 +2711,8 @@ if (!fileMode)
         } catch (error) {
           saved = null;
           saveNeedsFreshStart =
-            error instanceof Error && /older version of the Human Framework/.test(error.message);
+            error instanceof Error &&
+            /older version of the Human Framework|Keep the original saved game or file/.test(error.message);
           saveUnreadable = !saveNeedsFreshStart;
         }
       }

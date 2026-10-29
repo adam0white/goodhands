@@ -1,10 +1,10 @@
 import { expect, test } from 'vitest';
 import { GoodHandsAdapter } from '../scripts/hf-playtest/adapter.ts';
 import { runPolicy } from '../scripts/policy.ts';
-import { fingerprint, replay, view } from '../src/sim/index.ts';
+import { fingerprint, replay, view } from '../src/sim/v6/index.ts';
 
 test('the current careful policy calls a saved contact in before interviewing', () => {
-  const state = runPolicy(1, 'careful', 1000);
+  const state = runPolicy(1, 'careful', 1000, 3);
   expect(state.version).toBe(3);
   expect(state.inputs.some(({ input }) => input.type === 'call-in')).toBe(true);
   expect(view(state).placements.length).toBeGreaterThan(0);

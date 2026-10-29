@@ -1,17 +1,16 @@
 /** Automated players use exactly the information shown by view(). No hidden people or authored world data. */
+
+import * as current from '../src/sim/index.ts';
 import {
-  advance,
-  apply,
   type CandidateView,
   type Input,
-  newGame,
   QUALITIES,
   type Quality,
   type RequestView,
   type State,
   type View,
-  view,
 } from '../src/sim/index.ts';
+import * as historical from '../src/sim/v6/index.ts';
 
 export type Policy = 'careful' | 'reckless' | 'cunning';
 export const MONTH_END = 27 * 1440 + 1140;
@@ -62,11 +61,14 @@ export function runPolicy(
   seed: number,
   policy: Policy,
   until = MONTH_END,
-  version: 1 | 2 | 3 | 4 = 3,
+  version: 1 | 2 | 3 | 4 | 6 = 6,
 ): State {
   if (!Number.isFinite(until) || until < 510)
     throw new Error('Policy end must be a finite minute at or after 08:30.');
-  let state = newGame(seed, version);
+  // Versions 1–4 are retained only for the historical policy controls.
+  const engine = version === 6 ? current : historical;
+  const { advance, apply, view } = engine;
+  let state = engine.newGame(seed, version);
   const match = (c: CandidateView, r: RequestView) => matches(c, r, version >= 3);
   const attempted = new Set<string>();
   const coached = new Set<string>();

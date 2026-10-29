@@ -68,7 +68,7 @@ This section describes the HF3 delivery on that date. The current HF4 stack and 
 
 [HANDOFF.md](../HANDOFF.md) records the delivered source chain through `0d560b1`, exact CI, clean app manifest and proof limits. Edition6 is pinned to HF3.0.0/engine2.23.0, client0.4.15 and kit0.5.17; editions1–4 remain frozen on HF2.9.0. Public gameplay controls and automatic same-person carryover supersede historical `?lab=1` descriptions. Cast controls live on the central shelf; small diagnostics live in collapsed Debug beside Lab privacy. The dated design increments below retain their original context.
 
-## One cast (2026-10-23)
+## Historical One cast (2026-10-23)
 
 New months use edition6 with exact HF2.21.0, client0.4.7 and kit0.5.8. Fresh people persist the HF plain-English narration option. The seven released canonical profiles replace unrelated namesakes; docs/cast-census.md records every old slot. Editions1–4 retain their frozen HF2.9.0 runtime. Edition5 saves refuse with an explicit fresh-start choice.
 
@@ -76,17 +76,17 @@ A fresh continuity chapter preflights and atomically claims all seven expected h
 
 Current exports retain initial actors, source inputs, claims and owned receipts. Imported files retain file provenance after reload and stay local unless recording linkage is explicitly permitted. Mixed histories require current permission for the full group. Source checkpoints require a natural action boundary and refuse active work; owned death closes its branch. Independent adapter tests, deployed agent journeys and owner play remain separate evidence.
 
-## Approved UI rebuild (2026-10-22)
+## Historical approved UI rebuild (2026-10-22)
 
-The owner approved the UI sweep: "All good decisions, proceed." The approved layout and its addenda are the current UI authority. Delivery means the complete rebuilt UI on the public site, replay and legacy-save compatibility retained, one independent Codex review with concrete findings fixed, green CI on the deployed commit, and all acceptance items checked in a browser at 360×690 and 1280×800. Adam accepts the result by playing it.
+The owner approved the UI sweep: "All good decisions, proceed." The approved layout and its addenda are the current UI authority. The delivery criteria at that time included the complete rebuilt UI on the public site, replay and legacy-save compatibility retained, one independent Codex review with concrete findings fixed, green CI on the deployed commit, and all acceptance items checked in a browser at 360×690 and 1280×800. Adam accepts the result by playing it.
 
 The top bar holds the date, one information control and the menu. The rent bar sits above the office or city scene. The Bench, Families and Placed sheet holds the current context; inspections and decisions replace that sheet. Candidate notes and conversation transcripts are visible there. Candidate verbs and conversation endings stay at its foot. The ringing phone stays on the scene across tabs and inspections. The title holds resume, restart confirmation and playtest import; the menu holds notes, page chips, pacing, feedback and recording controls. Send word includes a remembered optional name and keeps export available.
 
 Pacing is presentation only. Automatic is the default: held for conversations, calls and the day card; slow for departures and reading with a waiting bench; steady with people waiting; fast with an empty bench. Menu choices Automatic / Slow / Steady / Fast never emit simulation speed inputs. Skip ⏩ names its actual next stop on its second line, including an earlier applicant departure or office closing. Historical speed inputs and earlier placement rules remain replayable. This section supersedes the older interface and pacing descriptions below; simulation rules are unchanged.
 
-## Open-fix sweep (2026-10-23)
+## Historical open-fix sweep (2026-10-23)
 
-Delivery means the open Good Hands ledger routes are checked against the live rebuild, clear remaining fixes and F-340 backstories are deployed with focused tests and exact legacy continuation, one independent Codex review is addressed, CI is green, and live browser checks pass at 360×690 and 1280×800. The route reconciliation and delivery report live in `~/code/.lab-scratch/sweep/`; a separate consolidator updates the shared ledger. Adam accepts the result by playing it.
+The delivery criteria at that time included checking the open Good Hands ledger routes against the live rebuild and deploying clear remaining fixes and F-340 backstories with focused tests and exact legacy continuation, addressing one independent Codex review, green CI, and live browser checks at 360×690 and 1280×800. The route reconciliation and delivery report live in `~/code/.lab-scratch/sweep/`; a separate consolidator updates the shared ledger. Adam accepts the result by playing it.
 
 New months use simulation 4. Simulation 3 is frozen alongside 1 and 2; continuing or importing an earlier month keeps all its prior rules and authored text. Edition 4 deepens existing candidate and household accounts through the existing conversations and outcomes. Those accounts remain attributed claims; they do not certify a person's character. Faith remains background. The explicit deposit route changes the upfront fee to one week's agreed wage (monthly wage divided by four), capped at the total fee. The remaining fee follows the kept trial; replacement does not charge a second deposit. Difficulty, household pressures, HF traits and the existing choices stay intact.
 
@@ -236,7 +236,7 @@ The owner run's three Cem–Demir trials were wage refusals: Cem asked ₺9,000 
 
 A called reference is unavailable with an adjacent explanation. These former-employer accounts concern fixed past work; nothing in this increment gives that speaker a new observation, so a second call adds no new account. Ending the first call warns the player to ask remaining questions before hanging up. New requests can still be investigated through interviews and trials. The simulation rejects repeated calls, so they cannot duplicate book entries. Open requests alone occupy Families; filled work is in Placed, and Lost is collapsed with one reason (DL-5).
 
-Simulation 1 and its authored modules are frozen in `src/sim/v1/`. Unmarked old exports use it, including full-state comparisons. New games use simulation 2 and include that version in full and compact exports. The envelope remains version 1; the simulation number selects behavior. Do not modify a frozen simulation to change new play.
+At that historical stage, simulation 1 and its authored modules were frozen in `src/sim/v1/`, unmarked old exports used it, and new games used simulation 2. Those are historical replay controls; current admission refuses those older editions. Do not modify a frozen simulation to change new play.
 
 ## Clock and help presentation (2026-10-21)
 

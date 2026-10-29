@@ -1,6 +1,6 @@
 import { expect, test } from 'vitest';
-import { advance, apply, fingerprint, newGame, replay, view } from '../src/sim/index.ts';
-import type { State } from '../src/sim/types.ts';
+import { advance, apply, fingerprint, newGame, replay, view } from '../src/sim/v6/index.ts';
+import type { State } from '../src/sim/v6/types.ts';
 
 const card = (s: State, id: string) => [...view(s).bench, ...view(s).books].find((c) => c.id === id)!;
 function close(s: State) {

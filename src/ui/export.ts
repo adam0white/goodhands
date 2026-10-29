@@ -260,6 +260,8 @@ export function verifyImport(
   const data: unknown = JSON.parse(text);
   if (!record(data) || data.game !== 'goodhands' || data.version !== 1)
     throw new Error('This is not a Good Hands run.');
+  const simulation = data.simulation ?? 1;
+  if (simulation !== 6) throw new Error('Keep the original saved game or file and start a new game.');
   if (options.requireFull && !Object.hasOwn(data, 'state'))
     throw new Error('This is not a complete source archive.');
   if (
@@ -284,18 +286,13 @@ export function verifyImport(
     previous = entry.at;
   }
   const inputs = structuredClone(data.inputs) as LoggedInput[];
-  const simulation = data.simulation ?? 1;
-  if (simulation === 5)
-    throw new Error(
-      'This month uses the older cast. Start a new game. You can keep the exported file for inspection.',
-    );
-  if (simulation !== 1 && simulation !== 2 && simulation !== 3 && simulation !== 4 && simulation !== 6)
-    throw new Error('Unsupported simulation version.');
   if (simulation === 6 && data.castEdition !== CAST_EDITION)
-    throw new Error('This version cannot load that cast. Start a new game.');
+    throw new Error('This version cannot load that cast. Keep the original file and start a new game.');
   const continuity = readContinuity(data.continuity, data.oneCast);
   if (simulation === 6 && data.framework !== ENGINE_VERSION)
-    throw new Error('This file uses an older version of the Human Framework. Start a new game.');
+    throw new Error(
+      'This file uses an older version of the Human Framework. Keep the original file and start a new game.',
+    );
   if (data.chapter !== undefined) {
     boundedPersonaJson(data.chapter);
     if (
@@ -308,16 +305,6 @@ export function verifyImport(
     )
       throw new Error('Invalid pinned agency chapter.');
   } else if (continuity.chapter) throw new Error('Missing pinned agency chapter.');
-  if (
-    simulation !== 6 &&
-    (continuity.arrivals.length ||
-      continuity.heads.length ||
-      continuity.chapter ||
-      continuity.publications?.length)
-  )
-    throw new Error('Legacy runs cannot admit a guest.');
-  if (simulation !== 6 && inputs.some((e) => e.input.type === 'guest-action'))
-    throw new Error('Legacy editions have no guest actions.');
   const state = replay(
     data.seed as number,
     inputs,

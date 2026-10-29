@@ -23,7 +23,7 @@ export function skippedBeforeAcceptance(
 
 export function savedMonthStatus(ready: boolean, older: boolean, unreadable: boolean): string {
   if (!ready) return 'Looking for a saved month…';
-  if (older) return 'This saved month uses an older version. Start a new game.';
+  if (older) return 'This saved month uses an older version. Keep the saved month and start a new game.';
   if (unreadable) return 'This saved month could not be loaded. Start a new game.';
   return '';
 }
