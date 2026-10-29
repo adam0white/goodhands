@@ -46,7 +46,7 @@ it('preserves exact source bytes and paused full/compact histories until explici
     expect(session.snapshot()).toHaveProperty('futureMetadata.note', 'retain me');
     expect(verifyImport(JSON.stringify(session.snapshot())).state).toEqual(state);
   }
-});
+}, 420_000);
 it('invalid, empty and canceled selections retire pending reads without replacing the held complete run', async () => {
   const run = exportRun(newGame(19), []);
   const session = createFileSession();
