@@ -18,7 +18,7 @@ import { agencyTransfer } from '../src/sim/cast-chapter.ts';
 import { ENGINE_VERSION } from '../src/sim/hf4.ts';
 import { apply, newGame } from '../src/sim/index.ts';
 import { exportRun, type RunExport, verifyImport } from '../src/ui/export.ts';
-import { closeFixtureBrowser } from './browser-fixture.ts';
+import { closeFixtureBrowser, routeFixture } from './browser-fixture.ts';
 import { pausedRun } from './paused-run.ts';
 
 let server: ViteDevServer;
@@ -259,7 +259,7 @@ async function fixture(context: BrowserContext, reject: () => boolean, carry = f
             : true,
     };
   });
-  await context.route('**/*', async (route) => {
+  await routeFixture(context, async (route) => {
     const id = String(++transportId);
     const entry = {
       at: Date.now(),

@@ -4,7 +4,7 @@ import { createServer } from 'vite';
 import { expect, it } from 'vitest';
 import { newGame } from '../src/sim/index.ts';
 import { exportRun, verifyImport } from '../src/ui/export.ts';
-import { closeFixtureBrowser } from './browser-fixture.ts';
+import { closeFixtureBrowser, routeFixture } from './browser-fixture.ts';
 
 for (const scenario of ['before-confirm', 'during-begin', 'back-during-begin', 'positive'] as const) {
   it(`replacement chooser ${scenario} respects selection through real validation`, async () => {
@@ -52,7 +52,7 @@ for (const scenario of ['before-confirm', 'during-begin', 'back-during-begin', '
       const localUrl = server.resolvedUrls?.local[0];
       if (!localUrl) throw new Error('No local fixture URL.');
       const local = new URL(localUrl);
-      await context.route('**/*', async (route) => {
+      await routeFixture(context, async (route) => {
         if (new URL(route.request().url()).origin === local.origin) await route.continue();
         else await route.abort();
       });
