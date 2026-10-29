@@ -23,6 +23,7 @@ it('verifies a complete archive in a worker and preserves the month on cancellat
       return JSON.parse(await readFile(await (await pending).path(), 'utf8')) as { seed: number };
     };
     const before = await download();
+    await page.locator('[data-open-saved]').click();
     await page.getByRole('button', { name: 'Verify and import complete source archive' }).click();
     const select = async () => {
       const chooser = page.waitForEvent('filechooser');
@@ -37,6 +38,7 @@ it('verifies a complete archive in a worker and preserves the month on cancellat
     await select();
     await page.getByText('Archive verified and ready to import.').waitFor({ timeout: 60000 });
     await page.getByRole('button', { name: 'Cancel', exact: true }).click();
+    await page.locator('[data-open-saved]').click();
     await page.getByRole('button', { name: 'Verify and import complete source archive' }).click();
     await select();
     await page.getByRole('button', { name: 'Cancel', exact: true }).click();
@@ -45,6 +47,7 @@ it('verifies a complete archive in a worker and preserves the month on cancellat
     await page.getByRole('button', { name: 'Resume', exact: true }).click();
     await page.getByTestId('office').waitFor();
     await page.locator('[data-action="menu"]').click();
+    await page.locator('[data-open-saved]').click();
     await page.getByRole('button', { name: 'Verify and import complete source archive' }).click();
     page.once('dialog', (dialog) => dialog.accept());
     await select();

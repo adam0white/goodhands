@@ -106,6 +106,8 @@ try {
       );
     }
     await page.getByRole('button', { name: 'Open the office', exact: true }).click();
+    // Opening now awaits durable admission. Observe its actual mount before checking stage ownership.
+    await page.getByTestId('office').waitFor();
     await fits('office');
     assert.deepEqual(await lifecycle(), { active: 1, mounts: 1 });
     const checkStage = async () => {
@@ -212,6 +214,7 @@ try {
     assert.equal((await lifecycle()).active, 0);
     await page.locator('[data-action="menu"]').click();
     page.on('dialog', (dialog) => void dialog.accept());
+    await page.locator('[data-open-saved]').click();
     const chooser = page.waitForEvent('filechooser');
     await page.locator('[data-action="import"]').click();
     await (await chooser).setFiles({
@@ -226,6 +229,7 @@ try {
     await page.locator('[data-action="menu"]').click();
     await page.getByRole('button', { name: 'To the title page', exact: true }).click();
     await page.locator('[data-action="menu"]').click();
+    await page.locator('[data-open-saved]').click();
     const earlyChooser = page.waitForEvent('filechooser');
     await page.locator('[data-action="import"]').click();
     await (await earlyChooser).setFiles({

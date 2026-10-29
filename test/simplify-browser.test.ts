@@ -17,7 +17,8 @@ import { ALLOCATION, CAST } from '../src/sim/cast.ts';
 import { agencyTransfer } from '../src/sim/cast-chapter.ts';
 import { ENGINE_VERSION } from '../src/sim/hf4.ts';
 import { apply, newGame } from '../src/sim/index.ts';
-import { verifyImport } from '../src/ui/export.ts';
+import { exportRun, type RunExport, verifyImport } from '../src/ui/export.ts';
+import { closeFixtureBrowser } from './browser-fixture.ts';
 import { pausedRun } from './paused-run.ts';
 
 let server: ViteDevServer;
@@ -70,6 +71,37 @@ async function fixture(context: BrowserContext, reject: () => boolean, carry = f
     backend = acceptPersona(backend, secondParent);
   }
   let writes = 0;
+  const receivers: RunExport[] = [];
+  // Synthetic admission observer. It sees committed host journals only; no
+  // production certification or cross-origin ownership claim is made.
+  await context.addInitScript(() => {
+    const fixture = window as typeof window & { receivingPhases: Promise<string>[] };
+    fixture.receivingPhases = [];
+    const put = IDBObjectStore.prototype.put;
+    IDBObjectStore.prototype.put = function (value, key) {
+      if (key === 'receiving' && (value.compressed || value.blob)) {
+        this.transaction.addEventListener('error', (event) => {
+          const target = event.target as IDBRequest;
+          console.error('Journal transaction request failed', target.error?.name, target.error?.message);
+        });
+        fixture.receivingPhases.push(
+          new Promise((resolve, reject) => {
+            this.transaction.addEventListener('complete', () => {
+              void new Response(
+                (value.blob ?? new Blob([value.compressed]))
+                  .stream()
+                  .pipeThrough(new DecompressionStream('gzip')),
+              )
+                .text()
+                .then((text) => resolve(JSON.parse(text).phase), reject);
+            });
+            this.transaction.addEventListener('abort', () => reject(new Error('Journal aborted')));
+          }),
+        );
+      }
+      return put.call(this, value, key);
+    };
+  });
   await context.exposeBinding('shelfFixtureReply', async (_source, data) => {
     const message = data as {
       type: string;
@@ -80,6 +112,26 @@ async function fixture(context: BrowserContext, reject: () => boolean, carry = f
     };
     const type = message.type === 'hf-persona-consent' ? 'hf-persona-consent-reply' : 'hf-persona-reply';
     if (message.action === 'putBatch') {
+      const persisted = await _source.page.evaluate(async () => {
+        const modulePath = '/src/ui/store.ts';
+        const storage = await (
+          new Function('path', 'return import(path)') as (
+            path: string,
+          ) => Promise<typeof import('../src/ui/store.ts')>
+        )(modulePath);
+        const fixture = window as typeof window & { receivingPhases: Promise<string>[] };
+        return { journal: await storage.readReceiving(), phases: await Promise.all(fixture.receivingPhases) };
+      });
+      expect(persisted.journal?.phase).toBe('sending');
+      if (carry) expect(persisted.phases).toContain('prepared');
+      expect(persisted.journal?.run.state).toBeTruthy();
+      expect(persisted.journal?.run.continuity?.initialClaims).toEqual(message.envelopes ?? []);
+      expect(persisted.journal?.expectedHeads).toEqual(message.expectedHeads);
+      receivers.push(structuredClone(persisted.journal!.run));
+      if (carry)
+        expect(
+          persisted.journal?.run.continuity?.chapter?.skipped?.map((p: { castId: string }) => p.castId),
+        ).toContain(CAST.hulya.castId);
       for (const envelope of message.envelopes ?? []) expect(envelope.source.engine).toBe(ENGINE_VERSION);
       if (reject() && !lostReply)
         return { type, id: message.id, error: 'Shelf unavailable. Use a local file.' };
@@ -101,29 +153,33 @@ async function fixture(context: BrowserContext, reject: () => boolean, carry = f
                   ALLOCATION.map((c) => [c.castId, backend.heads[c.castId] ?? null]),
                 ),
                 inputs: carry ? [preparePersonaLife(head, Date.now())] : [],
-                blocked: [],
+                blocked: carry
+                  ? [{ castId: CAST.hulya.castId, reason: 'Synthetic unavailable person.' }]
+                  : [],
               }
             : true,
     };
   });
   await context.route('**/*', async (route) => {
-    const url = new URL(route.request().url());
-    if (
-      route.request().method() === 'POST' &&
-      url.origin === 'https://human.adamwhite.work' &&
-      url.pathname.startsWith('/lab/api/')
-    )
-      return route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        headers: { 'Access-Control-Allow-Origin': '*' },
-        body: JSON.stringify({ id: 'local-stored-receipt', ok: true }),
-      });
-    if (route.request().method() === 'POST' && url.hostname.endsWith('adamwhite.work')) return route.abort();
-    if (url.origin === origin && url.pathname === '/@vite/client')
-      return route.fulfill({
-        contentType: 'text/javascript',
-        body: `
+    try {
+      const url = new URL(route.request().url());
+      if (
+        route.request().method() === 'POST' &&
+        url.origin === 'https://human.adamwhite.work' &&
+        url.pathname.startsWith('/lab/api/')
+      )
+        return await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          headers: { 'Access-Control-Allow-Origin': '*' },
+          body: JSON.stringify({ id: 'local-stored-receipt', ok: true }),
+        });
+      if (route.request().method() === 'POST' && url.hostname.endsWith('adamwhite.work'))
+        return await route.abort();
+      if (url.origin === origin && url.pathname === '/@vite/client')
+        return await route.fulfill({
+          contentType: 'text/javascript',
+          body: `
         // Fixtures need Vite CSS injection, but no development WebSocket on a routed HTTPS origin.
         const styles = new Map();
         export function updateStyle(id, css) { let style = styles.get(id); if (!style) { style = document.createElement('style'); styles.set(id, style); document.head.append(style); } style.textContent = css; }
@@ -132,40 +188,57 @@ async function fixture(context: BrowserContext, reject: () => boolean, carry = f
         export function injectQuery(url) { return url; }
         export class ErrorOverlay extends HTMLElement {}
       `,
-      });
-    if (url.origin === origin) {
-      const response = await route.fetch({ url: `${local.replace(/\/$/, '')}${url.pathname}${url.search}` });
-      if (carry && url.pathname.endsWith('/portable-readers.js')) {
-        // Synthetic certifications for these in-memory transport fixtures only; not deployment evidence.
-        const readers = Object.fromEntries(
-          ALLOCATION.flatMap((person) => portableWriteBlockers(person.castId, 'goodhands')).map((game) => [
-            game,
-            { client: '0.5.7', perPersonSkips: true },
-          ]),
-        );
-        const source = await response.text();
-        const fixtureSource = source.replace(
-          'export const PORTABLE_READERS = {};',
-          `export const PORTABLE_READERS = ${JSON.stringify(readers)};`,
-        );
-        expect(fixtureSource).not.toBe(source);
-        return route.fulfill({ response, body: fixtureSource });
+        });
+      if (url.origin === origin) {
+        const response = await route.fetch({
+          url: `${local.replace(/\/$/, '')}${url.pathname}${url.search}`,
+        });
+        if (carry && url.pathname.endsWith('/portable-readers.js')) {
+          // Synthetic certifications for these in-memory transport fixtures only; not deployment evidence.
+          const readers = Object.fromEntries(
+            ALLOCATION.flatMap((person) => portableWriteBlockers(person.castId, 'goodhands')).map((game) => [
+              game,
+              { client: '0.5.7', perPersonSkips: true },
+            ]),
+          );
+          const source = await response.text();
+          const fixtureSource = source.replace(
+            'export const PORTABLE_READERS = {};',
+            `export const PORTABLE_READERS = ${JSON.stringify(readers)};`,
+          );
+          expect(fixtureSource).not.toBe(source);
+          return await route.fulfill({ response, body: fixtureSource });
+        }
+        return await route.fulfill({ response });
       }
-      return route.fulfill({ response });
-    }
-    if (url.origin === 'https://human.adamwhite.work' && url.pathname === '/lab/identity/')
-      return route.fulfill({
-        contentType: 'text/html',
-        body: `<script>addEventListener('message', async e => {
+      if (url.origin === 'https://human.adamwhite.work' && url.pathname === '/lab/identity/')
+        return await route.fulfill({
+          contentType: 'text/html',
+          body: `<script>addEventListener('message', async e => {
         if (e.data?.type !== 'hf-persona-consent' && e.data?.type !== 'hf-persona-request') return;
         const result = await window.shelfFixtureReply(e.data);
         if (result === null) return;
         if (e.ports[0]) e.ports[0].postMessage(result); else e.source.postMessage(result, e.origin);
       });</script>`,
-      });
-    return route.continue();
+        });
+      return await route.continue();
+    } catch (error) {
+      // Navigation/teardown can abort a routed Vite fetch. Ignore only an
+      // already-handled route with an actual browser-reported request failure.
+      if (
+        error instanceof Error &&
+        error.message.includes('Route is already handled') &&
+        route.request().failure()
+      )
+        return;
+      throw error;
+    }
   });
-  return { writes: () => writes, heads: () => structuredClone(backend.heads) };
+  return {
+    writes: () => writes,
+    heads: () => structuredClone(backend.heads),
+    receivers: () => structuredClone(receivers),
+  };
 }
 async function readable(page: Page, selector: string, min = 0) {
   const controls = page.locator(selector);
@@ -227,14 +300,25 @@ for (const [name, engine] of [
           const page = await context.newPage();
           page.setDefaultTimeout(8000);
           const errors: string[] = [];
+          const consoleLines: string[] = [];
           page.on('pageerror', (error) => errors.push(error.message));
+          page.on('console', (message) => consoleLines.push(`${message.type()}: ${message.text()}`));
           await page.clock.install();
           await page.clock.pauseAt(new Date());
           await page.goto(origin);
           await page.evaluate(() => document.fonts.ready);
           expect(await page.locator('[data-action="other-ways"]').count()).toBe(0);
           await page.getByRole('button', { name: 'Open the office', exact: true }).click();
-          await page.getByTestId('office').waitFor();
+          try {
+            await page.getByTestId('office').waitFor();
+          } catch (error) {
+            console.error('Startup diagnostics', {
+              errors,
+              consoleLines,
+              body: await page.locator('body').innerText(),
+            });
+            throw error;
+          }
           await page.locator('[data-action="info"]').click();
           expect(await page.locator('.info-panel').innerText()).toContain(
             'Agency fees help you pay the rent.',
@@ -248,10 +332,13 @@ for (const [name, engine] of [
             'https://human.adamwhite.work/lab/people/',
           );
           expect(await menu.locator('.debug-footer details').getAttribute('open')).toBeNull();
-          expect(await menu.locator('[data-action="import"]').isVisible()).toBe(true);
+          expect(await menu.locator('[data-open-saved]').isVisible()).toBe(true);
           await menu.getByText('Debug', { exact: true }).click();
-          expect(await menu.locator('[data-action="import"]').isVisible()).toBe(true);
+          expect(await menu.locator('[data-open-saved]').isVisible()).toBe(true);
           await menu.getByText('Debug', { exact: true }).click();
+          await menu.locator('[data-open-saved]').click();
+          expect(await page.getByRole('button', { name: 'Replace saved month' }).isVisible()).toBe(true);
+          await page.getByRole('button', { name: 'Cancel', exact: true }).click();
           await page.getByRole('button', { name: 'Resume', exact: true }).click();
           await page.getByRole('button', { name: 'Gülce Aksoy', exact: true }).click();
           expect(await page.locator('.look').innerText()).toBe(
@@ -325,7 +412,7 @@ for (const [name, engine] of [
           expect(await page.locator('[data-pace-choice]').count()).toBe(4);
           expect(await page.locator('.debug-footer details').getAttribute('open')).toBeNull();
         } finally {
-          await browser.close();
+          await closeFixtureBrowser(browser);
         }
       },
       120_000,
@@ -340,6 +427,10 @@ for (const lostReply of [false, true])
       let rejected = false;
       const shelf = await fixture(context, () => rejected, true, lostReply);
       const page = await context.newPage();
+      page.on('pageerror', (error) => console.error('Admission page error', error.message));
+      page.on('console', (msg) => {
+        if (msg.type() === 'error') console.error('Admission console', msg.text());
+      });
       page.setDefaultTimeout(8000);
       await page.clock.install();
       await page.clock.pauseAt(new Date());
@@ -366,9 +457,11 @@ for (const lostReply of [false, true])
                 const row = r.result;
                 resolve(
                   row?.plain ??
-                    (row?.blob
+                    (row?.blob || row?.compressed
                       ? await new Response(
-                          row.blob.stream().pipeThrough(new DecompressionStream('gzip')),
+                          (row.blob ?? new Blob([row.compressed]))
+                            .stream()
+                            .pipeThrough(new DecompressionStream('gzip')),
                         ).text()
                       : null),
                 );
@@ -380,6 +473,7 @@ for (const lostReply of [false, true])
           }
         });
       const before = await saved();
+      expect(verifyImport(before as string).state).toEqual(shelf.receivers()[0]?.state);
       const beforeHead = shelf.heads()[CAST.hatice.castId];
       expect(JSON.stringify(before)).toContain('simplify-fixture');
       await page.locator('[data-action="menu"]').click();
@@ -398,7 +492,7 @@ for (const lostReply of [false, true])
         await page.clock.runFor(3500);
       }
       await page
-        .getByText('This month could not start because its people could not be loaded safely.', {
+        .getByText('This month could not finish opening.', {
           exact: false,
         })
         .last()
@@ -406,8 +500,19 @@ for (const lostReply of [false, true])
       expect(await saved()).toEqual(before);
       expect(await page.locator('.menu-sheet').innerText()).not.toContain('Shelf unavailable');
       expect(await page.locator('[data-action="people"]').count()).toBe(0);
+      await page.reload();
+      await page.getByText('Whether its people were accepted is unknown.', { exact: false }).waitFor();
+      expect(await saved()).toEqual(before);
+      const artifact = page.waitForEvent('download');
+      await page.getByRole('button', { name: 'Download the prepared month', exact: true }).click();
+      const stream = await (await artifact).createReadStream();
+      const chunks: Buffer[] = [];
+      for await (const chunk of stream!) chunks.push(chunk);
+      const recovered = verifyImport(Buffer.concat(chunks).toString());
+      expect(recovered.continuity.initialClaims?.length).toBe(1);
+      expect(recovered.continuity.chapter?.skipped?.some((p) => p.castId === CAST.hulya.castId)).toBe(true);
     } finally {
-      await browser.close();
+      await closeFixtureBrowser(browser);
     }
   }, 60_000);
 
@@ -469,7 +574,275 @@ for (const pending of [false, true]) {
       console.error('Resume browser failure:', error);
       throw error;
     } finally {
-      await browser.close();
+      await closeFixtureBrowser(browser);
     }
   }, 120000);
 }
+
+for (const mode of ['abort', 'cancel'] as const) {
+  it(`synthetic receiving ${mode} leaves the native save and sends no shelf write`, async () => {
+    const browser = await chromium.launch({ channel: process.env.HF_BROWSER_CHANNEL });
+    try {
+      const context = await browser.newContext({ viewport: { width: 820, height: 1180 } });
+      const shelf = await fixture(context, () => false, true);
+      await context.addInitScript((scenario) => {
+        const state = window as typeof window & { receivingAttempt?: boolean; receivingPrepared?: boolean };
+        addEventListener('unhandledrejection', (event) => event.preventDefault());
+        const put = IDBObjectStore.prototype.put;
+        IDBObjectStore.prototype.put = function (value, key) {
+          const result = put.call(this, value, key);
+          if (key === 'receiving' && !state.receivingAttempt) {
+            state.receivingAttempt = true;
+            if (scenario === 'abort') queueMicrotask(() => this.transaction.abort());
+            else
+              this.transaction.addEventListener('complete', () => {
+                state.receivingPrepared = true;
+                dispatchEvent(new Event('hf-persona-preference'));
+              });
+          }
+          return result;
+        };
+      }, mode);
+      const page = await context.newPage();
+      await page.goto(origin);
+      const sentinel = { syntheticOriginal: 'unchanged' };
+      await page.evaluate(async (value) => {
+        const store = await (
+          new Function('return import("/src/ui/store.ts")') as () => Promise<
+            typeof import('../src/ui/store.ts')
+          >
+        )();
+        if (!(await store.put('run', value))) throw new Error('Could not seed synthetic native save.');
+      }, sentinel);
+      await page.getByRole('button', { name: 'Open the office', exact: true }).click();
+      await expect
+        .poll(
+          () =>
+            page.evaluate(() => (window as typeof window & { receivingAttempt?: boolean }).receivingAttempt),
+          { timeout: 30000 },
+        )
+        .toBe(true);
+      if (mode === 'cancel')
+        await expect
+          .poll(() =>
+            page.evaluate(
+              () => (window as typeof window & { receivingPrepared?: boolean }).receivingPrepared,
+            ),
+          )
+          .toBe(true);
+      await page.waitForTimeout(500);
+      expect(shelf.writes()).toBe(0);
+      const inspect = () =>
+        page.evaluate(async () => {
+          const store = await (
+            new Function('return import("/src/ui/store.ts")') as () => Promise<
+              typeof import('../src/ui/store.ts')
+            >
+          )();
+          return { native: (await store.get('run'))?.value, journal: await store.readReceiving() };
+        });
+      const beforeReload = await inspect();
+      expect(beforeReload.native).toEqual(sentinel);
+      expect(beforeReload.journal?.phase ?? null).toBe(mode === 'cancel' ? 'prepared' : null);
+      await page.reload();
+      const afterReload = await inspect();
+      expect(afterReload.native).toEqual(sentinel);
+      expect(afterReload.journal?.phase ?? null).toBe(mode === 'cancel' ? 'prepared' : null);
+      expect(shelf.writes()).toBe(0);
+    } finally {
+      await closeFixtureBrowser(browser);
+    }
+  }, 60_000);
+}
+
+for (const denial of ['open', 'capture'] as const) {
+  it(`synthetic ${denial} storage denial permits replayable local play without native or shared writes`, async () => {
+    const browser = await chromium.launch({ channel: process.env.HF_BROWSER_CHANNEL });
+    try {
+      const context = await browser.newContext({ viewport: { width: 360, height: 690 } });
+      const shelf = await fixture(context, () => false, true);
+      await context.addInitScript((mode) => {
+        const denied = () => sessionStorage.getItem('synthetic-deny-native') === '1';
+        const open = IDBFactory.prototype.open;
+        IDBFactory.prototype.open = function (...args) {
+          if (mode === 'open' && args[0] === 'goodhands' && denied())
+            throw new DOMException('Synthetic storage denial.', 'SecurityError');
+          return open.apply(this, args);
+        };
+        const transaction = IDBDatabase.prototype.transaction;
+        IDBDatabase.prototype.transaction = function (...args) {
+          if (mode === 'capture' && this.name === 'goodhands' && args[1] === 'readwrite' && denied())
+            throw new DOMException('Synthetic capture denial.', 'SecurityError');
+          return transaction.apply(this, args);
+        };
+      }, denial);
+      const page = await context.newPage();
+      await page.clock.install();
+      await page.clock.pauseAt(new Date());
+      await page.goto(origin);
+      const sentinel = { syntheticOriginal: 'retained while storage denied' };
+      await page.evaluate(async (value) => {
+        const store = await (
+          new Function('return import("/src/ui/store.ts")') as () => Promise<
+            typeof import('../src/ui/store.ts')
+          >
+        )();
+        if (!(await store.put('run', value))) throw new Error('Synthetic save setup failed.');
+        sessionStorage.setItem('synthetic-deny-native', '1');
+      }, sentinel);
+      await page.reload();
+      await page.getByRole('button', { name: 'Open the office', exact: true }).click();
+      await page.getByTestId('office').waitFor();
+      await page
+        .getByText('This month stays in this tab because this browser cannot save.', { exact: false })
+        .waitFor();
+      expect(shelf.writes()).toBe(0);
+      // Storage recovering does not authorize replacing data that was unreadable.
+      await page.evaluate(() => sessionStorage.removeItem('synthetic-deny-native'));
+      await page.getByRole('button', { name: 'Gülce Aksoy', exact: true }).click();
+      await page.locator('[data-action="interview"]').click();
+      await page.locator('[data-action="more-choices"]').click();
+      await page.locator('[data-choice="wage"]').click();
+      await page.locator('[data-action="menu"]').click();
+      const pending = page.waitForEvent('download');
+      await page.getByRole('button', { name: 'Download this run', exact: true }).click();
+      const stream = await (await pending).createReadStream();
+      const chunks: Buffer[] = [];
+      for await (const chunk of stream!) chunks.push(chunk);
+      const json = Buffer.concat(chunks).toString();
+      const decoded = verifyImport(json);
+      expect(JSON.parse(json).state).toEqual(decoded.state);
+      expect(decoded.inputs.length).toBeGreaterThan(0);
+      expect(decoded.continuity.initialClaims).toEqual([]);
+      await page.getByRole('button', { name: 'Open a saved month…', exact: true }).click();
+      expect(await page.getByRole('button', { name: 'Replace saved month', exact: true }).count()).toBe(0);
+      expect(await page.getByRole('link', { name: 'Play in this tab only', exact: true }).isVisible()).toBe(
+        true,
+      );
+      expect(
+        await page.getByRole('button', { name: 'Verify and import complete source archive' }).count(),
+      ).toBe(0);
+      await page.getByRole('button', { name: 'Cancel', exact: true }).click();
+      await page.getByRole('button', { name: 'What happens to these people next', exact: true }).click();
+      expect(
+        await page.getByText('Its people are not shared with other games.', { exact: false }).isVisible(),
+      ).toBe(true);
+      expect(await page.getByRole('button', { name: /Publish paused|Pause and prepare/ }).count()).toBe(0);
+      await page.evaluate(() => dispatchEvent(new Event('pagehide')));
+      const retained = await page.evaluate(async () => {
+        const store = await (
+          new Function('return import("/src/ui/store.ts")') as () => Promise<
+            typeof import('../src/ui/store.ts')
+          >
+        )();
+        return { native: (await store.get('run'))?.value, journal: await store.readReceiving() };
+      });
+      expect(retained).toEqual({ native: sentinel, journal: null });
+      expect(shelf.writes()).toBe(0);
+    } finally {
+      await closeFixtureBrowser(browser);
+    }
+  }, 60_000);
+}
+
+for (const phase of ['sending', 'acknowledged'] as const)
+  it(`a retained ${phase} opening permits explicit fresh tab-only play without retrying claims`, async () => {
+    // Synthetic lost transport reply and retained native journal, not a peer journey.
+    const browser = await chromium.launch({ channel: process.env.HF_BROWSER_CHANNEL });
+    try {
+      const context = await browser.newContext({ viewport: { width: 360, height: 690 } });
+      const shelf = await fixture(context, () => phase === 'sending', true, true);
+      const page = await context.newPage();
+      await page.clock.install();
+      await page.clock.pauseAt(new Date());
+      await page.goto(origin);
+      if (phase === 'sending') {
+        await page.getByRole('button', { name: 'Open the office', exact: true }).click();
+        await expect.poll(() => shelf.writes(), { timeout: 20000 }).toBe(1);
+        await page.clock.runFor(3500);
+        await page.getByText('This month could not finish opening.', { exact: false }).waitFor();
+      } else {
+        // Synthetic acknowledged journal and actual native compare-and-swap conflict.
+        await page.evaluate(
+          async ({ run, prior, changed }) => {
+            const store = await (
+              new Function('return import("/src/ui/store.ts")') as () => Promise<
+                typeof import('../src/ui/store.ts')
+              >
+            )();
+            await store.put('run', prior);
+            const journal = {
+              id: 'synthetic-accepted-conflict',
+              phase: 'prepared' as const,
+              run,
+              expectedHeads: {},
+              priorNative: await store.captureNative(),
+              createdAt: 1,
+            };
+            await store.retainReceiving(journal);
+            await store.retainReceiving({ ...journal, phase: 'sending' });
+            await store.retainReceiving({ ...journal, phase: 'acknowledged' });
+            await store.put('run', changed);
+          },
+          {
+            run: exportRun(newGame(81), []),
+            prior: exportRun(newGame(82), []),
+            changed: exportRun(newGame(83), []),
+          },
+        );
+      }
+      await page.reload();
+      if (phase === 'sending')
+        await page.getByText('Whether its people were accepted is unknown.', { exact: false }).waitFor();
+      else {
+        await page.getByRole('button', { name: 'Resume the accepted month', exact: true }).click();
+        await page
+          .getByText('Your saved month changed. Download the accepted month to keep it separately.', {
+            exact: true,
+          })
+          .waitFor();
+      }
+      const inspect = () =>
+        page.evaluate(async () => {
+          const store = await (
+            new Function('return import("/src/ui/store.ts")') as () => Promise<
+              typeof import('../src/ui/store.ts')
+            >
+          )();
+          return { native: (await store.get('run'))?.value ?? null, journal: await store.readReceiving() };
+        });
+      const original = await inspect();
+      if (phase === 'sending') expect(original.native).toBeNull();
+      else expect(original.native).toEqual(exportRun(newGame(83), []));
+      expect(original.journal?.phase).toBe(phase);
+      if (phase === 'sending') expect(original.journal?.run.continuity?.initialClaims?.length).toBe(1);
+      await page.getByRole('button', { name: 'Start a fresh month in this tab', exact: true }).click();
+      await page.getByTestId('office').waitFor();
+      await page.getByText('This fresh month stays in this tab.', { exact: false }).waitFor();
+      await page.getByRole('button', { name: 'Gülce Aksoy', exact: true }).click();
+      await page.locator('[data-action="interview"]').click();
+      await page.locator('[data-action="more-choices"]').click();
+      await page.locator('[data-choice="wage"]').click();
+      await page.getByRole('button', { name: 'Game menu', exact: true }).click();
+      const pending = page.waitForEvent('download');
+      await page.getByRole('button', { name: 'Download this run', exact: true }).click();
+      const chunks: Buffer[] = [];
+      for await (const chunk of await (await pending).createReadStream()) chunks.push(chunk);
+      const json = Buffer.concat(chunks).toString();
+      const restored = verifyImport(json);
+      expect(restored.state).toEqual(JSON.parse(json).state);
+      expect(restored.inputs.length).toBeGreaterThan(0);
+      expect(restored.continuity.initialClaims).toEqual([]);
+      await page.getByRole('button', { name: 'What happens to these people next', exact: true }).click();
+      expect(await page.getByRole('button', { name: /Publish paused|Pause and prepare/ }).count()).toBe(0);
+      await page.evaluate(() => dispatchEvent(new Event('pagehide')));
+      expect(await inspect()).toEqual(original);
+      expect(shelf.writes()).toBe(phase === 'sending' ? 1 : 0);
+      await page.reload();
+      await page.getByRole('button', { name: 'Start a fresh month in this tab', exact: true }).waitFor();
+      expect(await inspect()).toEqual(original);
+      expect(shelf.writes()).toBe(phase === 'sending' ? 1 : 0);
+    } finally {
+      await closeFixtureBrowser(browser);
+    }
+  }, 60_000);

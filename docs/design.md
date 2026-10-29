@@ -1,4 +1,14 @@
-## Current HF4 source status — 2026-10-28
+## Current source and delivery — 2026-10-29
+
+Current source uses exact published HF4.8.1, client0.5.7 and kit0.5.24. PR10 delivered that migration at dccf97d65d8e144ae125758b6e56630db0f348a3 with exact green source/main CI, a normal clean deployment and a dirty:false live release. The migration receipt is ~/code/.lab-scratch/codex/goodhands-hf481.md. PR11's receiving-journal/menu follow-through has separate exact source/main CI, deployment and served-control gates in HANDOFF.md; those gates remain open until their actual receipts exist.
+
+HF4 has one current behavior. Update the current edition at source and replay its complete exports exactly. Unsupported older current saves may refuse with a plain start-new-game message while preserving the original. Frozen HF2.9 editions1–4 and named HF3 validators, aliases and golden files remain historical replay checks, not an active legacy current path or feature selector. Keep authored finite source restrictions, raw provenance and canonical GDI704 exclusion.
+
+Current ordinary menu download preserves the complete archive directly after Feedback. Compact native working saves and file working copies remain distinct from complete exports and immutable source custody. The receiving journal preserves a complete prospective opening before shared claims; unknown acceptance never authorizes replacing an occupied native save. Current host details and synthetic-control limits are in HANDOFF.md. Generic lifecycle/formal source-retirement receipt work remains with SDK/shelf owners for2026-10-30 review. Adam's feel/readiness and named paused player-round boundaries remain2026-11-03; no new round is authorized here.
+
+The four dated HF4.7 sections below preserve the earlier source candidate and measurements. Their use of “current” describes that record's time. They do not state the current graph or live delivery.
+
+## Historical HF4.7 source status — 2026-10-28
 
 Current source adopts published HF4.7.0/client0.5.3/kit0.5.21. It is not deployed; HANDOFF.md retains the verified live HF3 receipt. The earlier HF4.5.1/G4 audit below is historical. The source uses HF's public condition readings, self reports, decisions, inputs, inspection and restore. No game feature flag selects a different actor engine.
 
@@ -8,7 +18,7 @@ Current SDK portable claims preserve complete source provenance and use the publ
 
 The actual public-input month reached ended/review clock40020; its complete JSON is71920350bytes and compact working wire258101bytes. The sole corrected cold Resume/source-custody browser phase passed:4483s cold reconstruction,4502s total. The original complete source matches every JSON value and byte; actual Resume, both viewports, compact working JSON and complete immutable source readback pass. Compact default download has identical JSON values with different property order/hash. Exact full-suite CI, final hosted review and technical delivery remain pending. This evidence establishes no real shared-shelf journey or Adam's play acceptance; readiness remains2026-11-03.
 
-## Current replayable working saves — 2026-10-28
+## Historical HF4.7 replayable working saves — 2026-10-28
 
 Ordinary browser saves, pagehide saves, default run downloads and file-session working copies use the existing compact run format: complete game inputs, pinned chapter, continuity, clock, seed and full-state fingerprint. One helper constructs this wire, and the existing importer reconstructs the state through replay. The file-session reader preserves the original bytes and unknown top-level fields. It still distinguishes a compact supplied history from a supplied full state.
 
@@ -16,13 +26,13 @@ The existing file limits bound serialized input and working files. They do not c
 
 This choice follows actual day-five measurements: the complete source was16,205,582 bytes, while the existing compact wire was43,031 bytes. Runtime and completed-month replay remain measured separately; compact storage does not make replay free.
 
-## Current HF4 host receipts — 2026-10-28
+## Historical HF4.7 host receipts — 2026-10-28
 
 The current host schema is `goodhands-hf4/2`. The current source keeps its complete booking and completion index. One host receipt reducer updates that index in live play and reconstructs it during cold restore from complete public HF offers, requests and action resolutions. Restore rejects an inconsistent saved index. It does not interpret clipped event journals as complete history.
 
 The duplicate `world.hostState` payload now contains only the host schema and revision. Game actions do not read that duplicate cache. Every accepted input and actual completed, failed or interrupted outcome remains in HF history. A measured negotiated-placement checkpoint before this change was 28,475,328 bytes; repeated copies of the host ledger used 21,883,757 bytes. The earlier artifact remains in scratch as evidence. Published source pins and the actual forward-calendar month control are recorded in HANDOFF.md. The cold Resume/custody phase passed on the pre-review candidate; the later placement interruption and guest-duty fixes were not replayed through that month. The current claimed-person browser cases passed after host recovery; full-suite CI remains required.
 
-## Current HF4 numerical resolution — 2026-10-28
+## Historical HF4.7 numerical resolution — 2026-10-28
 
 The current chapter uses HF's public daily fidelity, anchored at the start of the declared November calendar, for every Run step. Good Hands keeps every actor, timestamped input, accepted action, actual host receipt and replay input. HF retains its ordinary owners and physical and semantic boundaries. This is an HF numerical-resolution choice. The game does not implement a second body or need model. Frozen simulation editions keep their original rules and hashes.
 
@@ -198,6 +208,8 @@ New months use simulation 3. Simulations 1 and 2 retain their shipped rules and 
 **Phone stage (DL-15, DL-22, DL-24).** Lab kit 0.2.0 supplies the viewport stage. The state strip shows the day, clock and speed, cash and rent, and who is waiting. The office remains above a single sheet; desktop docks the sheet beside it. Secondary questions and long notes have labelled disclosures. Inspection and conversation keep time moving slowly; the game menu and notebook send dialog may stop it.
 
 ## Deferred
+
+- **2026-10-29 — incoming host durability and menu follow-through:** Awaited receiving admission now persists the complete prospective opening before putBatch under a separate journal. Unknown replies preserve the original native save and offer the retained complete opening on restart; acknowledged promotion compares the captured native save. This supported host work is not deferred behind the generic contract. Shared SDK/shelf owners retain the formal receipt/source-retirement and generic lifecycle dependencies for2026-10-30 review. Exact source CI, deployment and acceptance receipts belong to HANDOFF.md and the follow-through report; synthetic controls do not establish a genuine peer journey. Adam’s feel/readiness remains2026-11-03. GDI704 and authored finite source exclusions remain.
 
 - **2026-10-27 — source checkpoint/end offer (upstream review 2026-10-30):** This batch exposes edition6's existing recorded pause and native checkpoint publication at the ordinary menu and month end. Full native state, Persons, RNG, agenda, source clocks and pinned provenance stay in the complete run; bounded projections never replace it. Keep the full download before replacing the browser month. Aylin's `goodhands-agency/1` / `goodhands-agency-calendar/1` passport has a finite Murmur receiver for engine2.23.0, cooking and supported calendar meanings. The offer checks the actual shelf head with public get before showing the route; the receiving game must still admit and claim its actual head. Public attempts retain publication/refusal reports at their replay-checked source prefix, with a32-report cap and no trimming. Publication is not an owned departure, receiver acceptance, delivery acknowledgment or ingestion. Installed public client0.4.15 `PersonaAction`/`PersonaRequest` exposes put/prepare/claim helpers, but no source release/departure acknowledgment or receipt binding a receiving admission/claim to the exact original source run. That producer-consumer acknowledgment and retained source ownership protocol is upstream work, not implemented privately here. Unknown receiver admission and live ownership remain open. Pass recognizes current engine2.23.0 only for the Zeynep agency route, with a daytime boundary and its original-return guards; Hülya's named adapter does not admit this current engine. Voice's Selin route requires an actually completed continuing guest and original spring-calendar binding; fresh local Selin is not that return. Nermin/Hatice/Derya have same-host agency maps, not proved foreign receivers. No other destination is offered. File mode stays memory-only and nonpublishing, retaining the whole selected original file and existing caps/cancellation. Owner/player feel and readiness remain due2026-11-03; synthetic controls are not a human source journey.
 

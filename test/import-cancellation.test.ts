@@ -55,6 +55,7 @@ it('keeps the occupied native month when pagehide cancels a confirmed import dur
         return true;
       };
     });
+    await page.locator('[data-open-saved]').click();
     const chooser = page.waitForEvent('filechooser');
     await page.locator('[data-action="import"]').click();
     await (await chooser).setFiles({
