@@ -655,3 +655,97 @@ for (const mode of ['abort', 'cancel'] as const) {
     }
   }, 60_000);
 }
+
+for (const denial of ['open', 'capture'] as const) {
+  it(`synthetic ${denial} storage denial permits replayable local play without native or shared writes`, async () => {
+    const browser = await chromium.launch({ channel: process.env.HF_BROWSER_CHANNEL });
+    try {
+      const context = await browser.newContext({ viewport: { width: 360, height: 690 } });
+      const shelf = await fixture(context, () => false, true);
+      await context.addInitScript((mode) => {
+        const denied = () => sessionStorage.getItem('synthetic-deny-native') === '1';
+        const open = IDBFactory.prototype.open;
+        IDBFactory.prototype.open = function (...args) {
+          if (mode === 'open' && args[0] === 'goodhands' && denied())
+            throw new DOMException('Synthetic storage denial.', 'SecurityError');
+          return open.apply(this, args);
+        };
+        const transaction = IDBDatabase.prototype.transaction;
+        IDBDatabase.prototype.transaction = function (...args) {
+          if (mode === 'capture' && this.name === 'goodhands' && args[1] === 'readwrite' && denied())
+            throw new DOMException('Synthetic capture denial.', 'SecurityError');
+          return transaction.apply(this, args);
+        };
+      }, denial);
+      const page = await context.newPage();
+      await page.clock.install();
+      await page.clock.pauseAt(new Date());
+      await page.goto(origin);
+      const sentinel = { syntheticOriginal: 'retained while storage denied' };
+      await page.evaluate(async (value) => {
+        const store = await (
+          new Function('return import("/src/ui/store.ts")') as () => Promise<
+            typeof import('../src/ui/store.ts')
+          >
+        )();
+        if (!(await store.put('run', value))) throw new Error('Synthetic save setup failed.');
+        sessionStorage.setItem('synthetic-deny-native', '1');
+      }, sentinel);
+      await page.reload();
+      await page.getByRole('button', { name: 'Open the office', exact: true }).click();
+      await page.getByTestId('office').waitFor();
+      await page
+        .getByText('This month stays in this tab because this browser cannot save.', { exact: false })
+        .waitFor();
+      expect(shelf.writes()).toBe(0);
+      // Storage recovering does not authorize replacing data that was unreadable.
+      await page.evaluate(() => sessionStorage.removeItem('synthetic-deny-native'));
+      await page.getByRole('button', { name: 'Gülce Aksoy', exact: true }).click();
+      await page.locator('[data-action="interview"]').click();
+      await page.locator('[data-action="more-choices"]').click();
+      await page.locator('[data-choice="wage"]').click();
+      await page.locator('[data-action="menu"]').click();
+      const pending = page.waitForEvent('download');
+      await page.getByRole('button', { name: 'Download this run', exact: true }).click();
+      const stream = await (await pending).createReadStream();
+      const chunks: Buffer[] = [];
+      for await (const chunk of stream!) chunks.push(chunk);
+      const json = Buffer.concat(chunks).toString();
+      const decoded = verifyImport(json);
+      expect(JSON.parse(json).state).toEqual(decoded.state);
+      expect(decoded.inputs.length).toBeGreaterThan(0);
+      expect(decoded.continuity.initialClaims).toEqual([]);
+      await page.getByRole('button', { name: 'Open a saved month…', exact: true }).click();
+      expect(await page.getByRole('button', { name: 'Replace saved month', exact: true }).count()).toBe(0);
+      expect(await page.getByRole('link', { name: 'Play in this tab only', exact: true }).isVisible()).toBe(
+        true,
+      );
+      expect(
+        await page.getByRole('button', { name: 'Verify and import complete source archive' }).count(),
+      ).toBe(0);
+      await page.getByRole('button', { name: 'Cancel', exact: true }).click();
+      await page.getByRole('button', { name: 'What happens to these people next', exact: true }).click();
+      expect(
+        await page.getByText('Its people are not shared with other games.', { exact: false }).isVisible(),
+      ).toBe(true);
+      expect(await page.getByRole('button', { name: /Publish paused|Pause and prepare/ }).count()).toBe(0);
+      await page.evaluate(() => dispatchEvent(new Event('pagehide')));
+      const retained = await page.evaluate(async () => {
+        const store = await (
+          new Function('return import("/src/ui/store.ts")') as () => Promise<
+            typeof import('../src/ui/store.ts')
+          >
+        )();
+        return { native: (await store.get('run'))?.value, journal: await store.readReceiving() };
+      });
+      expect(retained).toEqual({ native: sentinel, journal: null });
+      expect(shelf.writes()).toBe(0);
+    } finally {
+      for (const context of browser.contexts()) {
+        await context.setOffline(true);
+        await context.unrouteAll({ behavior: 'wait' });
+      }
+      await browser.close();
+    }
+  }, 60_000);
+}
