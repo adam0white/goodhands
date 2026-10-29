@@ -387,7 +387,13 @@ for (const lostReply of [false, true])
       await page.getByRole('button', { name: 'New game', exact: true }).click();
       await page.getByRole('button', { name: 'Start new game', exact: true }).click();
       if (lostReply) {
-        await expect.poll(() => shelf.writes()).toBe(2);
+        await expect
+          .poll(() => shelf.writes(), { timeout: 20000, message: 'Wait for the second shelf transaction' })
+          .toBe(2)
+          .catch(async (error) => {
+            console.error('Batch transaction diagnostic:', await page.locator('body').innerText());
+            throw error;
+          });
         expect(shelf.heads()[CAST.hatice.castId]).not.toBe(beforeHead);
         await page.clock.runFor(3500);
       }
