@@ -106,6 +106,8 @@ try {
       );
     }
     await page.getByRole('button', { name: 'Open the office', exact: true }).click();
+    // Opening now awaits durable admission. Observe its actual mount before checking stage ownership.
+    await page.getByTestId('office').waitFor();
     await fits('office');
     assert.deepEqual(await lifecycle(), { active: 1, mounts: 1 });
     const checkStage = async () => {
