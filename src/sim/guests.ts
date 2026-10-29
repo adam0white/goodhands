@@ -24,6 +24,7 @@ import {
   createPerson,
   decide,
   finish,
+  isPresent,
   nextDutyId,
   perceive,
   promise,
@@ -53,7 +54,7 @@ export interface GuestAdmission {
 export interface GuestView {
   id: GuestId;
   name: string;
-  status: 'expected' | 'available' | 'working' | 'complete';
+  status: 'expected' | 'available' | 'working' | 'complete' | 'unavailable';
   text: string;
   choices: { action: GuestAction; label: string; disabled?: string }[];
   trial?: { verdict: string; chance?: number; succeeded?: boolean };
@@ -389,6 +390,7 @@ function finishTrial(s: GuestState, g: Guest, p: Person) {
 export function stepGuests(state: State) {
   const s = state as GuestState;
   for (const g of s.guests ?? []) {
+    if (g.status === 'unavailable') continue;
     const p = s.people[g.id]!;
     // Any actor can advance the shared Run through this guest's completion.
     if (g.status === 'working' && completedAction(p, 'cold-food-trial')) finishTrial(s, g, p);
@@ -426,6 +428,7 @@ export function stepGuests(state: State) {
     }
     tick(p, s.now);
     advanceAgenda(p, s.now);
+    if (!isPresent(p)) continue;
     if (g.status === 'expected' && s.now >= g.arrival) {
       g.status = 'available';
       g.text =
@@ -547,7 +550,7 @@ function eventRoll(seed: number, event: string) {
 }
 export function guestViews(state: State): GuestView[] {
   return ((state as GuestState).guests ?? [])
-    .filter((g) => g.status !== 'expected')
+    .filter((g) => g.status !== 'expected' && g.status !== 'unavailable')
     .map((g) => ({
       id: g.id,
       name: IDENTITY[g.id].name,

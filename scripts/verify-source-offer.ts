@@ -53,19 +53,10 @@ try {
     const context = await browser.newContext({ viewport });
     let shelf: PersonaShelfState = { heads: {}, revisions: [] };
     const requests: PersonaRequest[] = [];
-    let holdGet = false,
-      heldGet = false;
-    let releaseGet = () => {};
     await context.exposeBinding('fixtureShelf', async (_source, message: PersonaRequest) => {
       requests.push(message);
       if (message.action === 'get') {
         const captured = shelf.revisions.find((p) => p.revision === shelf.heads[message.castId!]) ?? null;
-        if (holdGet) {
-          heldGet = true;
-          await new Promise<void>((resolve) => {
-            releaseGet = resolve;
-          });
-        }
         return captured;
       }
       assert.equal(message.action, 'put');
@@ -143,10 +134,10 @@ try {
     await page.getByRole('button', { name: 'Pause and prepare checkpoints', exact: true }).click();
     await page
       .locator('[data-source-status]')
-      .getByText(/Aylin: published/)
+      .getByText(/Aylin: refused — This person cannot be shared yet/)
       .waitFor();
     const before = requests.length;
-    assert.ok(before > 0);
+    assert.equal(before, 0, 'reader gate prevents all publication requests');
     assert.ok(
       await page
         .locator('[data-source-status]')
@@ -175,7 +166,13 @@ try {
       await validateContinuity(loaded.continuity, loaded.state, loaded.inputs);
       assert.ok(loaded.state.castPaused);
       assert.equal(loaded.continuity.publications?.length, 1);
-      assert.ok(loaded.continuity.publications[0]!.results.some((s) => s.includes('refused')));
+      assert.ok(
+        loaded.continuity.publications[0]!.results.some((s) =>
+          /Aylin: refused.*cannot be shared yet/.test(s),
+        ),
+      );
+      assert.deepEqual(loaded.continuity.heads, []);
+      assert.deepEqual(loaded.continuity.rows, []);
     }
     phase('untouched opening full/compact replay verified');
     await page.getByRole('button', { name: 'Resume agency play', exact: true }).click();
@@ -188,64 +185,33 @@ try {
     await page.getByRole('button', { name: 'Pause and prepare checkpoints', exact: true }).click();
     await page
       .locator('[data-source-status]')
-      .getByText(/Aylin: published/)
+      .getByText(/Aylin: refused — This person cannot be shared yet/)
       .waitFor();
-    await page.getByRole('link', { name: 'Check Aylin’s continuation in Murmur' }).waitFor();
-    assert.ok(
-      await page
-        .locator('[data-source-status]')
-        .innerText()
-        .then((s) => s.includes('No receiver acceptance')),
-    );
+    assert.equal(await page.getByRole('link', { name: 'Check Aylin’s continuation in Murmur' }).count(), 0);
+    assert.equal(requests.filter((r) => r.action === 'put').length, 0);
     assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
     assert.deepEqual(errors, []);
     phase('bounded world-only ending source offer verified');
-    // A real background checkpoint must invalidate a pending receiver offer at the same source boundary.
+    // A met Aylin remains read-only, including a background checkpoint.
     shelf = { heads: {}, revisions: [] };
     requests.length = 0;
-    holdGet = true;
     await seed(exportRun(opening, opening.inputs, book), 'met');
     await page.locator('[data-action="menu"]').click();
     await page.getByRole('button', { name: 'People after this month', exact: true }).click();
     await page.getByRole('button', { name: 'Pause and prepare checkpoints', exact: true }).click();
     await page
       .locator('[data-source-status]')
-      .getByText(/Aylin: published/)
+      .getByText(/Aylin: refused — This person cannot be shared yet/)
       .waitFor();
-    for (let i = 0; i < 100 && !heldGet; i++) await new Promise((resolve) => setTimeout(resolve, 20));
-    assert.ok(heldGet, 'actual public get is pending for known Aylin');
-    phase('met fixture publication and held get ready');
-    const capturedHeads = { ...shelf.heads };
-    const capturedRevision = shelf.heads['hf.cast.aylin.murmur'];
     await page.evaluate(() => {
       Object.defineProperty(document, 'visibilityState', { value: 'hidden', configurable: true });
       document.dispatchEvent(new Event('visibilitychange'));
     });
-    for (
-      let i = 0;
-      i < 500 && Object.entries(capturedHeads).some(([id, revision]) => shelf.heads[id] === revision);
-      i++
-    )
-      await new Promise((resolve) => setTimeout(resolve, 20));
-    assert.notEqual(
-      shelf.heads['hf.cast.aylin.murmur'],
-      capturedRevision,
-      'actual background checkpoint superseded owned revision',
-    );
-    assert.ok(
-      Object.entries(capturedHeads).every(([id, revision]) => shelf.heads[id] !== revision),
-      'the complete prior background publication settled before the next case',
-    );
     await page.waitForTimeout(100);
-    releaseGet();
-    await page.waitForTimeout(100);
-    assert.equal(
-      await page.getByRole('link', { name: 'Check Aylin’s continuation in Murmur', exact: true }).count(),
-      0,
-      'late get cannot offer a superseded owned source revision',
-    );
-    holdGet = false;
-    phase('complete background checkpoint and stale offer invalidation verified');
+    assert.equal(requests.filter((r) => r.action === 'put').length, 0);
+    assert.deepEqual(shelf, { heads: {}, revisions: [] });
+    assert.equal(await page.getByRole('link', { name: 'Check Aylin’s continuation in Murmur' }).count(), 0);
+    phase('met fixture and background checkpoint respect the reader gate');
     // Hold an actual native digest, then cancel the page before any public SDK put.
     shelf = { heads: {}, revisions: [] };
     requests.length = 0;

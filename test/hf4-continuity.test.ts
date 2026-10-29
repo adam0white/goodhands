@@ -6,7 +6,7 @@ import {
   portablePersonOwner,
   preparePersonaLife,
 } from '@adam0white/lab-client';
-import { expect, test } from 'vitest';
+import { afterAll, beforeAll, expect, test } from 'vitest';
 import { ALLOCATION, CAST } from '../src/sim/cast.ts';
 import { agencyTransfer, prepareAgencyChapter } from '../src/sim/cast-chapter.ts';
 import { ENGINE_VERSION } from '../src/sim/hf4.ts';
@@ -14,6 +14,13 @@ import { apply, newGame } from '../src/sim/index.ts';
 import { agencySource, publishNativeCheckpoint } from '../src/ui/checkpoint.ts';
 import { ContinuitySession, continuityRow, emptyContinuity } from '../src/ui/continuity.ts';
 import { validateContinuity } from '../src/ui/export.ts';
+import { syntheticPortableReaders } from './support/synthetic-portable-readers.ts';
+
+let restoreReaders: () => void;
+beforeAll(async () => {
+  restoreReaders = await syntheticPortableReaders();
+});
+afterAll(() => restoreReaders());
 
 test('current SDK batch claims retain complete parent provenance and receiver ownership', async () => {
   const source = newGame(1);

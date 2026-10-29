@@ -38,7 +38,7 @@ it('holds the menu and information, then resumes without speed inputs', async ()
     await page.getByRole('link', { name: 'Continue a file without replacing the saved month' }).isVisible(),
   ).toBe(true);
   expect(await page.locator('[data-pace-choice]').count()).toBe(4);
-  expect(await page.getByRole('link', { name: 'People between games' }).getAttribute('href')).toBe(
+  expect(await page.getByRole('link', { name: 'People across games' }).getAttribute('href')).toBe(
     'https://human.adamwhite.work/lab/people/',
   );
   await debug.locator('summary').click();

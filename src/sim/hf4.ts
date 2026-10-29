@@ -27,7 +27,7 @@ export type CalendarPersonaSnapshot = Old.CalendarPersonaSnapshot;
 export type PersonaProjectionSnapshot = Old.PersonaProjectionSnapshot;
 export type PersonaCalendarMap = Old.PersonaCalendarMap;
 export const DEFAULT_NORMS = HF.DEFAULT_NORMS;
-export const ENGINE_VERSION = '4.7.0';
+export const ENGINE_VERSION = '4.8.1';
 type Opening = Parameters<typeof import('@adam0white/human-framework-legacy3').createPerson>[0];
 type WorkReceipt = { skill?: string; psychological?: HF.ActualConsequences['psychological'] };
 type Context = {
@@ -38,6 +38,8 @@ type Context = {
   authors: Map<string, HF.PersonAuthoring>;
   offers: Map<string, readonly HF.Offer[]>;
   bridge?: Bridge;
+  arrivals: { at: number; authored: HF.PersonAuthoring }[];
+  excluded: string[];
   initial: { kind: HF.Input['kind']; payload: HF.Input['payload'] }[];
   state?: { hf4?: unknown };
   decisions: Map<string, Old.Decision>;
@@ -49,6 +51,8 @@ const stateContexts = new WeakMap<object, Context>();
 export function beginFramework(seed: number) {
   constructing = {
     work: new Map(),
+    arrivals: [],
+    excluded: [],
     careDay: 0,
     seed,
     people: {},
@@ -214,10 +218,23 @@ function specFor(c: Context): HF.RunSpec {
     },
   };
 }
-export function overrideOpening(state: object, id: string, authored: HF.PersonAuthoring) {
+export function overrideOpening(state: object, id: string, authored: HF.PersonAuthoring, arrival = 510) {
   const c = stateContexts.get(state) ?? constructing;
   if (!c || c.bridge) throw new Error('The opening has already started.');
   c.authors.set(id, authored);
+  if (arrival > 510) c.arrivals.push({ at: Math.round(arrival * MINUTE), authored });
+}
+export function excludeOpening(state: object, id: string) {
+  const c = stateContexts.get(state) ?? constructing;
+  if (!c || c.bridge) throw new Error('The opening has already started.');
+  c.excluded.push(id);
+}
+export function unavailable(state: object, id: string): boolean {
+  const chapter = (state as { castChapter?: unknown }).castChapter as
+    | { skipped?: { castId: string }[] }
+    | undefined;
+  const cast = (CAST as Record<string, { castId: string }>)[id];
+  return !!cast && !!chapter?.skipped?.some((p) => p.castId === cast.castId);
 }
 export function finalizeFramework(state: { people: Record<string, Person>; hf4?: unknown }) {
   const c = constructing;
@@ -228,7 +245,9 @@ export function finalizeFramework(state: { people: Record<string, Person>; hf4?:
   stateContexts.set(state, c);
   const spec = specFor(c),
     run = need(HF.createRun(spec));
-  for (const p of c.authors.values()) need(HF.createPerson(run, p));
+  for (const p of c.authors.values())
+    if (!c.excluded.includes(p.id) && !c.arrivals.some((a) => a.authored.id === p.id))
+      need(HF.createPerson(run, p));
   c.bridge = { run, host: { at: spec.start, serial: 0, revision: 0, active: [], completed: [] } };
   // Host state is admitted through the first world receipt; the envelope keeps ingress metadata.
   constructing = undefined;
@@ -253,11 +272,19 @@ function bound(state: object): Context {
     throw new Error('This file uses an older Good Hands version. Keep it and start a new game.');
   c = {
     work: new Map((s.hf4 as any).work ?? []),
+    arrivals: structuredClone((s.hf4 as any).arrivals ?? []),
+    excluded: structuredClone((s.hf4 as any).excluded ?? []),
     careDay: (s.hf4 as any).careDay ?? 0,
     seed: 0,
     people: s.people,
     authors: new Map(
-      s.hf4.archive.initial.people.map((p) => [p.id, structuredClone(p) as HF.PersonAuthoring]),
+      [
+        ...s.hf4.archive.initial.people,
+        ...s.hf4.archive.history.flatMap((t) =>
+          t.inputs.flatMap((i) => (i.kind === 'person.arrived' ? [i.payload.authored] : [])),
+        ),
+        ...((s.hf4 as any).arrivals ?? []).map((a: { authored: HF.PersonAuthoring }) => a.authored),
+      ].map((p) => [p.id, structuredClone(p) as HF.PersonAuthoring]),
     ),
     offers: new Map((s.hf4 as any).offers ?? []),
     initial: [],
@@ -273,6 +300,9 @@ function bound(state: object): Context {
 }
 export function bindFramework(state: object) {
   bound(state);
+}
+export function isPresent(p: Person) {
+  return present(context(p), p.id);
 }
 export function completedAction(p: Person, actionId: string) {
   return context(p).bridge!.host.completed.some(
@@ -294,6 +324,8 @@ export function saveFramework(state: object) {
     offers: structuredClone([...c.offers]),
     scheduled: structuredClone(c.scheduled),
     work: structuredClone([...c.work]),
+    arrivals: structuredClone(c.arrivals),
+    excluded: structuredClone(c.excluded),
   };
 }
 function part(
@@ -330,7 +362,7 @@ function refresh(c: Context) {
   const views = need(
     HF.inspect(c.bridge.run, {
       perspective: { kind: 'host' },
-      people: Object.keys(c.people),
+      people: Object.keys(c.people).filter((id) => present(c, id)),
       select: [
         'summary',
         'body',
@@ -346,6 +378,7 @@ function refresh(c: Context) {
     }),
   ).people;
   for (const p of Object.values(c.people)) {
+    if (!present(c, p.id)) continue;
     const id = p.id,
       parts = Object.fromEntries(
         views.find((v) => v.id === id)!.parts.map((v) => [v.select, v.value]),
@@ -457,6 +490,26 @@ function worldFor(c: Context): World {
     },
   };
 }
+function present(c: Context, id: string) {
+  return !c.excluded.includes(id) && !c.arrivals.some((a) => a.authored.id === id);
+}
+/** Only the actual arrival input installs retained history. Nothing acts while absent. */
+function arriveThrough(c: Context, through: number) {
+  c.arrivals.sort((a, b) => a.at - b.at || a.authored.id.localeCompare(b.authored.id));
+  while (c.arrivals[0] && c.arrivals[0].at <= through) {
+    const arrival = c.arrivals[0];
+    const entry: HF.Input = {
+      id: `goodhands:${c.bridge!.host.serial + 1}`,
+      at: arrival.at,
+      source: { type: 'host', id: 'goodhands' },
+      kind: 'person.arrived',
+      payload: { authored: arrival.authored, arrivalEvidenceId: `arrival:${arrival.authored.id}` },
+    };
+    serve(c.bridge!, arrival.at, [entry], c.offers, worldFor(c));
+    c.arrivals.shift();
+    refresh(c);
+  }
+}
 function sendBatch(
   c: Context,
   minute: number,
@@ -467,6 +520,7 @@ function sendBatch(
     return;
   }
   const at = Math.max(Math.round(minute * MINUTE), c.bridge.host.at + 1);
+  arriveThrough(c, at);
   const inputs = commands.map(
     (x, i) =>
       ({
@@ -651,7 +705,7 @@ export function perceive(p: Person, percepts: Old.Percept[]) {
 }
 export function tick(p: Person, until: number) {
   const c = context(p);
-  if (!c.bridge) return;
+  if (!c.bridge || c.excluded.includes(p.id)) return;
   const through = Math.floor(until / 1440) + 1;
   if (through > c.careDay) {
     careCommands(c, until);
@@ -666,6 +720,7 @@ export function tick(p: Person, until: number) {
     // Finish reached accepted activities before offering care at the same clock.
     const boundaryAt = Math.max(scheduledAt, c.bridge.host.at);
     if (boundaryAt > c.bridge.host.at) {
+      arriveThrough(c, boundaryAt);
       serve(c.bridge, boundaryAt, [], c.offers, worldFor(c));
       refresh(c);
     }
@@ -720,6 +775,7 @@ export function tick(p: Person, until: number) {
     for (const { offer } of ready) c.offers.set(offer.person, []);
   }
   if (target > c.bridge.host.at) {
+    arriveThrough(c, target);
     serve(c.bridge, target, [], c.offers, worldFor(c));
     refresh(c);
   }
@@ -967,7 +1023,12 @@ function careCommands(c: Context, until: number): void {
         [23, 'sleep', 480],
       ] as const) {
         const at = (day * 1440 + hour * 60) * MINUTE;
-        if (at <= Math.max(510 * MINUTE, c.bridge!.host.at)) continue;
+        if (
+          c.excluded.includes(p.id) ||
+          at < (c.arrivals.find((a) => a.authored.id === p.id)?.at ?? 0) ||
+          at <= Math.max(510 * MINUTE, c.bridge!.host.at)
+        )
+          continue;
         const offer = toOffer(p, {
           id: `care:${p.id}:${day}:${hour}`,
           action,
@@ -984,7 +1045,7 @@ function careCommands(c: Context, until: number): void {
 
 export function portableVocabularyFor(state: object) {
   const c = bound(state);
-  const spec = specFor(c);
+  const spec = HF.exportRun(c.bridge!.run).initial.spec;
   return {
     actions: spec.definitions.actions.map((a) => a.id),
     sources: spec.definitions.sources.map((s) => s.id),

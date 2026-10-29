@@ -224,7 +224,7 @@ for (const [name, engine] of [
           const menu = page.locator('.menu-sheet');
           expect(await menu.locator('[data-pace-choice]').count()).toBe(4);
           expect(await menu.locator('[data-theme-choice]').count()).toBe(3);
-          expect(await menu.getByRole('link', { name: 'People between games' }).getAttribute('href')).toBe(
+          expect(await menu.getByRole('link', { name: 'People across games' }).getAttribute('href')).toBe(
             'https://human.adamwhite.work/lab/people/',
           );
           expect(await menu.locator('.debug-footer details').getAttribute('open')).toBeNull();

@@ -10,6 +10,7 @@ import {
   saveFramework,
   schedulePlacement,
   sourceResponse,
+  unavailable,
 } from './hf4.ts';
 
 // Versions 1, 2 and 3 are frozen for exact replay of earlier saves and compact exports.
@@ -365,7 +366,7 @@ function requiredPerson(s: Sim, id: string): Sim['people'][string] {
   return person;
 }
 function arrive(s: Sim) {
-  for (const c of CANDIDATES) {
+  for (const c of CANDIDATES.filter((c) => !unavailable(s, c.id))) {
     const card = requiredCard(s, c.id);
     if (!card.met && card.arrived <= s.now) {
       const reputation = credence(requiredPerson(s, c.id), 'nermin:reliable');
@@ -440,7 +441,7 @@ function arrive(s: Sim) {
 }
 // A job reaches the desk only with a worker to contact or a dated arrival that day.
 function requestHasPath(s: Sim, f: (typeof FAMILIES)[number]): boolean {
-  const suitable = CANDIDATES.filter((c) => c.roles.includes(f.role));
+  const suitable = CANDIDATES.filter((c) => !unavailable(s, c.id)).filter((c) => c.roles.includes(f.role));
   if (
     suitable.some((c) => {
       const card = requiredCard(s, c.id);
@@ -484,12 +485,16 @@ function quietOffice(s: Sim) {
   const ordinal = s.log.filter(
     (line) => line.kind === 'city' && line.text.startsWith('At the office:'),
   ).length;
-  const met = CANDIDATES.filter((c) => s.cards[c.id]!.met && s.cards[c.id]!.status !== 'gone');
+  const met = CANDIDATES.filter((c) => !unavailable(s, c.id)).filter(
+    (c) => s.cards[c.id]!.met && s.cards[c.id]!.status !== 'gone',
+  );
   const knownFamilies = FAMILIES.filter((f) => s.requests.some((r) => r.family === f.id));
   const household = knownFamilies[ordinal % knownFamilies.length]!;
   const activePlacements = s.placements.filter(active);
   const placed = activePlacements[ordinal % Math.max(1, activePlacements.length)];
-  const nextCandidate = CANDIDATES.find((c) => !s.cards[c.id]!.met && s.cards[c.id]!.arrived <= s.now + DAY);
+  const nextCandidate = CANDIDATES.find(
+    (c) => !unavailable(s, c.id) && !s.cards[c.id]!.met && s.cards[c.id]!.arrived <= s.now + DAY,
+  );
   const kind = (hash(`${s.seed}:quiet`) + ordinal) % 4;
   if (kind === 0 && nextCandidate) {
     Object.assign(s.cards[nextCandidate.id]!, { met: true, status: 'bench', arrived: s.now });
@@ -620,33 +625,37 @@ function finish(s: Sim, why: string) {
   s.dayCard = null;
   log(s, 'day', why);
   s.review = {
-    people: CANDIDATES.filter((c) => s.cards[c.id]!.met).map((c) => ({
-      id: c.id,
-      name: c.name,
-      truth: Object.fromEntries(
-        QUALITIES.map((q) => [
-          q,
-          quality(s.people[c.id]!, q) > 0.62 ? 'yes' : quality(s.people[c.id]!, q) < 0.4 ? 'no' : 'maybe',
-        ]),
-      ) as Review['people'][number]['truth'],
-      notes: s.cards[c.id]!.notes,
-    })),
+    people: CANDIDATES.filter((c) => !unavailable(s, c.id))
+      .filter((c) => s.cards[c.id]!.met)
+      .map((c) => ({
+        id: c.id,
+        name: c.name,
+        truth: Object.fromEntries(
+          QUALITIES.map((q) => [
+            q,
+            quality(s.people[c.id]!, q) > 0.62 ? 'yes' : quality(s.people[c.id]!, q) < 0.4 ? 'no' : 'maybe',
+          ]),
+        ) as Review['people'][number]['truth'],
+        notes: s.cards[c.id]!.notes,
+      })),
     placements: s.placements.map((p) => ({ id: p.id, story: p.story })),
     threads: s.threads.map((t) => ({
       ...t,
       about: t.about ?? s.routes.find((r) => r.at === t.at && r.from === t.from && r.to === t.to)?.about,
     })),
     routes: s.routes,
-    workersTrust: CANDIDATES.filter((c) => s.cards[c.id]!.met).map((c) => ({
-      id: c.id,
-      name: c.name,
-      trust:
-        trustOf(s.people[c.id]!, 'nermin') > 0.65
-          ? 'warm'
-          : trustOf(s.people[c.id]!, 'nermin') < 0.45
-            ? 'cool'
-            : 'polite',
-    })),
+    workersTrust: CANDIDATES.filter((c) => !unavailable(s, c.id))
+      .filter((c) => s.cards[c.id]!.met)
+      .map((c) => ({
+        id: c.id,
+        name: c.name,
+        trust:
+          trustOf(s.people[c.id]!, 'nermin') > 0.65
+            ? 'warm'
+            : trustOf(s.people[c.id]!, 'nermin') < 0.45
+              ? 'cool'
+              : 'polite',
+      })),
     cash: s.cash,
     trustedBy: FAMILIES.filter((f) => trustOf(s.people[`${f.id}-0`]!, 'nermin') > 0.65).map((f) => f.name),
     question: relationshipQuestion(s),
@@ -703,7 +712,7 @@ function step(s: Sim) {
   startPlacementWork(s);
   if (s.castPauseRequested && Object.keys(CAST).every((k) => !s.people[k]?.activity)) s.castPaused = true;
   landReferrals(s);
-  for (const c of CANDIDATES) {
+  for (const c of CANDIDATES.filter((c) => !unavailable(s, c.id))) {
     const card = s.cards[c.id]!;
     if (
       (card.arrivalAt !== undefined && s.now >= card.arrivalAt) ||
@@ -721,7 +730,7 @@ function step(s: Sim) {
   }
   arrive(s);
   arrangementTests(s);
-  for (const c of CANDIDATES) {
+  for (const c of CANDIDATES.filter((c) => !unavailable(s, c.id))) {
     const card = s.cards[c.id]!;
     if (
       card.status === 'bench' &&
@@ -1031,6 +1040,10 @@ function resumeHeld(s: Sim) {
   }
 }
 function applyInput(state: State, input: Input): State {
+  if ('candidate' in input && typeof input.candidate === 'string' && unavailable(state, input.candidate)) {
+    refuse(sim(state), 'This person is still in another chapter. Their saved history stays there.');
+    return state;
+  }
   snapshots.delete(state);
   const s = sim(state);
   if (s.ended) return s;
@@ -1718,104 +1731,106 @@ export function view(state: State): View {
   if (cached) return cached;
   const s = sim(state);
   const t = s.now % DAY;
-  const cards: CandidateView[] = CANDIDATES.filter((c) => s.cards[c.id]!.met).map((c) => {
-    const card = s.cards[c.id]!;
-    const elapsed = s.now - card.arrived;
-    const placement = s.placements.findLast((p) => p.candidate === c.id && active(p));
-    const terms = placement?.terms;
-    const atWork =
-      placement &&
-      day(s) % 7 !== (terms?.dayOff ?? 6) &&
-      t >= (terms?.startHour ?? 8) * 60 &&
-      t < (terms?.endHour ?? 18) * 60;
-    return {
-      id: c.id,
-      presence: card.arrivalAt
-        ? 'travelling'
-        : card.status === 'bench'
-          ? 'office'
-          : atWork
-            ? 'working'
-            : 'home',
-      ...(card.arrivalAt ? { arrival: { at: card.arrivalAt, dateLabel: label(card.arrivalAt) } } : {}),
-      ...(card.status !== 'bench'
-        ? {
-            interviewUnavailable: card.arrivalAt
-              ? `${c.name} is on the way and will arrive at ${label(card.arrivalAt)}.`
-              : card.status === 'gone'
-                ? `${c.name} left without leaving a number. You cannot call. The candidate may return another morning.`
-                : `${c.name} is away. Call the number you kept and allow time for the journey.`,
-          }
-        : {}),
-      name: c.name,
-      age: c.age,
-      roles: c.roles,
-      look: c.look,
-      ...(card.interviewCount >= 4 && s.now < card.interviewUntil
-        ? { interviewAfter: card.interviewUntil }
-        : {}),
-      status:
-        card.status === 'books' &&
-        s.placements.some(
-          (p) =>
-            p.candidate === c.id &&
-            !['trial', 'kept'].includes(p.status) &&
-            ['trial', 'kept'].includes(p.reportedStatus),
-        )
-          ? 'placed'
-          : card.status,
-      ...(card.status === 'bench'
-        ? {
-            posture:
-              elapsed >= 180
-                ? ('leaving' as const)
-                : elapsed > 90
-                  ? ('restless' as const)
-                  : ('settled' as const),
-          }
-        : {}),
-      ...(card.status === 'placed'
-        ? {
-            busy: `${c.name} works at ${name(s.placements.findLast((p) => p.candidate === c.id)!.family)} and finishes at ${timeLabel((s.placements.findLast((p) => p.candidate === c.id)?.terms?.endHour ?? workerNeed(c.id).finishBy / 60) * 60)}.`,
-          }
-        : card.status === 'trial'
+  const cards: CandidateView[] = CANDIDATES.filter((c) => !unavailable(s, c.id))
+    .filter((c) => s.cards[c.id]!.met)
+    .map((c) => {
+      const card = s.cards[c.id]!;
+      const elapsed = s.now - card.arrived;
+      const placement = s.placements.findLast((p) => p.candidate === c.id && active(p));
+      const terms = placement?.terms;
+      const atWork =
+        placement &&
+        day(s) % 7 !== (terms?.dayOff ?? 6) &&
+        t >= (terms?.startHour ?? 8) * 60 &&
+        t < (terms?.endHour ?? 18) * 60;
+      return {
+        id: c.id,
+        presence: card.arrivalAt
+          ? 'travelling'
+          : card.status === 'bench'
+            ? 'office'
+            : atWork
+              ? 'working'
+              : 'home',
+        ...(card.arrivalAt ? { arrival: { at: card.arrivalAt, dateLabel: label(card.arrivalAt) } } : {}),
+        ...(card.status !== 'bench'
           ? {
-              busy: (() => {
-                const key = s.eventKeys.find((k) => k.startsWith(`trial:${c.id}:`));
-                const [, , family, at] = key?.split(':') ?? [];
-                return `A trial is arranged with ${name(family ?? '')}. Their answer is due at ${label(Number(at))}.`;
-              })(),
+              interviewUnavailable: card.arrivalAt
+                ? `${c.name} is on the way and will arrive at ${label(card.arrivalAt)}.`
+                : card.status === 'gone'
+                  ? `${c.name} left without leaving a number. You cannot call. The candidate may return another morning.`
+                  : `${c.name} is away. Call the number you kept and allow time for the journey.`,
             }
           : {}),
-      ...(card.wants ? { wants: card.wants } : {}),
-      wage: card.wageKnown ? c.wage : null,
-      experience: card.experience,
-      matchReasons: s.requests
-        .filter((r) => r.status === 'open' && card.wageKnown && c.wage > r.wage && !card.coached.length)
-        .map((r) => ({
-          family: r.family,
-          words: `${c.name} needs ₺${c.wage}. This family offers ₺${r.wage}. Choose another family or worker.`,
-        })),
-      notes: card.notes,
-      referees: c.referees.map((id) => {
-        const r = REFEREES.find((r) => r.id === id)!;
-        return {
-          id,
-          name: r.name,
-          reachable: !card.called.includes(id) && t >= r.reachableAt,
-          ...(card.called.includes(id)
+        name: c.name,
+        age: c.age,
+        roles: c.roles,
+        look: c.look,
+        ...(card.interviewCount >= 4 && s.now < card.interviewUntil
+          ? { interviewAfter: card.interviewUntil }
+          : {}),
+        status:
+          card.status === 'books' &&
+          s.placements.some(
+            (p) =>
+              p.candidate === c.id &&
+              !['trial', 'kept'].includes(p.status) &&
+              ['trial', 'kept'].includes(p.reportedStatus),
+          )
+            ? 'placed'
+            : card.status,
+        ...(card.status === 'bench'
+          ? {
+              posture:
+                elapsed >= 180
+                  ? ('leaving' as const)
+                  : elapsed > 90
+                    ? ('restless' as const)
+                    : ('settled' as const),
+            }
+          : {}),
+        ...(card.status === 'placed'
+          ? {
+              busy: `${c.name} works at ${name(s.placements.findLast((p) => p.candidate === c.id)!.family)} and finishes at ${timeLabel((s.placements.findLast((p) => p.candidate === c.id)?.terms?.endHour ?? workerNeed(c.id).finishBy / 60) * 60)}.`,
+            }
+          : card.status === 'trial'
             ? {
-                why: `${r.name} has already told you what ${s.people[r.id]!.life.sex === 'male' ? 'he thinks' : 'she thinks'} of ${c.name}.`,
+                busy: (() => {
+                  const key = s.eventKeys.find((k) => k.startsWith(`trial:${c.id}:`));
+                  const [, , family, at] = key?.split(':') ?? [];
+                  return `A trial is arranged with ${name(family ?? '')}. Their answer is due at ${label(Number(at))}.`;
+                })(),
               }
-            : t < r.reachableAt
-              ? { why: `At work until ${timeLabel(r.reachableAt)}.` }
-              : {}),
-          called: card.called.includes(id),
-        };
-      }),
-      refuses: card.refuses,
-    };
-  });
+            : {}),
+        ...(card.wants ? { wants: card.wants } : {}),
+        wage: card.wageKnown ? c.wage : null,
+        experience: card.experience,
+        matchReasons: s.requests
+          .filter((r) => r.status === 'open' && card.wageKnown && c.wage > r.wage && !card.coached.length)
+          .map((r) => ({
+            family: r.family,
+            words: `${c.name} needs ₺${c.wage}. This family offers ₺${r.wage}. Choose another family or worker.`,
+          })),
+        notes: card.notes,
+        referees: c.referees.map((id) => {
+          const r = REFEREES.find((r) => r.id === id)!;
+          return {
+            id,
+            name: r.name,
+            reachable: !card.called.includes(id) && t >= r.reachableAt,
+            ...(card.called.includes(id)
+              ? {
+                  why: `${r.name} has already told you what ${s.people[r.id]!.life.sex === 'male' ? 'he thinks' : 'she thinks'} of ${c.name}.`,
+                }
+              : t < r.reachableAt
+                ? { why: `At work until ${timeLabel(r.reachableAt)}.` }
+                : {}),
+            called: card.called.includes(id),
+          };
+        }),
+        refuses: card.refuses,
+      };
+    });
   const families = FAMILIES.filter((f) => s.requests.some((r) => r.family === f.id)).map((f) => {
     const trust = trustOf(s.people[`${f.id}-0`]!, 'nermin');
     return {
@@ -1943,11 +1958,13 @@ export function view(state: State): View {
               s.threads.some((t) => t.at <= s.now && t.end >= s.now && [t.from, t.to].includes(c.id)),
           )
           .map((c) => cityFigure(s, c)),
-        ...CANDIDATES.filter(
-          (c) =>
-            !s.cards[c.id]!.met &&
-            s.threads.some((t) => t.at <= s.now && t.end >= s.now && [t.from, t.to].includes(c.id)),
-        ).map((c) => cityFigure(s, { id: c.id, name: c.name, status: 'books' })),
+        ...CANDIDATES.filter((c) => !unavailable(s, c.id))
+          .filter(
+            (c) =>
+              !s.cards[c.id]!.met &&
+              s.threads.some((t) => t.at <= s.now && t.end >= s.now && [t.from, t.to].includes(c.id)),
+          )
+          .map((c) => cityFigure(s, { id: c.id, name: c.name, status: 'books' })),
       ],
       threads: s.threads,
       houses: FAMILIES.filter((f) => s.requests.some((r) => r.family === f.id)).map((f) => ({
@@ -2464,11 +2481,13 @@ function overdueRent(s: Sim) {
 }
 function cityTalk(s: Sim, workers: boolean) {
   const ids = workers
-    ? CANDIDATES.filter(
-        (c) =>
-          (s.cards[c.id]!.met && s.cards[c.id]!.status !== 'gone') ||
-          (!s.cards[c.id]!.met && c.arrives <= s.now + 7 * DAY),
-      ).map((c) => c.id)
+    ? CANDIDATES.filter((c) => !unavailable(s, c.id))
+        .filter(
+          (c) =>
+            (s.cards[c.id]!.met && s.cards[c.id]!.status !== 'gone') ||
+            (!s.cards[c.id]!.met && c.arrives <= s.now + 7 * DAY),
+        )
+        .map((c) => c.id)
     : FAMILIES.filter((f) => f.arrives <= s.now + 7 * DAY).map((f) => `${f.id}-0`);
   const place = workers ? 'Kültürpark' : 'Saturday tea';
   for (let i = 0; i + 1 < ids.length; i += 2) {
@@ -2491,7 +2510,7 @@ function cityTalk(s: Sim, workers: boolean) {
   );
   // Reputational beliefs learned through conversation affect later willingness.
   if (workers)
-    for (const c of CANDIDATES.filter((c) => s.cards[c.id]!.met))
+    for (const c of CANDIDATES.filter((c) => !unavailable(s, c.id)).filter((c) => s.cards[c.id]!.met))
       for (const f of FAMILIES) {
         if (
           credence(s.people[c.id]!, `${f.id}:kind`) < 0.3 &&
@@ -2926,7 +2945,7 @@ function nextEvent(s: Sim): View['next'] {
       label: `${name(s.envelopePromise.candidate)} will ask about the money in the envelope`,
       at: s.envelopePromise.at,
     });
-  for (const c of CANDIDATES) {
+  for (const c of CANDIDATES.filter((c) => !unavailable(s, c.id))) {
     const card = s.cards[c.id]!;
     if (card.arrivalAt)
       events.push({ label: `${c.name} is due at the office after the journey`, at: card.arrivalAt });
@@ -2934,11 +2953,11 @@ function nextEvent(s: Sim): View['next'] {
   }
   for (const r of s.referrals)
     events.push({ label: `Someone ${name(r.from)} recommended is due on the bench`, at: r.at });
-  for (const c of CANDIDATES.filter((c) => !s.cards[c.id]!.met))
+  for (const c of CANDIDATES.filter((c) => !unavailable(s, c.id)).filter((c) => !s.cards[c.id]!.met))
     events.push({ label: 'Another candidate is due on the bench', at: s.cards[c.id]!.arrived });
   for (const f of FAMILIES.filter((f) => !s.requests.some((r) => r.family === f.id)))
     events.push({ label: 'A family is due to call', at: f.arrives });
-  for (const c of CANDIDATES.filter((c) => s.cards[c.id]!.introduced))
+  for (const c of CANDIDATES.filter((c) => !unavailable(s, c.id)).filter((c) => s.cards[c.id]!.introduced))
     for (const id of c.referees) {
       const ref = REFEREES.find((r) => r.id === id)!;
       if (!s.cards[c.id]!.called.includes(id) && s.now % DAY < ref.reachableAt && day(s) % 7 !== 6)
@@ -3347,7 +3366,10 @@ function commuteTalk(s: Sim) {
           !used.has(other.candidate) &&
           CANDIDATES.find((c) => c.id === other.candidate)!.home === c.home,
       )?.candidate ??
-      CANDIDATES.find((other) => other.id !== c.id && !s.cards[other.id]!.met && other.home === c.home)?.id ??
+      CANDIDATES.find(
+        (other) =>
+          !unavailable(s, other.id) && other.id !== c.id && !s.cards[other.id]!.met && other.home === c.home,
+      )?.id ??
       CANDIDATES.find(
         (other) =>
           other.id !== c.id &&
@@ -3388,7 +3410,8 @@ function landReferral(s: Sim, candidate: string) {
 }
 function landReferrals(s: Sim) {
   for (const referral of [...s.referrals]) {
-    if (referral.at > s.now || s.cards[referral.candidate]!.met) continue;
+    if (unavailable(s, referral.candidate) || referral.at > s.now || s.cards[referral.candidate]!.met)
+      continue;
     Object.assign(s.cards[referral.candidate]!, { met: true, status: 'bench', arrived: s.now });
     landReferral(s, referral.candidate);
     log(s, 'arrival', `${name(referral.candidate)} sat on the bench after the journey.`, {

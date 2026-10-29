@@ -7,12 +7,19 @@ import {
   initialPersonaLife,
   preparePersonaLife,
 } from '@adam0white/lab-client';
-import { expect, test } from 'vitest';
+import { afterAll, beforeAll, expect, test } from 'vitest';
 import { ALLOCATION, CAST } from '../src/sim/cast.ts';
 import { agencyTransfer, prepareAgencyChapter } from '../src/sim/cast-chapter.ts';
 import { ENGINE_VERSION } from '../src/sim/hf4.ts';
 import { apply, newGame } from '../src/sim/index.ts';
 import { ContinuitySession, emptyContinuity } from '../src/ui/continuity.ts';
+import { syntheticPortableReaders } from './support/synthetic-portable-readers.ts';
+
+let restoreReaders: () => void;
+beforeAll(async () => {
+  restoreReaders = await syntheticPortableReaders();
+});
+afterAll(() => restoreReaders());
 
 async function original(key: 'nermin' | 'hatice') {
   const s = newGame(1);

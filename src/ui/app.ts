@@ -7,6 +7,7 @@ import {
   createPersona,
   FEEDBACK_LABELS,
   initialPersonaLife,
+  type LifePreparation,
   PERSONA_ORIGINS,
   type PersonaEnvelope,
   type PersonaLife,
@@ -16,8 +17,15 @@ import {
 import { ALLOCATION, CAST, CAST_KEYS, castKey } from '../sim/cast.ts';
 import { agencyTransfer, prepareAgencyChapter } from '../sim/cast-chapter.ts';
 import type { GuestAction, GuestId } from '../sim/guests.ts';
+import { type SkippedPerson, savedMonthStatus, skippedBeforeAcceptance } from './chapter-batch.ts';
 import { agencySource, publishNativeCheckpoint } from './checkpoint.ts';
-import { type ContinuityBook, ContinuitySession, continuityRow, emptyContinuity } from './continuity.ts';
+import {
+  assertPortableWrite,
+  type ContinuityBook,
+  ContinuitySession,
+  continuityRow,
+  emptyContinuity,
+} from './continuity.ts';
 import '@adam0white/lab-kit/stage.css';
 import {
   defineTerms,
@@ -25,6 +33,7 @@ import {
   feedbackPersonaControl,
   feedbackSharePlay,
   glossaryPanel,
+  PEOPLE_ACROSS_GAMES,
   phoneStage,
   telemetryNotice,
   telemetryToggle,
@@ -157,6 +166,8 @@ function waitActive() {
 }
 let transcriptKey = '';
 let saveReady = false;
+let saveNeedsFreshStart = false;
+let saveUnreadable = false;
 let moreChoices = false;
 let paceChoice: 'automatic' | 'slow' | 'steady' | 'fast' = 'automatic';
 let overlay: HTMLElement | null = null;
@@ -339,7 +350,7 @@ function title(): void {
   playing = false;
   shown = '';
   setScreen('title');
-  root.innerHTML = `<main class="title-page">${topbar(`<a href="${ALL_GAMES}" target="_top">All games</a>`)}<section class="title-body"><p class="eyebrow">Izmir · November 2026</p><div class="agency-mark" aria-hidden="true">G H<span>placement agency</span></div><h1>Good Hands</h1><p class="subtitle">You are Nermin, and you run Good Hands, a placement agency in Izmir, for one month.</p><p class="goal">A family needs a nanny by Tuesday 08:00. Three job applicants are waiting on the bench in your office. Rent of ₺5,000 is due to Mr Hüsnü, your landlord, on Friday.</p><p class="title-status" role="status">${saveReady ? '' : 'Looking for a saved month…'}</p></section><div class="title-actions lk-commit"></div></main>`;
+  root.innerHTML = `<main class="title-page">${topbar(`<a href="${ALL_GAMES}" target="_top">All games</a>`)}<section class="title-body"><p class="eyebrow">Izmir · November 2026</p><div class="agency-mark" aria-hidden="true">G H<span>placement agency</span></div><h1>Good Hands</h1><p class="subtitle">You are Nermin, and you run Good Hands, a placement agency in Izmir, for one month.</p><p class="goal">A family needs a nanny by Tuesday 08:00. Three job applicants are waiting on the bench in your office. Rent of ₺5,000 is due to Mr Hüsnü, your landlord, on Friday.</p><p class="title-status" role="status">${savedMonthStatus(saveReady, saveNeedsFreshStart, saveUnreadable)}</p></section><div class="title-actions lk-commit"></div></main>`;
   const actions = root.querySelector('.title-actions');
   if (saved) {
     actions?.append(
@@ -406,20 +417,58 @@ async function newMonth(): Promise<void> {
     }
     let chapter = await prepareAgencyChapter([], seed);
     if (shelf.enabled) {
+      let preparedInputs: LifePreparation[] = [];
+      let preparedBlocked: SkippedPerson[] = [];
+      let acceptedInputs: LifePreparation[] = [];
+      let checkedSkipped: SkippedPerson[] = [];
       const batch = await claimCastChapterBatch(
-        shelf,
+        {
+          ...shelf,
+          request: async <T>(request: Parameters<typeof shelf.request>[0]): Promise<T> => {
+            if (request.action === 'putBatch') {
+              checkedSkipped = skippedBeforeAcceptance(
+                preparedInputs,
+                preparedBlocked,
+                request.envelopes ?? [],
+              );
+              const checked = await prepareAgencyChapter(acceptedInputs, seed, checkedSkipped);
+              sim.newGame(seed, 6, checked.guests, checked);
+              if (!isCurrent()) throw new Error('The run changed. Choose again.');
+              for (const envelope of request.envelopes ?? []) assertPortableWrite(envelope);
+            }
+            const result = await shelf.request<T>(request);
+            if (request.action === 'prepareBatch') {
+              const prepared = result as { inputs: LifePreparation[]; blocked: SkippedPerson[] };
+              preparedInputs = prepared.inputs;
+              preparedBlocked = prepared.blocked;
+            }
+            return result;
+          },
+        },
         ALLOCATION.map((p) => p.castId),
         agencySource(lab?.build().c || 'development'),
         async (inputs) => {
+          acceptedInputs = inputs;
           const prepared = await prepareAgencyChapter(inputs, seed);
           sim.newGame(seed, 6, prepared.guests, prepared);
           return prepared;
         },
-        { isCurrent },
+        {
+          isCurrent,
+          admitPerson: async (input) => {
+            assertPortableWrite(input.parent);
+            await prepareAgencyChapter([input], seed);
+          },
+        },
       );
       if (!isCurrent()) return;
       if (batch) {
-        chapter = batch.initial;
+        const checkedIds = checkedSkipped.map((p) => p.castId).sort();
+        const actualIds = batch.blocked.map((p) => p.castId).sort();
+        if (canonicalPersona(checkedIds) !== canonicalPersona(actualIds))
+          throw new Error('The people admitted to this month could not be verified.');
+        chapter = await prepareAgencyChapter(batch.inputs, seed, batch.blocked);
+        sim.newGame(seed, 6, chapter.guests, chapter);
         book.initialClaims = batch.claims;
         book.heads = structuredClone(batch.claims);
       }
@@ -432,6 +481,7 @@ async function newMonth(): Promise<void> {
     continuityStatus = chapter.inputs.length
       ? `Loaded ${chapter.inputs.length} people together with their earlier history. Their starting state and ages are saved.`
       : 'This month starts with a new local cast. Earlier history has not been reset.';
+    if (chapter.skipped?.length) continuityStatus += ` ${chapter.skipped.map((p) => p.reason).join(' ')}`;
     lab?.milestone('run started');
   } catch (e) {
     if (isCurrent()) {
@@ -564,7 +614,7 @@ function checkpoint(fork = false, record = false): Promise<void> {
       }
       if (!shelf.enabled) {
         continuityStatus =
-          'People between games is off or unavailable. No checkpoint was published. Your source stays here.';
+          'People across games is off or unavailable. No checkpoint was published. Your source stays here.';
         report([continuityStatus]);
         return;
       }
@@ -589,6 +639,10 @@ function checkpoint(fork = false, record = false): Promise<void> {
         if (!sourceIsCurrent()) return;
         const cast = CAST[id],
           person = pinned.people[id];
+        if (continuity.chapter?.skipped?.some((p) => p.castId === cast.castId)) {
+          dispositions.push(`${cast.name}: not in this month; saved history unchanged.`);
+          continue;
+        }
         if (!person) {
           dispositions.push(`${cast.name}: no person in this chapter.`);
           continue;
@@ -1283,7 +1337,7 @@ function sourceOffer(): void {
     <p>The complete month is saved in this browser before publication. Keep Download this run before starting another month, which replaces the browser save. The shelf receives a supported snapshot. Publication does not mean anyone has departed, arrived or been accepted by another game.</p>
     <p>${h(continuity.fileOrigin ? 'This imported history cannot publish as an owned source. Keep its complete file.' : state.castPaused ? 'The source is paused.' : state.castPauseRequested ? 'Waiting for current activities to finish. Return to play, then check here again.' : 'The source has not been paused.')}</p>
     <div data-source-status role="status">${h(continuityStatus || continuity.publications?.at(-1)?.results.join('\n') || '')}</div>
-    <a href="https://human.adamwhite.work/lab/people/" target="_top">People between games</a>
+    <a href="https://human.adamwhite.work/lab/people/" target="_top">${PEOPLE_ACROSS_GAMES}</a>
     <button type="button" data-action="download">Download this run</button>`,
     'source',
   );
@@ -1422,7 +1476,7 @@ function menu(): void {
   if (state) save();
   const d = openSheet(
     'Game menu',
-    `<button type="button" data-action="send-run">Feedback</button><button type="button" data-action="fullscreen">Full screen</button><a href="${ALL_GAMES}" target="_top">All games</a><a href="https://human.adamwhite.work/lab/people/" target="_top">People between games</a><button type="button" data-new-game>New game</button>${state ? '<button type="button" data-action="day-notes">The day’s notes</button>' : ''}${!fileMode && state?.version === 6 ? '<button type="button" data-action="source-offer">People after this month</button>' : ''}<div class="page-setting">Page ${['System', 'Light', 'Dark'].map((theme) => `<button type="button" data-theme-choice="${theme.toLowerCase()}">${theme}</button>`).join('')}</div><div class="pace-setting"><span>Pace</span>${['Automatic', 'Slow', 'Steady', 'Fast'].map((speed) => `<button type="button" data-pace-choice="${speed.toLowerCase()}">${speed}</button>`).join('')}</div><button type="button" data-action="title">To the title page</button><button type="button" data-action="import">${fileMode ? 'Choose a run file' : 'Import and replace saved month'}</button>${fileMode ? '' : '<a href="/file/">Continue a file without replacing the saved month</a>'}${state ? '<button type="button" data-action="download">Download this run</button>' : ''}<div class="file-actions"></div><div class="recording-footer"></div><div class="debug-footer" style="display:flex;align-items:baseline;gap:.75rem;flex-wrap:wrap"><a href="https://human.adamwhite.work/lab/privacy/" target="_top">Lab privacy</a><details><summary>Debug</summary><p>Build: ${h(lab?.build().c || 'unavailable')}</p><p>Storage: ${h(preservationStatus)}</p></details></div>`,
+    `<button type="button" data-action="send-run">Feedback</button><button type="button" data-action="fullscreen">Full screen</button><a href="${ALL_GAMES}" target="_top">All games</a><a href="https://human.adamwhite.work/lab/people/" target="_top">${PEOPLE_ACROSS_GAMES}</a><button type="button" data-new-game>New game</button>${state ? '<button type="button" data-action="day-notes">The day’s notes</button>' : ''}${!fileMode && state?.version === 6 ? '<button type="button" data-action="source-offer">People after this month</button>' : ''}<div class="page-setting">Page ${['System', 'Light', 'Dark'].map((theme) => `<button type="button" data-theme-choice="${theme.toLowerCase()}">${theme}</button>`).join('')}</div><div class="pace-setting"><span>Pace</span>${['Automatic', 'Slow', 'Steady', 'Fast'].map((speed) => `<button type="button" data-pace-choice="${speed.toLowerCase()}">${speed}</button>`).join('')}</div><button type="button" data-action="title">To the title page</button><button type="button" data-action="import">${fileMode ? 'Choose a run file' : 'Import and replace saved month'}</button>${fileMode ? '' : '<a href="/file/">Continue a file without replacing the saved month</a>'}${state ? '<button type="button" data-action="download">Download this run</button>' : ''}<div class="file-actions"></div><div class="recording-footer"></div><div class="debug-footer" style="display:flex;align-items:baseline;gap:.75rem;flex-wrap:wrap"><a href="https://human.adamwhite.work/lab/privacy/" target="_top">Lab privacy</a><details><summary>Debug</summary><p>Build: ${h(lab?.build().c || 'unavailable')}</p><p>Storage: ${h(preservationStatus)}</p></details></div>`,
     'menu',
   );
   if (lab) d.querySelector('.recording-footer')?.append(telemetryToggle(lab));
@@ -2381,8 +2435,11 @@ if (!fileMode)
         const validated = verifyImport(JSON.stringify(row.value));
         await validateContinuity(validated.continuity, validated.state, validated.inputs);
         saved = validated;
-      } catch {
+      } catch (error) {
         saved = null;
+        saveNeedsFreshStart =
+          error instanceof Error && /older version of the Human Framework/.test(error.message);
+        saveUnreadable = !saveNeedsFreshStart;
       }
     }
     saveReady = true;

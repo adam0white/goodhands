@@ -66,7 +66,7 @@ function archiveBytes(archive: ReturnType<typeof frameworkArchive>) {
 
 test('the real current Gül interview uses one HF4 Run and both game files replay completely', () => {
   const state = newGame(7);
-  expect(frameworkArchive(runFor(state)).engine.package).toBe('@adam0white/human-framework@4.7.0');
+  expect(frameworkArchive(runFor(state)).engine.package).toBe('@adam0white/human-framework@4.8.1');
   apply(state, { type: 'interview', candidate: 'gul' });
   const scene = view(state).scene!;
   expect(scene.kind).toBe('interview');
@@ -235,7 +235,7 @@ test('a current cast passport admits retained history into a new current game', 
     castRevision: CAST.nermin.revision,
     branchId: 'nermin',
     parentRevision: null,
-    source: { game: 'goodhands', build: 'test', engine: '4.7.0', rules: 'goodhands-hf4-2' },
+    source: { game: 'goodhands', build: 'test', engine: '4.8.1', rules: 'goodhands-hf4-2' },
     transfer: { ...transfer, life: initialPersonaLife(CAST.nermin.castId, 'nermin', 0) },
     limitations: [],
   });
