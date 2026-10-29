@@ -7,6 +7,7 @@ import {
   createPersona,
   initialPersonaLife,
   type PersonaEnvelope,
+  portableWriteBlockers,
   preparePersonaLife,
 } from '@adam0white/lab-client';
 import { type BrowserContext, chromium, type Page, webkit } from 'playwright-core';
@@ -23,7 +24,10 @@ let server: ViteDevServer;
 let local: string;
 const origin = 'https://goodhands.adamwhite.work';
 beforeAll(async () => {
-  server = await createServer({ server: { host: '127.0.0.1', port: 0, hmr: false, watch: null } });
+  server = await createServer({
+    optimizeDeps: { exclude: ['@adam0white/lab-client'] },
+    server: { host: '127.0.0.1', port: 0, hmr: false, watch: null },
+  });
   await server.listen();
   local = server.resolvedUrls!.local[0]!;
 });
@@ -131,6 +135,22 @@ async function fixture(context: BrowserContext, reject: () => boolean, carry = f
       });
     if (url.origin === origin) {
       const response = await route.fetch({ url: `${local.replace(/\/$/, '')}${url.pathname}${url.search}` });
+      if (carry && url.pathname.endsWith('/portable-readers.js')) {
+        // Synthetic certifications for these in-memory transport fixtures only; not deployment evidence.
+        const readers = Object.fromEntries(
+          ALLOCATION.flatMap((person) => portableWriteBlockers(person.castId, 'goodhands')).map((game) => [
+            game,
+            { client: '0.5.7', perPersonSkips: true },
+          ]),
+        );
+        const source = await response.text();
+        const fixtureSource = source.replace(
+          'export const PORTABLE_READERS = {};',
+          `export const PORTABLE_READERS = ${JSON.stringify(readers)};`,
+        );
+        expect(fixtureSource).not.toBe(source);
+        return route.fulfill({ response, body: fixtureSource });
+      }
       return route.fulfill({ response });
     }
     if (url.origin === 'https://human.adamwhite.work' && url.pathname === '/lab/identity/')
