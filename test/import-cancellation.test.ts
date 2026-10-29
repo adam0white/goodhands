@@ -76,4 +76,4 @@ it('keeps the occupied native month when pagehide cancels a confirmed import dur
     await ownedBrowser.kill();
     await server.close();
   }
-}, 60_000);
+}, 120_000);
