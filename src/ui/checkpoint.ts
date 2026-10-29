@@ -10,7 +10,7 @@ import { CAST, castKey } from '../sim/cast.ts';
 import { agencyTransfer } from '../sim/cast-chapter.ts';
 import { ENGINE_VERSION } from '../sim/hf4.ts';
 import type { State } from '../sim/types.ts';
-import { type ContinuityBook, continuityRow, type Shelf } from './continuity.ts';
+import { assertPortableWrite, type ContinuityBook, continuityRow, type Shelf } from './continuity.ts';
 /** One producer stamp for browser claims, checkpoints and bounded source exports. */
 export function agencySource(build: string): PersonaEnvelope['source'] {
   return { game: 'goodhands', build, engine: ENGINE_VERSION, rules: 'goodhands-6' };
@@ -33,6 +33,8 @@ export async function publishNativeCheckpoint(
   await shelf.ready;
   if (!isCurrent()) throw new Error('This source chapter changed before publication.');
   if (!shelf.enabled) throw new Error('Fictional person continuity is off.');
+  if (book.chapter?.skipped?.some((p) => p.castId === envelope.castId))
+    throw new Error('This person was not admitted to this month. Their saved history stays unchanged.');
   if (book.fileOrigin && !fork) throw new Error('This file needs an explicit new branch before publication.');
   if (
     source.version !== 6 ||
@@ -102,6 +104,7 @@ export async function publishNativeCheckpoint(
   assertParent();
   assertCapacity();
   if (!shelf.enabled) throw new Error('Fictional person continuity is off.');
+  assertPortableWrite(envelope);
   // The shelf still performs exact-parent CAS. Recording epochs are not permission or ownership.
   await shelf.request({
     action: 'put',

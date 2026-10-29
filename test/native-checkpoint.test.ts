@@ -4,13 +4,20 @@ import {
   initialPersonaLife,
   type PersonaRequest,
 } from '@adam0white/lab-client';
-import { expect, test } from 'vitest';
+import { afterAll, beforeAll, expect, test } from 'vitest';
 import { CAST } from '../src/sim/cast.ts';
 import { agencyTransfer, prepareAgencyChapter } from '../src/sim/cast-chapter.ts';
 import { ENGINE_VERSION } from '../src/sim/hf4.ts';
 import { advance, apply, newGame } from '../src/sim/index.ts';
 import { publishNativeCheckpoint } from '../src/ui/checkpoint.ts';
 import { continuityRow, emptyContinuity } from '../src/ui/continuity.ts';
+import { syntheticPortableReaders } from './support/synthetic-portable-readers.ts';
+
+let restoreReaders: () => void;
+beforeAll(async () => {
+  restoreReaders = await syntheticPortableReaders();
+});
+afterAll(() => restoreReaders());
 
 test('refuses publication when the complete current source archive did not commit', async () => {
   const state = newGame(7);

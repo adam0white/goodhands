@@ -6,6 +6,7 @@ import {
   type PersonaEnvelope,
   type PersonaRequest,
   type personaChannel,
+  portableWriteBlockers,
 } from '@adam0white/lab-client';
 import { ALLOCATION, castKey } from '../sim/cast.ts';
 import type { AgencyChapter } from '../sim/cast-chapter.ts';
@@ -76,6 +77,15 @@ export function continuityRow(
 export type Shelf = Pick<ReturnType<typeof personaChannel>, 'enabled' | 'ready' | 'setEnabled'> & {
   request<T>(request: PersonaRequest): Promise<T>;
 };
+/** G2-ROLES: portable writes remain closed until every peer can skip a person. */
+export function assertPortableWrite(envelope: PersonaEnvelope): void {
+  if (envelope.transfer.portable === undefined) return;
+  const blockers = portableWriteBlockers(envelope.castId, 'goodhands');
+  if (blockers.length)
+    throw new Error(
+      `This person cannot be shared yet. Waiting for ${blockers.join(', ')} to support individual skips.`,
+    );
+}
 type RecordingLab = Pick<Lab, 'setPersonaRecording' | 'allowPersonaRecording'> & {
   readonly personaRecordingAllowed?: boolean;
   readonly playerId?: string | null;
@@ -124,6 +134,7 @@ export class ContinuitySession {
     });
     if (scope === 'shared' || this.shelf.enabled) {
       try {
+        assertPortableWrite(claim);
         await this.shelf.request({ action: 'put', envelope: claim });
       } catch (e) {
         if (scope !== 'file' || !bridgeUnavailable(e)) throw e;
@@ -137,6 +148,8 @@ export class ContinuitySession {
     transfer: Record<string, unknown>,
     fork = false,
   ): Promise<PersonaEnvelope> {
+    if (book.chapter?.skipped?.some((p) => p.castId === castId))
+      throw new Error('This person was not admitted to this month. Their saved history stays unchanged.');
     if (book.rows.length >= 256)
       throw new Error(
         'This run’s continuity history is full. Keep a copy and start a new chapter. Local play remains available.',
@@ -162,6 +175,7 @@ export class ContinuitySession {
           }
         : transfer,
     });
+    assertPortableWrite(envelope);
     await this.shelf.request({ action: 'put', envelope, fork });
     const priorFork = (prior.transfer.admission as Record<string, unknown> | undefined)?.forkOf;
     if (fork || (prior.parentRevision === null && typeof priorFork === 'string')) {

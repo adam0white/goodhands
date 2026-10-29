@@ -2,9 +2,9 @@
 
 import { exportRun } from '@adam0white/human-framework';
 import { canonicalPersona, type LifePreparation } from '@adam0white/lab-client';
-import { CAST_KEYS, type CastKey } from './cast.ts';
+import { CAST, CAST_KEYS, type CastKey, castKey } from './cast.ts';
 import type { GuestAdmission } from './guests.ts';
-import { overrideOpening, portableVocabularyFor, runFor, saveFramework } from './hf4.ts';
+import { excludeOpening, overrideOpening, portableVocabularyFor, runFor, saveFramework } from './hf4.ts';
 import {
   agencyHf4Transfer,
   type Hf4AgencyChapter,
@@ -14,6 +14,7 @@ import {
 import type { State } from './types.ts';
 export interface AgencyChapter extends Hf4AgencyChapter {
   guests: GuestAdmission[];
+  skipped?: { castId: string; reason: string }[];
 }
 export async function digest(value: unknown) {
   return [
@@ -47,14 +48,38 @@ export async function agencyTransfer(state: State, id: CastKey) {
     },
   };
 }
-export async function prepareAgencyChapter(inputs: LifePreparation[], seed: number): Promise<AgencyChapter> {
-  return { ...(await prepareHf4AgencyChapter(inputs, seed)), guests: [] };
+export async function prepareAgencyChapter(
+  inputs: LifePreparation[],
+  seed: number,
+  skipped: { castId: string; reason: string }[] = [],
+): Promise<AgencyChapter> {
+  const seen = new Set<string>();
+  for (const item of skipped) {
+    castKey(item.castId);
+    if (!item.reason || seen.has(item.castId) || inputs.some((i) => i.parent.castId === item.castId))
+      throw new Error('Invalid unavailable person.');
+    if (item.castId === CAST.nermin.castId)
+      throw new Error(
+        'Nermin is still in another chapter. Continue or export her chapter before starting here.',
+      );
+    seen.add(item.castId);
+  }
+  return {
+    ...(await prepareHf4AgencyChapter(inputs, seed)),
+    guests: [],
+    ...(skipped.length ? { skipped: structuredClone(skipped) } : {}),
+  };
 }
 export async function validateAgencyChapter(chapter: AgencyChapter) {
   if (!Array.isArray(chapter.guests) || chapter.guests.length)
     throw new Error('This saved chapter cannot continue here. Keep the file and start fresh.');
-  const { guests: _, ...body } = chapter;
+  const { guests: _, skipped: _skipped, ...body } = chapter;
   await validateHf4AgencyChapter(body);
+  if (
+    canonicalPersona(chapter) !==
+    canonicalPersona(await prepareAgencyChapter(chapter.inputs, chapter.seed, chapter.skipped))
+  )
+    throw new Error('Invalid unavailable people in this chapter.');
 }
 export function installAgencyChapter(state: State, chapter: AgencyChapter) {
   if (chapter.version !== 'goodhands-chapter/2')
@@ -63,8 +88,17 @@ export function installAgencyChapter(state: State, chapter: AgencyChapter) {
     );
   state.castChapter = structuredClone(chapter);
   for (const key of CAST_KEYS) {
-    const authored = chapter.actors[key];
-    if (authored) overrideOpening(state, key, authored);
+    if (chapter.skipped?.some((p) => p.castId === CAST[key].castId)) {
+      excludeOpening(state, key);
+      const card = (state.cards as Record<string, { met: boolean; status: string }>)[key];
+      if (card) {
+        card.met = false;
+        card.status = 'gone';
+      }
+      const guest = (state.guests as { id: string; status: string }[]).find((g) => g.id === key);
+      if (guest) guest.status = 'unavailable';
+      continue;
+    }
     const fact = chapter.facts[key];
     if (!fact) continue;
     const card = (state.cards as Record<string, { arrived: number; met: boolean }>)[key];
@@ -72,5 +106,7 @@ export function installAgencyChapter(state: State, chapter: AgencyChapter) {
       card.arrived += (fact.startsAtHome ? 60 : 0) + (fact.availableForExtraWork ? 0 : 1440);
     const guest = (state.guests as { id: string; arrival: number }[]).find((g) => g.id === key);
     if (guest) guest.arrival += fact.startsAtHome ? 30 : 0;
+    const authored = chapter.actors[key];
+    if (authored) overrideOpening(state, key, authored, Math.max(510, guest?.arrival ?? 510));
   }
 }

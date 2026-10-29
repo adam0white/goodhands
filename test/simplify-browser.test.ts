@@ -7,6 +7,7 @@ import {
   createPersona,
   initialPersonaLife,
   type PersonaEnvelope,
+  portableWriteBlockers,
   preparePersonaLife,
 } from '@adam0white/lab-client';
 import { type BrowserContext, chromium, type Page, webkit } from 'playwright-core';
@@ -23,7 +24,10 @@ let server: ViteDevServer;
 let local: string;
 const origin = 'https://goodhands.adamwhite.work';
 beforeAll(async () => {
-  server = await createServer({ server: { host: '127.0.0.1', port: 0, hmr: false, watch: null } });
+  server = await createServer({
+    optimizeDeps: { exclude: ['@adam0white/lab-client'] },
+    server: { host: '127.0.0.1', port: 0, hmr: false, watch: null },
+  });
   await server.listen();
   local = server.resolvedUrls!.local[0]!;
 });
@@ -131,6 +135,22 @@ async function fixture(context: BrowserContext, reject: () => boolean, carry = f
       });
     if (url.origin === origin) {
       const response = await route.fetch({ url: `${local.replace(/\/$/, '')}${url.pathname}${url.search}` });
+      if (carry && url.pathname.endsWith('/portable-readers.js')) {
+        // Synthetic certifications for these in-memory transport fixtures only; not deployment evidence.
+        const readers = Object.fromEntries(
+          ALLOCATION.flatMap((person) => portableWriteBlockers(person.castId, 'goodhands')).map((game) => [
+            game,
+            { client: '0.5.7', perPersonSkips: true },
+          ]),
+        );
+        const source = await response.text();
+        const fixtureSource = source.replace(
+          'export const PORTABLE_READERS = {};',
+          `export const PORTABLE_READERS = ${JSON.stringify(readers)};`,
+        );
+        expect(fixtureSource).not.toBe(source);
+        return route.fulfill({ response, body: fixtureSource });
+      }
       return route.fulfill({ response });
     }
     if (url.origin === 'https://human.adamwhite.work' && url.pathname === '/lab/identity/')
@@ -224,7 +244,7 @@ for (const [name, engine] of [
           const menu = page.locator('.menu-sheet');
           expect(await menu.locator('[data-pace-choice]').count()).toBe(4);
           expect(await menu.locator('[data-theme-choice]').count()).toBe(3);
-          expect(await menu.getByRole('link', { name: 'People between games' }).getAttribute('href')).toBe(
+          expect(await menu.getByRole('link', { name: 'People across games' }).getAttribute('href')).toBe(
             'https://human.adamwhite.work/lab/people/',
           );
           expect(await menu.locator('.debug-footer details').getAttribute('open')).toBeNull();
@@ -367,7 +387,13 @@ for (const lostReply of [false, true])
       await page.getByRole('button', { name: 'New game', exact: true }).click();
       await page.getByRole('button', { name: 'Start new game', exact: true }).click();
       if (lostReply) {
-        await expect.poll(() => shelf.writes()).toBe(2);
+        await expect
+          .poll(() => shelf.writes(), { timeout: 20000, message: 'Wait for the second shelf transaction' })
+          .toBe(2)
+          .catch(async (error) => {
+            console.error('Batch transaction diagnostic:', await page.locator('body').innerText());
+            throw error;
+          });
         expect(shelf.heads()[CAST.hatice.castId]).not.toBe(beforeHead);
         await page.clock.runFor(3500);
       }

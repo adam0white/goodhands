@@ -3,7 +3,7 @@
  */
 
 import { CAST, type CastKey } from './cast.ts';
-import { perceive } from './hf4.ts';
+import { perceive, unavailable } from './hf4.ts';
 import type { State } from './types.ts';
 
 export interface CastContact {
@@ -90,7 +90,7 @@ const STORY: Record<
   },
 };
 function eligible(s: CastState, id: CastKey): boolean {
-  if (s.ended || s.scene || !s.people[id] || s.now < s.people[id]!.now) return false;
+  if (unavailable(s, id) || s.ended || s.scene || !s.people[id] || s.now < s.people[id]!.now) return false;
   const t = s.now % 1440;
   if (id === 'nermin') return t >= 510 && t < 1080;
   if (id === 'derya') return s.now >= 1440 + 840 && t >= 840 && t < 1020;
