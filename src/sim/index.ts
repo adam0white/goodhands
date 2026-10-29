@@ -2179,15 +2179,29 @@ function deliverReport(s: Sim, p: Placement, visit = false, through = p.moments.
 }
 function startPlacementWork(s: Sim) {
   for (const p of s.placements) {
+    const prefix = `work-pending:${p.id}:`;
+    const key = `${prefix}${day(s)}`;
+    s.eventKeys = s.eventKeys.filter((event) => !event.startsWith(prefix) || (event === key && active(p)));
+    const start = (p.terms?.startHour ?? 9) * 60;
+    const end = (p.terms?.endHour ?? 18) * 60;
+    const time = s.now % DAY;
     if (
       !active(p) ||
       day(s) <= Math.floor(p.since / DAY) ||
       day(s) % 7 === (p.terms?.dayOff ?? 6) ||
-      s.now % DAY !== (p.terms?.startHour ?? 9) * 60
-    )
+      time >= end
+    ) {
+      s.eventKeys = s.eventKeys.filter((event) => event !== key);
       continue;
+    }
+    if (time !== start && !s.eventKeys.includes(key)) continue;
     const worker = s.people[p.candidate]!;
     tick(worker, s.now);
+    if (worker.activity) {
+      if (!s.eventKeys.includes(key)) s.eventKeys.push(key);
+      continue;
+    }
+    s.eventKeys = s.eventKeys.filter((event) => event !== key);
     const hours = (p.terms?.endHour ?? 18) - (p.terms?.startHour ?? 9);
     const requested = CANDIDATES.find((c) => c.id === p.candidate)!.wage;
     // These are authored household terms, not an HF need-update formula.

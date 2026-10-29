@@ -1,6 +1,7 @@
 import { appendFileSync, writeFileSync } from 'node:fs';
 import { exportRun as frameworkArchive, replay as frameworkReplay } from '@adam0white/human-framework';
-import { expect, test } from 'vitest';
+import { expect, test, vi } from 'vitest';
+import * as hf4 from '../src/sim/hf4.ts';
 import {
   bindFramework,
   decide,
@@ -573,3 +574,86 @@ test('host reconstruction preserves completed failed and interrupted actual rece
     .flatMap((i) => (i.kind === 'action.resolved' && i.payload.outcome ? [i.payload.outcome.status] : []));
   expect(statuses.sort()).toEqual(['completed', 'failed', 'interrupted']);
 });
+
+test('a meal at the agreed start does not lose the household shift', () => {
+  const state = newGame(7);
+  (state.placements as unknown[]).push({
+    id: 'meal-conflict',
+    candidate: 'gul',
+    family: 'arslans',
+    role: 'nanny',
+    status: 'trial',
+    since: -1,
+    terms: { startHour: 12, endHour: 13, dayOff: 6 },
+    vouched: [],
+    story: [],
+    moments: [],
+    reported: 0,
+    confidenceGiven: false,
+    wage: 8000,
+    disagreement: true,
+    pendingFee: 0,
+    reportedStatus: 'trial',
+  });
+  state.now = 719;
+  advance(state, 1);
+  expect(
+    (state.hf4 as { host: HostState }).host.active.some(
+      (a) => a.person === 'gul' && a.offer.actionId === 'eat',
+    ),
+  ).toBe(true);
+  advance(state, 25);
+  const host = (state.hf4 as { host: HostState }).host;
+  const work = host.active.find((a) => a.person === 'gul' && a.offer.actionId === 'placement-work');
+  expect(work).toBeDefined();
+  expect(work!.startedAt).toBeGreaterThan(720 * 60000);
+  expect(work!.startedAt + work!.offer.durationMs).toBe(780 * 60000);
+  tick(state.people.gul!, 781);
+  saveFramework(state);
+  const completed = (state.hf4 as { host: HostState }).host.completed.filter(
+    (a) => a.person === 'gul' && a.actionId === 'placement-work',
+  );
+  expect(completed).toHaveLength(1);
+  expect(completed[0]!.end).toBe(780 * 60000);
+  const decisions = frameworkArchive(runFor(state))
+    .history.flatMap((t) => t.inputs)
+    .filter(
+      (i) =>
+        i.kind === 'decision.requested' &&
+        i.payload.person === 'gul' &&
+        i.payload.reason === 'Scheduled Good Hands placement',
+    );
+  expect(decisions).toHaveLength(1);
+}, 60000);
+
+test('a refused delayed placement is not offered again', () => {
+  const state = newGame(7);
+  (state.placements as unknown[]).push({
+    id: 'refused',
+    candidate: 'gul',
+    family: 'arslans',
+    role: 'nanny',
+    status: 'trial',
+    since: -1,
+    terms: { startHour: 12, endHour: 13, dayOff: 6 },
+    vouched: [],
+    story: [],
+    moments: [],
+    reported: 0,
+    confidenceGiven: false,
+    wage: 8000,
+    disagreement: true,
+    pendingFee: 0,
+    reportedStatus: 'trial',
+  });
+  const refusal = vi.spyOn(hf4, 'schedulePlacement').mockReturnValue(false);
+  try {
+    state.now = 719;
+    advance(state, 1);
+    advance(state, 30);
+    expect(refusal).toHaveBeenCalledTimes(1);
+    expect((state.eventKeys as string[]).some((key) => key.startsWith('work-pending:refused:'))).toBe(false);
+  } finally {
+    refusal.mockRestore();
+  }
+}, 60000);
