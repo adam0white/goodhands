@@ -2,7 +2,7 @@
 
 [Play Good Hands](https://goodhands.adamwhite.work). You are Nermin, running a placement agency in Izmir during November 2026. Find workers for households, keep the agency open, and see whether your placements last. Families pay agency fees. Rent is due every Friday.
 
-Source status on2026-10-28: this checkout uses HF4.7.0 and is awaiting technical delivery. The public site retains the last verified HF3 build. [HANDOFF.md](HANDOFF.md) records the remaining checks and live receipt.
+Source status on2026-10-29: this checkout uses HF4.8.1/client0.5.7/kit0.5.24. PR10 delivered that migration. PR11 merged the receiving-journal/menu work, but its merged CI failed a browser-fixture assertion and no follow-through deployment occurred. PR12 contains the test correction and source reconciliation. [HANDOFF.md](HANDOFF.md) distinguishes current source, exact CI and live receipts.
 
 ## How to play
 

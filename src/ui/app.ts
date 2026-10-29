@@ -1044,7 +1044,7 @@ function updateClock(v: View): void {
     const stop = state && !waitActive() ? sim.skipStop(state) : null;
     const target = stop ?? v.next;
     const words = target ? `${clockLabels(target.at).timeLabel} · ${plainText(target.label)}` : '';
-    wait.innerHTML = `Skip to ⏩<small>${h(words)}</small>`;
+    wait.innerHTML = `Skip ⏩<small>${h(words)}</small>`;
     wait.setAttribute('aria-label', target ? `Skip to ${words}` : 'Skip to the next event');
   }
   text('[data-money]', money(v.cash));
