@@ -9,9 +9,13 @@ it('closes pages before removing interception while two fixture replies are pend
   const entered = [gate(), gate()] as const;
   const release = [gate(), gate()] as const;
   const escaped = gate();
-  let networkRequests = 0;
-  const server = createServer((_, response) => {
-    networkRequests++;
+  const networkRequests: {
+    method?: string;
+    path?: string;
+    headers: Record<string, string | string[] | undefined>;
+  }[] = [];
+  const server = createServer((request, response) => {
+    networkRequests.push({ method: request.method, path: request.url, headers: request.headers });
     escaped.resolve();
     response.setHeader('Access-Control-Allow-Origin', '*');
     response.end('Unexpected local network request');
@@ -25,7 +29,18 @@ it('closes pages before removing interception while two fixture replies are pend
     let completed = 0;
     const errors: unknown[] = [];
     await context.route('**/*', async (route) => {
-      const index = route.request().url().endsWith('/first') ? 0 : 1;
+      const request = route.request();
+      const path = new URL(request.url()).pathname;
+      if (path === '/' && request.isNavigationRequest() && request.method() === 'GET') {
+        await route.fulfill({
+          contentType: 'text/html',
+          body: '<!doctype html><title>Synthetic route control</title><link rel="icon" href="data:,">',
+        });
+        return;
+      }
+      if (request.method() !== 'GET' || !['/first', '/second'].includes(path))
+        throw new Error(`Unexpected synthetic route: ${request.method()} ${path}`);
+      const index = path === '/first' ? 0 : 1;
       entered[index].resolve();
       await release[index].promise;
       try {
@@ -37,11 +52,12 @@ it('closes pages before removing interception while two fixture replies are pend
       }
     });
     const page = await context.newPage();
+    // An intercepted document makes both held GETs same-origin. No document or favicon hits the server.
+    await page.goto(`http://127.0.0.1:${address.port}/`);
     const closed = gate();
     page.on('close', () => closed.resolve());
-    const requests = page.evaluate(
-      (url) => Promise.allSettled(['/first', '/second'].map((path) => fetch(url + path))),
-      `http://127.0.0.1:${address.port}`,
+    const requests = page.evaluate(() =>
+      Promise.allSettled(['/first', '/second'].map((path) => fetch(path))),
     );
     // Page closure can reject evaluate; observe it before beginning teardown.
     const settled = requests.catch(() => undefined);
@@ -53,9 +69,9 @@ it('closes pages before removing interception while two fixture replies are pend
     release[1].resolve();
     await closing;
     await settled;
-    expect(errors).toEqual([]);
+    expect(errors, JSON.stringify({ networkRequests })).toEqual([]);
     expect(completed).toBe(2);
-    expect(networkRequests).toBe(0);
+    expect(networkRequests).toEqual([]);
   } finally {
     for (const entry of release) entry.resolve();
     await browser.close();
