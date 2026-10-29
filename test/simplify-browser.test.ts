@@ -1,6 +1,6 @@
 /** Local UI and admission fixtures. These are not real shared-shelf or player journeys. */
 
-import { mkdirSync, readdirSync } from 'node:fs';
+import { existsSync, mkdirSync, readdirSync, readFileSync } from 'node:fs';
 import {
   acceptPersona,
   acceptPersonaBatch,
@@ -23,20 +23,119 @@ import { pausedRun } from './paused-run.ts';
 
 let server: ViteDevServer;
 let local: string;
+// Synthetic-only transport diagnostics. They do not replace navigation readiness or assertions.
+const transport = new Map<
+  string,
+  { at: number; method: string; url: string; headers: Record<string, string> }
+>();
+const httpPending = new Map<string, { at: number; method: string; url: string }>();
+const transportEvents: unknown[] = [];
+let transportId = 0;
+function trace(event: string, detail: unknown) {
+  const entry = { at: Date.now(), event, detail };
+  transportEvents.push(entry);
+  if (transportEvents.length > 80) transportEvents.shift();
+  if (process.env.GH_FIXTURE_DIAGNOSTICS) console.error('GH_TRANSPORT', JSON.stringify(entry));
+}
+async function fixtureReload(page: Page) {
+  trace('reload-start', { url: page.url() });
+  try {
+    await page.reload();
+    trace('reload-load', { url: page.url() });
+  } catch (error) {
+    try {
+      const cache = `${server.config.cacheDir}/deps/_metadata.json`;
+      const pending = {
+        at: Date.now(),
+        error: String(error),
+        url: page.url(),
+        pendingRoutes: [...transport.values()],
+        pendingHttp: [...httpPending.values()],
+        optimizer: existsSync(cache) ? JSON.parse(readFileSync(cache, 'utf8')) : null,
+        modules: [...server.moduleGraph.idToModuleMap.values()]
+          .filter((m) => !m.transformResult)
+          .map((m) => ({ url: m.url, id: m.id })),
+        events: [...transportEvents],
+        pageState: await Promise.race([
+          page
+            .evaluate(() => ({
+              readyState: document.readyState,
+              title: document.title,
+              text: document.body?.textContent,
+              scripts: [...document.scripts].map((s) => s.src),
+            }))
+            .catch((error) => ({ observationError: String(error) })),
+          new Promise((resolve) => setTimeout(() => resolve({ observationTimedOut: true }), 500)),
+        ]),
+      };
+      console.error('Synthetic reload failure before fixture teardown', JSON.stringify(pending));
+    } catch (observationError) {
+      console.error('Synthetic reload observation failed', {
+        at: Date.now(),
+        error: String(observationError),
+      });
+    }
+    throw error;
+  }
+}
 const origin = 'https://goodhands.adamwhite.work';
 beforeAll(async () => {
   server = await createServer({
     optimizeDeps: { exclude: ['@adam0white/lab-client'] },
+    plugins: [
+      {
+        name: 'synthetic-transport-diagnostics',
+        configureServer(vite) {
+          vite.middlewares.use((req, res, next) => {
+            const id = String(++transportId);
+            const item = { at: Date.now(), method: req.method ?? '', url: req.url ?? '' };
+            httpPending.set(id, item);
+            trace('http-start', item);
+            res.on('finish', () => {
+              trace('http-finish', { ...item, status: res.statusCode });
+              httpPending.delete(id);
+            });
+            res.on('close', () => {
+              trace('http-close', { ...item, finished: res.writableFinished });
+              httpPending.delete(id);
+            });
+            next();
+          });
+        },
+      },
+    ],
     server: { host: '127.0.0.1', port: 0, hmr: false, watch: null },
   });
   await server.listen();
   local = server.resolvedUrls!.local[0]!;
 });
 afterAll(async () => {
+  if (httpPending.size || transport.size)
+    console.error(
+      'Synthetic Vite close with pending traffic',
+      JSON.stringify({
+        at: Date.now(),
+        pendingHttp: [...httpPending.values()],
+        pendingRoutes: [...transport.values()],
+      }),
+    );
+  trace('server-close', { pendingHttp: [...httpPending.values()], pendingRoutes: [...transport.values()] });
   await server?.close();
 });
 
 async function fixture(context: BrowserContext, reject: () => boolean, carry = false, lostReply = false) {
+  context.on('page', (page) => {
+    page.on('framenavigated', (frame) =>
+      trace('navigated', { url: frame.url(), main: frame === page.mainFrame() }),
+    );
+    page.on('domcontentloaded', () => trace('domcontentloaded', { url: page.url() }));
+    page.on('load', () => trace('load', { url: page.url() }));
+    page.on('requestfailed', (request) =>
+      trace('requestfailed', { url: request.url(), failure: request.failure() }),
+    );
+    page.on('pageerror', (error) => trace('pageerror', String(error)));
+    page.on('close', () => trace('page-close', { url: page.url() }));
+  });
   const state = newGame(1);
   apply(state, { type: 'pause-cast' });
   const parent = await createPersona({
@@ -161,6 +260,19 @@ async function fixture(context: BrowserContext, reject: () => boolean, carry = f
     };
   });
   await context.route('**/*', async (route) => {
+    const id = String(++transportId);
+    const entry = {
+      at: Date.now(),
+      method: route.request().method(),
+      url: route.request().url(),
+      resourceType: route.request().resourceType(),
+      navigation: route.request().isNavigationRequest(),
+      headers: route.request().headers(),
+      stage: 'routed',
+      status: undefined as number | undefined,
+    };
+    transport.set(id, entry);
+    trace('route-start', entry);
     try {
       const url = new URL(route.request().url());
       if (
@@ -190,9 +302,12 @@ async function fixture(context: BrowserContext, reject: () => boolean, carry = f
       `,
         });
       if (url.origin === origin) {
+        entry.stage = 'fetching-vite';
         const response = await route.fetch({
           url: `${local.replace(/\/$/, '')}${url.pathname}${url.search}`,
         });
+        entry.stage = 'fulfilling-vite';
+        entry.status = response.status();
         if (carry && url.pathname.endsWith('/portable-readers.js')) {
           // Synthetic certifications for these in-memory transport fixtures only; not deployment evidence.
           const readers = Object.fromEntries(
@@ -223,6 +338,17 @@ async function fixture(context: BrowserContext, reject: () => boolean, carry = f
         });
       return await route.continue();
     } catch (error) {
+      console.error(
+        'Synthetic route failure',
+        JSON.stringify({
+          ...entry,
+          failedAt: Date.now(),
+          error: String(error),
+          failure: route.request().failure(),
+          httpPending: [...httpPending.values()],
+        }),
+      );
+      trace('route-error', { ...entry, error: String(error), failure: route.request().failure() });
       // Navigation/teardown can abort a routed Vite fetch. Ignore only an
       // already-handled route with an actual browser-reported request failure.
       if (
@@ -232,6 +358,9 @@ async function fixture(context: BrowserContext, reject: () => boolean, carry = f
       )
         return;
       throw error;
+    } finally {
+      trace('route-end', entry);
+      transport.delete(id);
     }
   });
   return {
@@ -791,7 +920,7 @@ for (const phase of ['sending', 'acknowledged'] as const)
           },
         );
       }
-      await page.reload();
+      await fixtureReload(page);
       if (phase === 'sending')
         await page.getByText('Whether its people were accepted is unknown.', { exact: false }).waitFor();
       else {
@@ -838,7 +967,7 @@ for (const phase of ['sending', 'acknowledged'] as const)
       await page.evaluate(() => dispatchEvent(new Event('pagehide')));
       expect(await inspect()).toEqual(original);
       expect(shelf.writes()).toBe(phase === 'sending' ? 1 : 0);
-      await page.reload();
+      await fixtureReload(page);
       await page.getByRole('button', { name: 'Start a fresh month in this tab', exact: true }).waitFor();
       expect(await inspect()).toEqual(original);
       expect(shelf.writes()).toBe(phase === 'sending' ? 1 : 0);
