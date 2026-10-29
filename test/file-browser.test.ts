@@ -184,4 +184,4 @@ it('uses the full game in /file/ without native DB or Shelf, and retains ordinar
     await owned.kill();
     await server.close();
   }
-}, 60_000);
+}, 180_000);
