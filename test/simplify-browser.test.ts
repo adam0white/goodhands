@@ -17,7 +17,7 @@ import { ALLOCATION, CAST } from '../src/sim/cast.ts';
 import { agencyTransfer } from '../src/sim/cast-chapter.ts';
 import { ENGINE_VERSION } from '../src/sim/hf4.ts';
 import { apply, newGame } from '../src/sim/index.ts';
-import { verifyImport } from '../src/ui/export.ts';
+import { type RunExport, verifyImport } from '../src/ui/export.ts';
 import { pausedRun } from './paused-run.ts';
 
 let server: ViteDevServer;
@@ -70,6 +70,7 @@ async function fixture(context: BrowserContext, reject: () => boolean, carry = f
     backend = acceptPersona(backend, secondParent);
   }
   let writes = 0;
+  const receivers: RunExport[] = [];
   // Synthetic admission observer. It sees committed host journals only; no
   // production certification or cross-origin ownership claim is made.
   await context.addInitScript(() => {
@@ -77,11 +78,19 @@ async function fixture(context: BrowserContext, reject: () => boolean, carry = f
     fixture.receivingPhases = [];
     const put = IDBObjectStore.prototype.put;
     IDBObjectStore.prototype.put = function (value, key) {
-      if (key === 'receiving' && value.blob) {
+      if (key === 'receiving' && (value.compressed || value.blob)) {
+        this.transaction.addEventListener('error', (event) => {
+          const target = event.target as IDBRequest;
+          console.error('Journal transaction request failed', target.error?.name, target.error?.message);
+        });
         fixture.receivingPhases.push(
           new Promise((resolve, reject) => {
             this.transaction.addEventListener('complete', () => {
-              void new Response(value.blob.stream().pipeThrough(new DecompressionStream('gzip')))
+              void new Response(
+                (value.blob ?? new Blob([value.compressed]))
+                  .stream()
+                  .pipeThrough(new DecompressionStream('gzip')),
+              )
                 .text()
                 .then((text) => resolve(JSON.parse(text).phase), reject);
             });
@@ -117,6 +126,7 @@ async function fixture(context: BrowserContext, reject: () => boolean, carry = f
       expect(persisted.journal?.run.state).toBeTruthy();
       expect(persisted.journal?.run.continuity?.initialClaims).toEqual(message.envelopes ?? []);
       expect(persisted.journal?.expectedHeads).toEqual(message.expectedHeads);
+      receivers.push(structuredClone(persisted.journal!.run));
       if (carry)
         expect(
           persisted.journal?.run.continuity?.chapter?.skipped?.map((p: { castId: string }) => p.castId),
@@ -208,7 +218,11 @@ async function fixture(context: BrowserContext, reject: () => boolean, carry = f
       });
     return route.continue();
   });
-  return { writes: () => writes, heads: () => structuredClone(backend.heads) };
+  return {
+    writes: () => writes,
+    heads: () => structuredClone(backend.heads),
+    receivers: () => structuredClone(receivers),
+  };
 }
 async function readable(page: Page, selector: string, min = 0) {
   const controls = page.locator(selector);
@@ -270,14 +284,25 @@ for (const [name, engine] of [
           const page = await context.newPage();
           page.setDefaultTimeout(8000);
           const errors: string[] = [];
+          const consoleLines: string[] = [];
           page.on('pageerror', (error) => errors.push(error.message));
+          page.on('console', (message) => consoleLines.push(`${message.type()}: ${message.text()}`));
           await page.clock.install();
           await page.clock.pauseAt(new Date());
           await page.goto(origin);
           await page.evaluate(() => document.fonts.ready);
           expect(await page.locator('[data-action="other-ways"]').count()).toBe(0);
           await page.getByRole('button', { name: 'Open the office', exact: true }).click();
-          await page.getByTestId('office').waitFor();
+          try {
+            await page.getByTestId('office').waitFor();
+          } catch (error) {
+            console.error('Startup diagnostics', {
+              errors,
+              consoleLines,
+              body: await page.locator('body').innerText(),
+            });
+            throw error;
+          }
           await page.locator('[data-action="info"]').click();
           expect(await page.locator('.info-panel').innerText()).toContain(
             'Agency fees help you pay the rent.',
@@ -420,9 +445,11 @@ for (const lostReply of [false, true])
                 const row = r.result;
                 resolve(
                   row?.plain ??
-                    (row?.blob
+                    (row?.blob || row?.compressed
                       ? await new Response(
-                          row.blob.stream().pipeThrough(new DecompressionStream('gzip')),
+                          (row.blob ?? new Blob([row.compressed]))
+                            .stream()
+                            .pipeThrough(new DecompressionStream('gzip')),
                         ).text()
                       : null),
                 );
@@ -434,6 +461,7 @@ for (const lostReply of [false, true])
           }
         });
       const before = await saved();
+      expect(verifyImport(before as string).state).toEqual(shelf.receivers()[0]?.state);
       const beforeHead = shelf.heads()[CAST.hatice.castId];
       expect(JSON.stringify(before)).toContain('simplify-fixture');
       await page.locator('[data-action="menu"]').click();

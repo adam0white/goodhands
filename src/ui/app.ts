@@ -404,16 +404,29 @@ function title(): void {
         button('Resume the accepted month', () => {
           const journal = receiving;
           if (!journal) return;
+          const recoveryGeneration = generation;
+          const isCurrent = () =>
+            pageActive && generation === recoveryGeneration && receiving?.id === journal.id;
           void (async () => {
             try {
               const restored = verifyImport(JSON.stringify(journal.run));
               await validateContinuity(restored.continuity, restored.state, restored.inputs);
-              if (!(await promoteReceiving(journal)))
+              if (!isCurrent()) return;
+              if (!(await promoteReceiving(journal, isCurrent)))
                 throw new Error(
                   'Your saved month changed. Download the accepted month to keep it separately.',
                 );
+              if (!isCurrent()) return;
               receiving = null;
-              await begin(restored.state, restored.inputs, restored.continuity, false, () => true, true);
+              await begin(
+                restored.state,
+                restored.inputs,
+                restored.continuity,
+                false,
+                () => pageActive,
+                true,
+                recoveryGeneration,
+              );
             } catch (error) {
               recovery.textContent = errorText(error);
             }
@@ -471,10 +484,14 @@ async function newMonth(): Promise<void> {
   // An interrupted admission is never silently retried or replaced. The source
   // and exact prepared receiver remain available while an ACK is unknown.
   openingMonth = true;
+  const startup = ++generation;
+  continuitySession?.invalidate();
+  const isCurrent = () => pageActive && startup === generation;
   try {
     receiving = await readReceiving();
   } catch (error) {
     openingMonth = false;
+    if (!isCurrent()) return;
     console.error('Could not check prepared month', error);
     const status = root.querySelector('[role="status"]');
     if (status)
@@ -482,15 +499,15 @@ async function newMonth(): Promise<void> {
         'This browser could not check your saved months. Your saved month has not been replaced.';
     return;
   }
+  if (!isCurrent()) {
+    openingMonth = false;
+    return;
+  }
   if (receiving) {
     openingMonth = false;
     title();
     return;
   }
-  openingMonth = true;
-  const startup = ++generation;
-  continuitySession?.invalidate();
-  const isCurrent = () => startup === generation;
   try {
     const seed = crypto.getRandomValues(new Uint32Array(1))[0] ?? 20261102;
     const book = emptyContinuity();
@@ -538,6 +555,7 @@ async function newMonth(): Promise<void> {
         preparedBook.initialClaims = structuredClone(claims);
         preparedBook.heads = structuredClone(claims);
         await validateContinuity(preparedBook, next, []);
+        if (!isCurrent()) throw new Error('The run changed. Choose again.');
         pending = {
           id: receivingId,
           phase: sending ? 'sending' : 'prepared',
@@ -617,14 +635,16 @@ async function newMonth(): Promise<void> {
       await retainReceiving(acknowledged);
       receiving = acknowledged;
       if (!isCurrent()) return;
-      if (!(await promoteReceiving(acknowledged)))
+      if (!(await promoteReceiving(acknowledged, isCurrent)))
         throw new Error(
           'Your saved month changed while this month was opening. The accepted month is saved separately.',
         );
+      if (!isCurrent()) return;
       receiving = null;
     }
+    if (!isCurrent()) return;
     closeSheet(false);
-    await begin(next, [], book, false, () => true, !!pending);
+    await begin(next, [], book, false, () => pageActive, !!pending, startup);
     continuityStatus = chapter.inputs.length
       ? `Loaded ${chapter.inputs.length} people together with their earlier history. Their starting state and ages are saved.`
       : 'This month starts with a new local cast. Earlier history has not been reset.';
@@ -663,8 +683,14 @@ async function begin(
   fromFile = false,
   selectionIsCurrent: () => boolean = () => true,
   prevalidated = false,
+  expectedGeneration?: number,
 ): Promise<boolean> {
-  if (!next || !selectionIsCurrent()) return false;
+  if (
+    !next ||
+    !selectionIsCurrent() ||
+    (expectedGeneration !== undefined && generation !== expectedGeneration)
+  )
+    return false;
   const activeGeneration = ++generation;
   if (fromFile) {
     book.fileOrigin = true;
@@ -1644,9 +1670,12 @@ function menu(): void {
       'Open a saved month',
       '<p>Replace your saved month, or play the file in this tab only?</p><button type="button" data-action="import">Replace saved month</button><a href="/file/">Play in this tab only</a><button type="button" data-cancel-file>Cancel</button>',
     );
-    chooser
-      .querySelector('.sheet-content')
-      ?.append(button('Verify and import complete source archive', importArchive));
+    chooser.querySelector('.sheet-content')?.append(
+      button('Verify and import complete source archive', () => {
+        closeSheet();
+        importArchive();
+      }),
+    );
     chooser.querySelector('[data-cancel-file]')?.addEventListener('click', () => closeSheet());
   });
   const confirmationContent = d.querySelector<HTMLElement>('.sheet-content');

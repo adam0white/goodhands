@@ -9,7 +9,7 @@ const STORE = 'pages';
 let connection: IDBDatabase | null = null;
 let opening: Promise<IDBDatabase> | null = null;
 const revisions = new Map<string, number>();
-type Row = { blob?: Blob; plain?: string; at: number; token?: string };
+type Row = { blob?: Blob; compressed?: ArrayBuffer; plain?: string; at: number; token?: string };
 
 function open(): Promise<IDBDatabase> {
   if (connection) return Promise.resolve(connection);
@@ -41,9 +41,17 @@ async function gzip(text: string): Promise<Blob> {
   return new Response(new Blob([text]).stream().pipeThrough(cs)).blob();
 }
 
-async function gunzip(b: Blob): Promise<string> {
+async function gunzip(b: Blob | ArrayBuffer): Promise<string> {
   const ds = new DecompressionStream('gzip');
-  return new Response(b.stream().pipeThrough(ds)).text();
+  const blob = b instanceof Blob ? b : new Blob([b]);
+  return new Response(blob.stream().pipeThrough(ds)).text();
+}
+
+// Scope: persist gzip bytes through IndexedDB structured clone. WebKit can
+// reject filesystem-backed Blob writes; ArrayBuffer needs no temporary file.
+// Read older Blob/plain rows without changing their complete JSON content.
+async function compress(text: string): Promise<ArrayBuffer> {
+  return (await gzip(text)).arrayBuffer();
 }
 
 async function commit(key: string, row: Row, immutable = false): Promise<void> {
@@ -66,7 +74,7 @@ export async function retainSourceArchive(value: unknown): Promise<string | null
     const key = `source:${Array.from(new Uint8Array(digest), (n) => n.toString(16).padStart(2, '0')).join('')}`;
     const existing = await get<unknown>(key);
     if (existing) return JSON.stringify(existing.value) === text ? key : null;
-    await commit(key, { blob: await gzip(text), at: Date.now() }, true);
+    await commit(key, { compressed: await compress(text), at: Date.now() }, true);
     const retained = await get<unknown>(key);
     return retained && JSON.stringify(retained.value) === text ? key : null;
   } catch {
@@ -80,9 +88,9 @@ export async function put(key: string, value: unknown): Promise<boolean> {
     const revision = (revisions.get(key) ?? 0) + 1;
     revisions.set(key, revision);
     const text = JSON.stringify(value);
-    const blob = await gzip(text);
+    const compressed = await compress(text);
     if (revisions.get(key) !== revision) return true;
-    await commit(key, { blob, at: Date.now(), token: crypto.randomUUID() });
+    await commit(key, { compressed, at: Date.now(), token: crypto.randomUUID() });
 
     return true;
   } catch {
@@ -101,7 +109,7 @@ export async function get<T>(key: string): Promise<{ value: T; at: number } | nu
       r.onerror = () => rej(r.error);
     });
     if (!row) return null;
-    return { value: JSON.parse(row.plain ?? (row.blob ? await gunzip(row.blob) : 'null')) as T, at: row.at };
+    return { value: (await rowValue(row)) as T, at: row.at };
   } catch {
     return null;
   }
@@ -136,7 +144,8 @@ async function readRow(key: string): Promise<Row | undefined> {
 
 async function rowValue(row: Row | undefined): Promise<unknown> {
   if (!row) return null;
-  return JSON.parse(row.plain ?? (row.blob ? await gunzip(row.blob) : 'null')) as unknown;
+  const compressed = row.compressed ?? row.blob;
+  return JSON.parse(row.plain ?? (compressed ? await gunzip(compressed) : 'null')) as unknown;
 }
 
 /** Assign a durable identity to older saves before comparing them in a transaction. */
@@ -168,7 +177,7 @@ export async function readReceiving(): Promise<ReceivingJournal | null> {
 /** Journal writes are serialized by IndexedDB and never use the coalescing save path. */
 export async function retainReceiving(journal: ReceivingJournal): Promise<void> {
   const text = JSON.stringify(journal);
-  const blob = await gzip(text);
+  const compressed = await compress(text);
   const previous = await readRow(RECEIVING_KEY);
   const prior = (await rowValue(previous)) as ReceivingJournal | null;
   const phases = ['prepared', 'sending', 'acknowledged'];
@@ -191,7 +200,7 @@ export async function retainReceiving(journal: ReceivingJournal): Promise<void> 
     request.onsuccess = () => {
       const current = request.result as Row | undefined;
       matched = current ? !!previous?.token && current.token === previous.token : !previous;
-      if (matched) store.put({ blob, at: Date.now(), token }, RECEIVING_KEY);
+      if (matched) store.put({ compressed, at: Date.now(), token }, RECEIVING_KEY);
     };
     tx.oncomplete = () => (matched ? resolve() : reject(new Error('Receiving operation changed.')));
     tx.onabort = () => reject(tx.error ?? new Error('Receiving save aborted.'));
@@ -204,8 +213,11 @@ export async function retainReceiving(journal: ReceivingJournal): Promise<void> 
 }
 
 /** Promote only the acknowledged operation and the exact captured native save. */
-export async function promoteReceiving(journal: ReceivingJournal): Promise<boolean> {
-  if (journal.phase !== 'acknowledged') return false;
+export async function promoteReceiving(
+  journal: ReceivingJournal,
+  isCurrent: () => boolean = () => true,
+): Promise<boolean> {
+  if (!isCurrent() || journal.phase !== 'acknowledged') return false;
   const retained = await readRow(RECEIVING_KEY);
   const value = (await rowValue(retained)) as ReceivingJournal | null;
   if (!retained?.token || !value || JSON.stringify(value) !== JSON.stringify(journal)) return false;
@@ -215,7 +227,8 @@ export async function promoteReceiving(journal: ReceivingJournal): Promise<boole
     JSON.stringify(await rowValue(native)) !== JSON.stringify(journal.priorNative.value)
   )
     return false;
-  const blob = await gzip(JSON.stringify(journal.run));
+  const compressed = await compress(JSON.stringify(journal.run));
+  if (!isCurrent()) return false;
   revisions.set('run', (revisions.get('run') ?? 0) + 1);
   const db = await open();
   return new Promise<boolean>((resolve, reject) => {
@@ -228,11 +241,12 @@ export async function promoteReceiving(journal: ReceivingJournal): Promise<boole
       const currentJournal = journalRequest.result as Row | undefined;
       const currentNative = nativeRequest.result as Row | undefined;
       if (
+        isCurrent() &&
         currentJournal?.token === retained.token &&
         (currentNative?.token ?? null) === journal.priorNative.token &&
         (!currentNative || !!currentNative.token)
       ) {
-        store.put({ blob, at: Date.now(), token: crypto.randomUUID() }, 'run');
+        store.put({ compressed, at: Date.now(), token: crypto.randomUUID() }, 'run');
         store.delete(RECEIVING_KEY);
         promoted = true;
       }

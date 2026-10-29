@@ -258,15 +258,19 @@ try {
         request.onsuccess = () => resolve(request.result);
         request.onerror = () => reject(request.error);
       });
-      const row = await new Promise<{ plain?: string; blob?: Blob }>((resolve, reject) => {
-        const request = db.transaction('pages', 'readonly').objectStore('pages').get('run');
-        request.onsuccess = () => resolve(request.result);
-        request.onerror = () => reject(request.error);
-      });
+      const row = await new Promise<{ plain?: string; blob?: Blob; compressed?: ArrayBuffer }>(
+        (resolve, reject) => {
+          const request = db.transaction('pages', 'readonly').objectStore('pages').get('run');
+          request.onsuccess = () => resolve(request.result);
+          request.onerror = () => reject(request.error);
+        },
+      );
       db.close();
       return (
         row.plain ??
-        (await new Response(row.blob!.stream().pipeThrough(new DecompressionStream('gzip'))).text())
+        (await new Response(
+          (row.blob ?? new Blob([row.compressed!])).stream().pipeThrough(new DecompressionStream('gzip')),
+        ).text())
       );
     });
     const retained = verifyImport(finalSave);
