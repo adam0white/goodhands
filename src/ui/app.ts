@@ -1466,6 +1466,8 @@ function review(v: View): void {
 }
 
 function closeSheet(restore = true): void {
+  // Retire replacement reads and validation before any dismissed chooser can resume.
+  if (modal === 'file-import') fileSelection++;
   cancelArchive();
   const canceledFileChoice = pendingFileChoice;
   if (pendingFileChoice) {
@@ -1738,6 +1740,7 @@ function menu(): void {
       tabOnlyReason
         ? '<p>This month stays in this tab. Your saved month is not changed. Open a file in this tab only.</p><a href="/file/">Play in this tab only</a><button type="button" data-cancel-file>Cancel</button>'
         : '<p>Replace your saved month, or play the file in this tab only?</p><button type="button" data-action="import">Replace saved month</button><a href="/file/">Play in this tab only</a><button type="button" data-cancel-file>Cancel</button>',
+      'file-import',
     );
     if (!tabOnlyReason)
       chooser.querySelector('.sheet-content')?.append(
@@ -2119,12 +2122,21 @@ function importFile(): void {
         )
       )
         return;
-      if (!(await begin(run.state, run.inputs, run.continuity, true, () => selection === fileSelection)))
+      if (
+        !(await begin(
+          run.state,
+          run.inputs,
+          run.continuity,
+          true,
+          () => selection === fileSelection && pageActive,
+        ))
+      )
         return;
       notice = 'This run has loaded. The clock resumes from its saved minute.';
       noticeUntil = performance.now() + 6000;
       showNotice();
     } catch (e) {
+      if (selection !== fileSelection || !pageActive) return;
       const line = sheet?.querySelector('.sheet-status');
       if (line) line.textContent = e instanceof Error ? e.message : 'This run could not be imported.';
     }
