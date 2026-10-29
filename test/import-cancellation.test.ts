@@ -15,10 +15,13 @@ it('keeps the occupied native month when pagehide cancels a confirmed import dur
         enforce: 'pre',
         transform(code, id) {
           if (!id.split('?')[0]!.endsWith('/src/ui/app.ts')) return;
+          const boundary = '  if (!prevalidated) await validateContinuity(book, next, history);';
+          if (code.split(boundary).length !== 2)
+            throw new Error('Final validation boundary not found exactly once.');
           return code.replace(
-            '  await validateContinuity(book, next, history);',
+            boundary,
             `
-  await validateContinuity(book, next, history);
+  if (!prevalidated) await validateContinuity(book, next, history);
   if (globalThis.__holdConfirmedImport) {
     globalThis.__holdConfirmedImport = false;
     globalThis.importHeld = true;
