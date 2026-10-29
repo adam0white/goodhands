@@ -1,13 +1,13 @@
 /** Actual CLI source controls, not a live producer/ownership or human journey. */
 import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
-import { DEFAULT_NORMS, projectCalendarPersona, snapshot } from '@adam0white/human-framework';
+import { DEFAULT_NORMS, projectCalendarPersona, snapshot } from '@adam0white/human-framework-legacy3';
 import { createPersona, preparePersonaLife } from '@adam0white/lab-client';
 import { expect, test } from 'vitest';
-import { digest, prepareAgencyChapter, validateAgencyChapter } from '../src/sim/cast-chapter.ts';
-import { advance, fingerprint, newGame } from '../src/sim/index.ts';
-import { emptyContinuity } from '../src/ui/continuity.ts';
-import { compactRun, exportRun, validateContinuity, verifyImport } from '../src/ui/export.ts';
+import { digest, prepareAgencyChapter, validateAgencyChapter } from '../src/sim/v6/cast-chapter.ts';
+import { emptyContinuity } from '../src/sim/v6/continuity.ts';
+import { compactRun, exportRun, validateContinuity, verifyImport } from '../src/sim/v6/export.ts';
+import { advance, fingerprint, newGame } from '../src/sim/v6/index.ts';
 
 const read = (name: string) => readFileSync(new URL(`./fixtures/${name}`, import.meta.url), 'utf8');
 const passport = () => JSON.parse(read('murmur-next-final-aylin.json.passport.json'));

@@ -1,6 +1,7 @@
 /** Authored Izmir households and public presentations. Hidden truth lives only in HF Persons. */
-import { acquaint, createPerson, hear, type Person, skillLevel } from '@adam0white/human-framework';
-import { castProfile, freshCast } from './cast.ts';
+
+import { CAST, castProfile } from './cast.ts';
+import { acquaint, createPerson, hear, type Person, skillLevel } from './hf4.ts';
 import type { Quality, Role } from './types.ts';
 
 export interface Candidate {
@@ -981,9 +982,12 @@ function draw(seed: number, key: string): number {
 }
 const personSeed = (seed: number, id: string) => Math.floor(draw(seed, `${id}:rng`) * 2147483646) + 1;
 
-export function makePeople(seed: number): Record<string, Person> {
-  const people: Record<string, Person> = {};
-  people.nermin = createPerson({
+export type PersonOpening = Parameters<typeof createPerson>[0];
+
+/** Host-authored openings. This function does not construct or advance an HF person. */
+export function authorPeople(seed: number): Record<string, PersonOpening> {
+  const people: Record<string, PersonOpening> = {};
+  people.nermin = {
     id: 'nermin',
     name: 'Nermin',
     seed: personSeed(seed, 'nermin'),
@@ -993,8 +997,18 @@ export function makePeople(seed: number): Record<string, Person> {
     ...castProfile('nermin'),
     skills: { interviewing: 0.75, placement: 0.7 },
     needs: { autonomy: 0.65, esteem: 0.55, safety: 0.5 },
-  });
-  people.derya = freshCast('derya', personSeed(seed, 'derya'), 510);
+  };
+  people.derya = {
+    lexicon: { plainEnglish: true },
+    id: 'derya',
+    name: CAST.derya.name,
+    seed: personSeed(seed, 'derya'),
+    now: 510,
+    bornAt: 510 - CAST.derya.age * 365.25 * 1440,
+    sex: 'female',
+    ...castProfile('derya'),
+    skills: {},
+  };
   for (const candidate of CANDIDATES) {
     // Exchange hidden profiles only within the same outward presentation. Seed one is authored.
     const band = CANDIDATES.filter((other) => other.presentation === candidate.presentation);
@@ -1022,7 +1036,7 @@ export function makePeople(seed: number): Record<string, Person> {
         donor.id === 'sevda' && (role === 'nanny' || role === 'carer')
           ? 0.96
           : 0.38 + 0.57 * draw(1, `${donor.id}:skill:${role}`);
-    people[candidate.id] = createPerson({
+    people[candidate.id] = {
       id: candidate.id,
       name: candidate.name,
       seed: personSeed(seed, candidate.id),
@@ -1054,7 +1068,7 @@ export function makePeople(seed: number): Record<string, Person> {
         competence: 0.65,
         meaning: 0.6,
       },
-    });
+    };
   }
   for (const family of FAMILIES) {
     for (const [i, member] of family.household.entries()) {
@@ -1080,7 +1094,7 @@ export function makePeople(seed: number): Record<string, Person> {
         (/grandmother|retired|recovering|limited mobility|needs help dressing|widow/.test(member.who)
           ? 72
           : 43);
-      people[member.id] = createPerson({
+      people[member.id] = {
         id: member.id,
         name: member.name,
         seed: personSeed(seed, member.id),
@@ -1103,11 +1117,11 @@ export function makePeople(seed: number): Record<string, Person> {
         relationships: family.household
           .filter((other) => other.id !== member.id)
           .map((other) => ({ otherId: other.id, affection: 0.55, familiarity: 0.9 })),
-      });
+      };
     }
   }
   for (const referee of REFEREES) {
-    people[referee.id] = createPerson({
+    people[referee.id] = {
       id: referee.id,
       name: referee.name,
       seed: personSeed(seed, referee.id),
@@ -1129,8 +1143,15 @@ export function makePeople(seed: number): Record<string, Person> {
           familiarity: 0.8,
         },
       ],
-    });
+    };
   }
+  return people;
+}
+
+export function makePeople(seed: number): Record<string, Person> {
+  const people = Object.fromEntries(
+    Object.entries(authorPeople(seed)).map(([id, authored]) => [id, createPerson(authored)]),
+  );
   for (const referee of REFEREES) {
     const worker = people[referee.candidate]!;
     const speaker = people[referee.id]!;

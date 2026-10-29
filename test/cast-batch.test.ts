@@ -10,6 +10,7 @@ import {
 import { expect, test } from 'vitest';
 import { ALLOCATION, CAST } from '../src/sim/cast.ts';
 import { agencyTransfer, prepareAgencyChapter } from '../src/sim/cast-chapter.ts';
+import { ENGINE_VERSION } from '../src/sim/hf4.ts';
 import { apply, newGame } from '../src/sim/index.ts';
 import { ContinuitySession, emptyContinuity } from '../src/ui/continuity.ts';
 
@@ -22,7 +23,7 @@ async function original(key: 'nermin' | 'hatice') {
     castRevision: CAST[key].revision,
     branchId: key,
     parentRevision: null,
-    source: { game: 'goodhands', build: 'test', engine: '2.23.0', rules: 'goodhands-6' },
+    source: { game: 'goodhands', build: 'test', engine: ENGINE_VERSION, rules: 'goodhands-6' },
     transfer: { ...(await agencyTransfer(s, key)), life: initialPersonaLife(CAST[key].castId, key, 0) },
     limitations: [],
   });
@@ -84,7 +85,7 @@ test('seven carried heads can save and reload without an obsolete recording scop
         castRevision: p.revision,
         branchId: crypto.randomUUID(),
         parentRevision: null,
-        source: { game: 'goodhands', build: 'test', engine: '2.23.0', rules: 'goodhands-6' },
+        source: { game: 'goodhands', build: 'test', engine: ENGINE_VERSION, rules: 'goodhands-6' },
         transfer: { recordingEpochProvenance: 'old-immutable-epoch' },
         limitations: [],
       }),

@@ -44,22 +44,43 @@ async function gunzip(b: Blob): Promise<string> {
   return new Response(b.stream().pipeThrough(ds)).text();
 }
 
+async function commit(key: string, row: Row, immutable = false): Promise<void> {
+  const db = await open();
+  await new Promise<void>((res, rej) => {
+    const tx = db.transaction(STORE, 'readwrite');
+    if (immutable) tx.objectStore(STORE).add(row, key);
+    else tx.objectStore(STORE).put(row, key);
+    tx.oncomplete = () => res();
+    tx.onerror = () => rej(tx.error);
+    tx.onabort = () => rej(tx.error);
+  });
+}
+
+/** Content-addressed full source custody. Success requires committed, exact readback. */
+export async function retainSourceArchive(value: unknown): Promise<string | null> {
+  try {
+    const text = JSON.stringify(value);
+    const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text));
+    const key = `source:${Array.from(new Uint8Array(digest), (n) => n.toString(16).padStart(2, '0')).join('')}`;
+    const existing = await get<unknown>(key);
+    if (existing) return JSON.stringify(existing.value) === text ? key : null;
+    await commit(key, { blob: await gzip(text), at: Date.now() }, true);
+    const retained = await get<unknown>(key);
+    return retained && JSON.stringify(retained.value) === text ? key : null;
+  } catch {
+    return null;
+  }
+}
+
 export async function put(key: string, value: unknown): Promise<boolean> {
   try {
+    if (key.startsWith('source:')) return false;
     const revision = (revisions.get(key) ?? 0) + 1;
     revisions.set(key, revision);
     const text = JSON.stringify(value);
     const blob = await gzip(text);
     if (revisions.get(key) !== revision) return true;
-    const db = await open();
-    if (revisions.get(key) !== revision) return true;
-    await new Promise<void>((res, rej) => {
-      const tx = db.transaction(STORE, 'readwrite');
-      tx.objectStore(STORE).put({ blob, at: Date.now() }, key);
-      tx.oncomplete = () => res();
-      tx.onerror = () => rej(tx.error);
-      tx.onabort = () => rej(tx.error);
-    });
+    await commit(key, { blob, at: Date.now() });
 
     return true;
   } catch {
@@ -74,7 +95,7 @@ export async function get<T>(key: string): Promise<{ value: T; at: number } | nu
       const tx = db.transaction(STORE, 'readonly');
       const r = tx.objectStore(STORE).get(key);
       tx.onabort = () => rej(tx.error);
-      r.onsuccess = () => res(r.result as Row | undefined);
+      tx.oncomplete = () => res(r.result as Row | undefined);
       r.onerror = () => rej(r.error);
     });
     if (!row) return null;
@@ -87,6 +108,7 @@ export async function get<T>(key: string): Promise<{ value: T; at: number } | nu
 /** Queue the latest JSON transaction synchronously while pagehide still owns a live database connection. */
 export function putNow(key: string, value: unknown): boolean {
   try {
+    if (key.startsWith('source:')) return false;
     if (!connection) return false;
     const plain = JSON.stringify(value);
     revisions.set(key, (revisions.get(key) ?? 0) + 1);

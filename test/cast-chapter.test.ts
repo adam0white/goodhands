@@ -1,8 +1,8 @@
 import { createPersona, initialPersonaLife, preparePersonaLife } from '@adam0white/lab-client';
 import { expect, test } from 'vitest';
-import { CAST } from '../src/sim/cast.ts';
-import { agencyTransfer, prepareAgencyChapter } from '../src/sim/cast-chapter.ts';
-import { advance, apply, fingerprint, newGame, replay } from '../src/sim/index.ts';
+import { CAST } from '../src/sim/v6/cast.ts';
+import { agencyTransfer, prepareAgencyChapter } from '../src/sim/v6/cast-chapter.ts';
+import { advance, apply, fingerprint, newGame, replay } from '../src/sim/v6/index.ts';
 
 async function source(id: 'nermin' | 'hatice') {
   const s = newGame(1);
@@ -59,8 +59,8 @@ test('changed away-life changes the new chapter’s actual applicant arrival, wi
   expect(s2.people.hatice?.traits).toEqual(s1.people.hatice?.traits);
 });
 
-import { emptyContinuity } from '../src/ui/continuity.ts';
-import { compactRun, exportRun, validateContinuity, verifyImport } from '../src/ui/export.ts';
+import { emptyContinuity } from '../src/sim/v6/continuity.ts';
+import { compactRun, exportRun, validateContinuity, verifyImport } from '../src/sim/v6/export.ts';
 
 test('fresh empty-batch exports retain their header; explicit file play needs no fabricated claim', async () => {
   const empty = await prepareAgencyChapter([], 7),
@@ -88,7 +88,7 @@ test('unarrived guests cannot publish a future source checkpoint', async () => {
 });
 
 import { readFileSync } from 'node:fs';
-import { guestSpringCalendar } from '../src/sim/guest-calendar.ts';
+import { guestSpringCalendar } from '../src/sim/v6/guest-calendar.ts';
 
 test('a second agency chapter maps Selin’s actual calendar days and keeps the original return binding', async () => {
   const parent = JSON.parse(
@@ -157,6 +157,6 @@ test('admits the actual source-UI general Voice Selin passport without inventing
   expect(fingerprint(replay(7, [], s.now, 6, chapter.guests, chapter))).toBe(fingerprint(s));
   const bad = structuredClone(envelope);
   (bad.transfer.person as any).calendar.norms[0].label = 'Different meaning';
-  const { prepareSiteSelin } = await import('../src/sim/site-selin.ts');
+  const { prepareSiteSelin } = await import('../src/sim/v6/site-selin.ts');
   expect(() => prepareSiteSelin(bad)).toThrow();
 });

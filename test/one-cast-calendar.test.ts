@@ -4,10 +4,18 @@ import {
   DEFAULT_NORMS,
   tick,
   validateCalendarPersona,
-} from '@adam0white/human-framework';
+} from '@adam0white/human-framework-legacy3';
 import { canonicalPersona, createPersona, type PersonaEnvelope } from '@adam0white/lab-client';
 import { describe, expect, it } from 'vitest';
-import { maintainCalendarGuest, startCalendarRoutine } from '../src/sim/guest-calendar.ts';
+import { type ContinuityBook, continuityRow } from '../src/sim/v6/continuity.ts';
+import {
+  compactRun,
+  exportRun,
+  guestCheckpointTransfer,
+  validateContinuity,
+  verifyImport,
+} from '../src/sim/v6/export.ts';
+import { maintainCalendarGuest, startCalendarRoutine } from '../src/sim/v6/guest-calendar.ts';
 import {
   advance,
   apply,
@@ -17,15 +25,7 @@ import {
   prepareGuest,
   replay,
   view,
-} from '../src/sim/index.ts';
-import { type ContinuityBook, continuityRow } from '../src/ui/continuity.ts';
-import {
-  compactRun,
-  exportRun,
-  guestCheckpointTransfer,
-  validateContinuity,
-  verifyImport,
-} from '../src/ui/export.ts';
+} from '../src/sim/v6/index.ts';
 
 const fixture = () =>
   JSON.parse(

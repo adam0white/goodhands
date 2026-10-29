@@ -1,9 +1,15 @@
+/** Historical HF3 passport and replay controls; current HF4 portable controls are in hf4-game.test.ts. */
 import { readFileSync } from 'node:fs';
-import { acceptPersona, createPersona, type PersonaRequest } from '@adam0white/lab-client';
+import { acceptPersona, createPersona, type PersonaRequest } from '@adam0white/lab-client-legacy3';
 import { expect, test } from 'vitest';
-import { advance, apply, newGame, prepareGuest } from '../src/sim/index.ts';
-import { type ContinuityBook, ContinuitySession, continuityRow } from '../src/ui/continuity.ts';
-import { exportRun, guestCheckpointTransfer, validateContinuity, verifyImport } from '../src/ui/export.ts';
+import { type ContinuityBook, ContinuitySession, continuityRow } from '../src/sim/v6/continuity.ts';
+import {
+  exportRun,
+  guestCheckpointTransfer,
+  validateContinuity,
+  verifyImport,
+} from '../src/sim/v6/export.ts';
+import { advance, apply, newGame, prepareGuest } from '../src/sim/v6/index.ts';
 
 test('two explicit forks and later checkpoints retain their exact claim lineage', async () => {
   const transfer = JSON.parse(

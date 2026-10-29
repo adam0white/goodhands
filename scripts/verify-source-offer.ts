@@ -1,39 +1,55 @@
-/** Synthetic local actual-App control. Real public SDK bridge, fixture shelf only; no live journey. */
+/** Synthetic App wiring with named host-only arrival/rent overlays.
+ * Actor changes use public transitions. Untouched opening files retain full/compact replay coverage.
+ * The separately retained actual month proves full-length ending and cold reconstruction.
+ * Fixture shelf only; no live journey or publication. */
 import assert from 'node:assert/strict';
 import { acceptPersona, type PersonaRequest, type PersonaShelfState } from '@adam0white/lab-client';
 import { chromium } from 'playwright-core';
 import { createServer } from 'vite';
 import { prepareAgencyChapter } from '../src/sim/cast-chapter.ts';
-import { advance, apply, newGame, view } from '../src/sim/index.ts';
+import { newGame } from '../src/sim/index.ts';
 import { emptyContinuity } from '../src/ui/continuity.ts';
 import { compactRun, exportRun, validateContinuity, verifyImport } from '../src/ui/export.ts';
 
+const phaseStart = performance.now();
+function phase(stage: string) {
+  console.log(JSON.stringify({ stage, milliseconds: Math.round(performance.now() - phaseStart) }));
+}
 const port = Number(process.argv[2] ?? 48837);
 const server = await createServer({
   server: { host: '127.0.0.1', port, strictPort: true, hmr: false, watch: null },
+  plugins: [
+    {
+      name: 'bounded-world-app-fixture',
+      enforce: 'pre',
+      transform(code, id) {
+        if (id.split('?')[0]?.endsWith('/src/ui/app.ts'))
+          return code.replace(
+            '  const resumed = resumeForPlay(next, history);',
+            "\n      const fixture = sessionStorage.getItem('goodhands-app-world-fixture');\n      sessionStorage.removeItem('goodhands-app-world-fixture');\n      if (fixture) {\n        // Synthetic App wiring only: move host arrival/rent conditions, never actor state.\n        next.cards.aylin.arrived = next.now + 1;\n        sim.advance(next, 1);\n        if (!next.cards.aylin.met) throw new Error('Synthetic public arrival did not meet Aylin.');\n        if (fixture === 'ended') {\n          next.cash = 0;\n          next.missedRent = 1;\n          next.rentDue = next.now + 1;\n          sim.advance(next, 1);\n          if (next.scene?.kind !== 'rent') throw new Error('Synthetic rent boundary did not open.');\n          sim.apply(next, {type:'choose',scene:next.scene.id,choice:'promise'});\n          if (!next.ended || !next.review) throw new Error('Ordinary rent choice did not end the fixture.');\n        }\n        history = structuredClone(next.inputs);\n      }\n" +
+              '  const resumed = resumeForPlay(next, history);',
+          );
+      },
+    },
+  ],
 });
 await server.listen();
 const browser = await chromium.launch({ channel: process.env.HF_BROWSER_CHANNEL });
 const origin = 'https://goodhands.adamwhite.work';
+phase('prepare untouched opening');
 const chapter = await prepareAgencyChapter([], 7);
 const book = emptyContinuity();
 book.chapter = chapter;
 book.initialClaims = [];
 const opening = newGame(7, 6, chapter.guests, chapter);
-const ended = structuredClone(opening);
-for (let i = 0; i < 2000 && !view(ended).ended; i++) advance(ended, 40000);
-assert.ok(view(ended).ended, 'real public simulation end fixture');
-const met = structuredClone(opening);
-for (let i = 0; i < 100 && met.now < 6300; i++) advance(met, 6300 - met.now);
-assert.ok(view(met).bench.some((c) => c.id === 'aylin'));
-apply(met, { type: 'pause-cast' });
-for (let i = 0; i < 200 && !met.castPaused; i++) advance(met, 5);
-assert.ok(met.castPaused);
+phase('untouched opening ready');
+
 try {
   for (const viewport of [
     { width: 360, height: 690 },
     { width: 1280, height: 800 },
   ]) {
+    phase(`viewport ${viewport.width}`);
     const context = await browser.newContext({ viewport });
     let shelf: PersonaShelfState = { heads: {}, revisions: [] };
     const requests: PersonaRequest[] = [];
@@ -90,28 +106,35 @@ try {
     page.on('pageerror', (e) => errors.push(e.message));
     await page.clock.install();
     await page.clock.pauseAt(new Date());
-    async function seed(run: ReturnType<typeof exportRun>) {
+    async function seed(run: ReturnType<typeof exportRun>, fixture: 'met' | 'ended' | null = null) {
+      phase(`seed ${fixture ?? 'untouched opening'}`);
       await page.goto(`${origin}/fixture`);
-      await page.evaluate(async (run) => {
-        localStorage.setItem('hf-lab-recording-off', '1');
-        await new Promise<void>((resolve, reject) => {
-          const request = indexedDB.open('goodhands', 1);
-          request.onupgradeneeded = () => request.result.createObjectStore('pages');
-          request.onerror = () => reject(request.error);
-          request.onsuccess = () => {
-            const db = request.result,
-              tx = db.transaction('pages', 'readwrite');
-            tx.objectStore('pages').put({ plain: JSON.stringify(run), at: Date.now() }, 'run');
-            tx.oncomplete = () => {
-              db.close();
-              resolve();
+      await page.evaluate(
+        async ({ run, fixture }) => {
+          if (fixture) sessionStorage.setItem('goodhands-app-world-fixture', fixture);
+          else sessionStorage.removeItem('goodhands-app-world-fixture');
+          localStorage.setItem('hf-lab-recording-off', '1');
+          await new Promise<void>((resolve, reject) => {
+            const request = indexedDB.open('goodhands', 1);
+            request.onupgradeneeded = () => request.result.createObjectStore('pages');
+            request.onerror = () => reject(request.error);
+            request.onsuccess = () => {
+              const db = request.result,
+                tx = db.transaction('pages', 'readwrite');
+              tx.objectStore('pages').put({ plain: JSON.stringify(run), at: Date.now() }, 'run');
+              tx.oncomplete = () => {
+                db.close();
+                resolve();
+              };
+              tx.onerror = () => reject(tx.error);
             };
-            tx.onerror = () => reject(tx.error);
-          };
-        });
-      }, run);
+          });
+        },
+        { run, fixture },
+      );
       await page.goto(origin);
       await page.getByRole('button', { name: /^Resume/ }).click();
+      phase(`resumed ${fixture ?? 'untouched opening'}`);
     }
     await seed(exportRun(opening, opening.inputs, book));
     await page.locator('[data-action="menu"]').click();
@@ -142,7 +165,11 @@ try {
     assert.ok(stream);
     const chunks: Buffer[] = [];
     for await (const chunk of stream) chunks.push(Buffer.from(chunk));
-    const full = JSON.parse(Buffer.concat(chunks).toString());
+    const working = JSON.parse(Buffer.concat(chunks).toString());
+    assert.ok(!Object.hasOwn(working, 'state'), 'default download is the compact working wire');
+    const decoded = verifyImport(JSON.stringify(working));
+    const full = exportRun(decoded.state, decoded.inputs, decoded.continuity);
+    assert.ok(Object.hasOwn(full, 'state'), 'full replay case includes complete reconstructed state');
     for (const run of [full, compactRun(full)]) {
       const loaded = verifyImport(JSON.stringify(run));
       await validateContinuity(loaded.continuity, loaded.state, loaded.inputs);
@@ -150,11 +177,12 @@ try {
       assert.equal(loaded.continuity.publications?.length, 1);
       assert.ok(loaded.continuity.publications[0]!.results.some((s) => s.includes('refused')));
     }
+    phase('untouched opening full/compact replay verified');
     await page.getByRole('button', { name: 'Resume agency play', exact: true }).click();
     assert.equal(requests.length, before, 'resume is local recorded input, not a claim');
     shelf = { heads: {}, revisions: [] };
     requests.length = 0;
-    await seed(exportRun(ended, ended.inputs, book));
+    await seed(exportRun(opening, opening.inputs, book), 'ended');
     await page.locator('.review').waitFor();
     await page.locator('.review-actions [data-action="source-offer"]').click();
     await page.getByRole('button', { name: 'Pause and prepare checkpoints', exact: true }).click();
@@ -171,27 +199,42 @@ try {
     );
     assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
     assert.deepEqual(errors, []);
+    phase('bounded world-only ending source offer verified');
     // A real background checkpoint must invalidate a pending receiver offer at the same source boundary.
     shelf = { heads: {}, revisions: [] };
     requests.length = 0;
     holdGet = true;
-    await seed(exportRun(met, met.inputs, book));
+    await seed(exportRun(opening, opening.inputs, book), 'met');
     await page.locator('[data-action="menu"]').click();
     await page.getByRole('button', { name: 'People after this month', exact: true }).click();
     await page.getByRole('button', { name: 'Pause and prepare checkpoints', exact: true }).click();
+    await page
+      .locator('[data-source-status]')
+      .getByText(/Aylin: published/)
+      .waitFor();
     for (let i = 0; i < 100 && !heldGet; i++) await new Promise((resolve) => setTimeout(resolve, 20));
     assert.ok(heldGet, 'actual public get is pending for known Aylin');
+    phase('met fixture publication and held get ready');
+    const capturedHeads = { ...shelf.heads };
     const capturedRevision = shelf.heads['hf.cast.aylin.murmur'];
     await page.evaluate(() => {
       Object.defineProperty(document, 'visibilityState', { value: 'hidden', configurable: true });
       document.dispatchEvent(new Event('visibilitychange'));
     });
-    for (let i = 0; i < 100 && shelf.heads['hf.cast.aylin.murmur'] === capturedRevision; i++)
+    for (
+      let i = 0;
+      i < 500 && Object.entries(capturedHeads).some(([id, revision]) => shelf.heads[id] === revision);
+      i++
+    )
       await new Promise((resolve) => setTimeout(resolve, 20));
     assert.notEqual(
       shelf.heads['hf.cast.aylin.murmur'],
       capturedRevision,
       'actual background checkpoint superseded owned revision',
+    );
+    assert.ok(
+      Object.entries(capturedHeads).every(([id, revision]) => shelf.heads[id] !== revision),
+      'the complete prior background publication settled before the next case',
     );
     await page.waitForTimeout(100);
     releaseGet();
@@ -202,6 +245,7 @@ try {
       'late get cannot offer a superseded owned source revision',
     );
     holdGet = false;
+    phase('complete background checkpoint and stale offer invalidation verified');
     // Hold an actual native digest, then cancel the page before any public SDK put.
     shelf = { heads: {}, revisions: [] };
     requests.length = 0;
@@ -261,12 +305,13 @@ try {
     });
     const retained = verifyImport(finalSave);
     await validateContinuity(retained.continuity, retained.state, retained.inputs);
+    phase('pagehide digest cancellation and retained save verified');
     assert.ok(retained.state.castPaused, 'pagehide still queues the synchronous complete final source save');
     assert.equal(retained.continuity.heads.length, 0);
     assert.deepEqual(errors, []);
     await context.close();
   }
-  console.log('Synthetic source menu/end offer, actual SDK fixture publication, full/compact replay: PASS');
+  console.log('Synthetic source menu/world-only end offer; untouched opening full/compact replay: PASS');
 } finally {
   await browser.close();
   await server.close();

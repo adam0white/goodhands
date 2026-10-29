@@ -1,5 +1,5 @@
 /** Browser transport only. Simulation admissions and encounter semantics stay in sim/guests. */
-import type { CalendarPersonaSnapshot, PersonaProjectionSnapshot } from '@adam0white/human-framework';
+import type { CalendarPersonaSnapshot, PersonaProjectionSnapshot } from '@adam0white/human-framework-legacy3';
 import {
   createPersona,
   type Lab,

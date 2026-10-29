@@ -6,7 +6,11 @@ import { canWait } from '../src/ui/render.ts';
 it('Skip stops where its label says, including an applicant leaving and the 19:00 closing', () => {
   let s = sim.newGame(7);
   const seen = new Set<string>();
-  for (let i = 0; i < 400 && !sim.view(s).ended; i++) {
+  for (
+    let i = 0;
+    i < 400 && !sim.view(s).ended && !(seen.has('waited three hours') && seen.has('for the day'));
+    i++
+  ) {
     const v = sim.view(s);
     if (v.dayCard) s = sim.apply(s, { type: 'sleep' });
     else if (v.scene) {

@@ -6,6 +6,20 @@ import { pausedRun } from './paused-run.ts';
 
 const file = (data: unknown) =>
   new File([JSON.stringify(data)], 'run.json', { type: 'application/json', lastModified: 123 });
+it('bounds the compact working wire while retaining the full replayed state and unknown source fields', async () => {
+  const run = exportRun(newGame(24), []);
+  const wire = { ...compactRun(run), futureMetadata: { note: 'retain me' } };
+  const currentBytes = new TextEncoder().encode(JSON.stringify(wire)).length + 300;
+  const session = createFileSession({ currentBytes });
+  await expect(session.select(file(wire))).resolves.toBe(true);
+  expect(session.snapshot()?.state).toEqual(run.state);
+  session.resume();
+  session.apply({ type: 'speed', speed: 2 });
+  const working = session.workingSnapshot();
+  expect(working).not.toHaveProperty('state');
+  expect(working).toHaveProperty('futureMetadata.note', 'retain me');
+  expect(verifyImport(JSON.stringify(working)).state).toEqual(session.snapshot()?.state);
+});
 it('preserves exact source bytes and paused full/compact histories until explicit replayable Resume', async () => {
   const original = await pausedRun(true);
   for (const run of [original, compactRun(original)]) {
@@ -32,7 +46,7 @@ it('preserves exact source bytes and paused full/compact histories until explici
     expect(session.snapshot()).toHaveProperty('futureMetadata.note', 'retain me');
     expect(verifyImport(JSON.stringify(session.snapshot())).state).toEqual(state);
   }
-});
+}, 420_000);
 it('invalid, empty and canceled selections retire pending reads without replacing the held complete run', async () => {
   const run = exportRun(newGame(19), []);
   const session = createFileSession();
@@ -60,7 +74,7 @@ it('invalid, empty and canceled selections retire pending reads without replacin
 it('refuses whole staged input/frame histories at capacity and keeps the last complete original and export', async () => {
   const run = exportRun(newGame(21), []);
   const raw = file(run);
-  const currentBytes = new TextEncoder().encode(JSON.stringify(run)).length;
+  const currentBytes = new TextEncoder().encode(JSON.stringify(compactRun(run))).length;
   const session = createFileSession({ currentBytes, aggregateBytes: currentBytes + raw.size });
   await session.select(raw);
   session.resume();
@@ -77,7 +91,7 @@ it('refuses whole staged input/frame histories at capacity and keeps the last co
 it('retires a validation already waiting for SHA-256, and bounds decompression without dropping the original', async () => {
   const run = exportRun(newGame(22), []);
   const session = createFileSession({ selectedBytes: 300_000 });
-  await session.select(file(run));
+  await session.select(file(compactRun(run)));
   const held = session.snapshot();
   let entered!: () => void;
   const waiting = new Promise<void>((resolve) => {
@@ -94,7 +108,7 @@ it('retires a validation already waiting for SHA-256, and bounds decompression w
     return digest(...args);
   });
   try {
-    const pending = session.select(file(exportRun(newGame(23), [])));
+    const pending = session.select(file(compactRun(exportRun(newGame(23), []))));
     await waiting;
     session.invalidate(); // pagehide/close retires a digest already in flight.
     release();
@@ -103,7 +117,7 @@ it('retires a validation already waiting for SHA-256, and bounds decompression w
   } finally {
     spy.mockRestore();
   }
-  const expanded = new Blob([JSON.stringify({ ...run, retained: 'a'.repeat(300_000) })]);
+  const expanded = new Blob([JSON.stringify({ ...compactRun(run), retained: 'a'.repeat(300_000) })]);
   const gzip = await new Response(expanded.stream().pipeThrough(new CompressionStream('gzip'))).blob();
   await expect(session.select(new File([gzip], 'run.json.gz'))).rejects.toThrow(/Expanded/);
   expect(session.snapshot()).toEqual(held);

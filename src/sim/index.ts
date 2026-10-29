@@ -2,8 +2,20 @@ import { householdVoice } from './backstories.ts';
 import { CAST, CAST_EDITION, castManifest } from './cast.ts';
 import { type AgencyChapter, installAgencyChapter } from './cast-chapter.ts';
 import { applyCastTalk, castContacts } from './cast-scenes.ts';
+import {
+  beginFramework,
+  bindFramework,
+  finalizeFramework,
+  placementWorkForReport,
+  saveFramework,
+  schedulePlacement,
+  sourceResponse,
+} from './hf4.ts';
+
 // Versions 1, 2 and 3 are frozen for exact replay of earlier saves and compact exports.
 
+import { arrangementSpec } from './arrangements.ts';
+import { applyGuest, type GuestAdmission, guestViews, initGuests, stepGuests } from './guests.ts';
 import {
   believe,
   confirm,
@@ -12,6 +24,8 @@ import {
   estimate,
   glimpse,
   hear,
+  interruptEndingActivity,
+  interruptPlacement,
   observeAct,
   outwardSigns,
   perceive,
@@ -19,9 +33,7 @@ import {
   socialEvent,
   tick,
   trustOf,
-} from '@adam0white/human-framework';
-import { arrangementSpec } from './arrangements.ts';
-import { applyGuest, type GuestAdmission, guestViews, initGuests, stepGuests } from './guests.ts';
+} from './hf4.ts';
 import { hourWords, negotiationChoices, responses, termsWords, validTerms } from './negotiation.ts';
 import {
   familyDisagreementWords,
@@ -95,6 +107,7 @@ interface Card {
   refuses: { family: string; words: string }[];
 }
 interface Placement extends PlacementView {
+  lastWorkAccountStart?: number;
   bendUntil?: number;
   disagreement?: boolean;
   arrangementMode?: 'negotiate' | 'bend' | 'promise' | 'refused';
@@ -239,6 +252,15 @@ function addNote(
   else if (value > 0.62 || value < 0.4)
     believe(observer, `${candidate}:${q}`, value > 0.62, 0.85, sourceId, s.now);
   s.cards[candidate]!.evidence.push({ quality: q, value, source, sourceId, at: s.now });
+  hear(
+    observer,
+    candidate,
+    cue(q),
+    value,
+    s.now,
+    source === 'seen' ? 1 : Math.max(0, trustOf(observer, sourceId) - 0.1) * (source === 'says' ? 0.65 : 1),
+    sourceId,
+  );
   const result = synthesize(s, candidate, q);
   const phrases: Record<Quality, string> = {
     patient: 'the worker is patient when someone needs time',
@@ -263,12 +285,6 @@ function addNote(
 }
 function synthesize(s: Sim, candidate: string, q: Quality): Note['read'] {
   const observer = s.people.nermin!;
-  const impression = observer.social.impressions?.find((i) => i.targetId === candidate);
-  if (impression) impression.cues = impression.cues.filter((c) => c.key !== cue(q));
-  for (const e of s.cards[candidate]!.evidence.filter((e) => e.quality === q)) {
-    const trust = e.source === 'seen' ? 1 : Math.max(0, trustOf(observer, e.sourceId) - 0.1);
-    hear(observer, candidate, cue(q), e.value, e.at, trust * (e.source === 'says' ? 0.65 : 1));
-  }
   const read = estimate(observer, candidate, cue(q), s.now);
   return read.value > 0.62 ? 'yes' : read.value < 0.4 ? 'no' : 'maybe';
 }
@@ -531,6 +547,9 @@ export function newGame(
     throw new Error(
       'This saved game uses an older cast. Start a new game. You can keep the exported file to read later.',
     );
+  if (admissions.length)
+    throw new Error('This file uses an older guest version. Keep the file and start a new game.');
+  beginFramework(Math.trunc(seed) || 1);
   const s: Sim = {
     version: 6,
     castEdition: CAST_EDITION,
@@ -587,10 +606,13 @@ export function newGame(
   if (chapter) installAgencyChapter(s, chapter);
   // Pin narration only when a fresh chapter starts. Loaded runs keep their saved lexicon.
   for (const person of Object.values(s.people)) person.lexicon = { ...person.lexicon, plainEnglish: true };
+  finalizeFramework(s);
   arrive(s);
+  saveFramework(s);
   return s;
 }
 function finish(s: Sim, why: string) {
+  for (const id of Object.keys(CAST)) interruptEndingActivity(s.people[id]!, s.now);
   s.ended = true;
   s.heldScene = null;
   s.scene = null;
@@ -678,6 +700,7 @@ function closeDay(s: Sim) {
 }
 function step(s: Sim) {
   stepGuests(s);
+  startPlacementWork(s);
   if (s.castPauseRequested && Object.keys(CAST).every((k) => !s.people[k]?.activity)) s.castPaused = true;
   landReferrals(s);
   for (const c of CANDIDATES) {
@@ -730,18 +753,10 @@ function step(s: Sim) {
     }
   if (s.now % DAY === 600) placementDay(s);
   for (const p of s.placements) {
-    if (active(p) && !p.disagreement && s.now >= firstCallAt(p)) {
-      if (!p.moments.length) {
-        const family = FAMILIES.find((f) => f.id === p.family)!;
-        const promised =
-          p.vouched.find(
-            (q) => !s.cards[p.candidate]!.notes.some((n) => n.quality === q && n.source === 'seen'),
-          ) ?? p.vouched[0];
-        moment(s, p, promised ?? family.pressure, 0);
-      }
-      if (active(p)) openDisagreement(s, p, false, true);
-    }
+    if (active(p) && !p.disagreement && s.now >= firstCallAt(p) && p.moments.length)
+      openDisagreement(s, p, false, true);
   }
+
   if (s.now % DAY === 720) {
     trialResults(s);
     verdicts(s);
@@ -803,7 +818,7 @@ function runTo(s: Sim, target: number, stopOnNew = false) {
       break;
   }
 }
-export function advance(state: State, minutes: number): State {
+function advanceInternal(state: State, minutes: number): State {
   if (state.castPaused) return state;
   if (state.version === 1) return legacy.advance(state as legacy.State, minutes);
   if (state.version === 2) return previous.advance(state as previous.State, minutes);
@@ -854,7 +869,7 @@ function choiceReply(s: Sim, sc: SceneView, choice: string, cashBefore: number):
       : 'All right. I have heard your answer.')
   );
 }
-export function apply(state: State, input: Input): State {
+function applyInternal(state: State, input: Input): State {
   if (state.version === 1) return legacy.apply(state as legacy.State, input as legacy.Input);
   if (state.version === 2) return previous.apply(state as previous.State, input as previous.Input);
   if (state.version === 3) return third.apply(state as third.State, input as third.Input);
@@ -1128,9 +1143,7 @@ function applyInput(state: State, input: Input): State {
           candidate: p.candidate,
           family: p.family,
         });
-        s.people[p.candidate]!.memory.sourceTrust.nermin = clamp(
-          trustOf(s.people[p.candidate]!, 'nermin') + 0.06,
-        );
+        sourceResponse(s.people[p.candidate]!, 'nermin', true, s.now);
       }
     }
     if (sc.kind === 'reference') {
@@ -1140,7 +1153,7 @@ function applyInput(state: State, input: Input): State {
         return s;
       }
       if (input.choice === 'distrust') {
-        s.people.nermin!.memory.sourceTrust[ref.id] = 0.05;
+        sourceResponse(s.people.nermin!, ref.id, false, s.now);
         for (const q of QUALITIES) {
           const result = synthesize(s, ref.candidate, q);
           const notes = s.cards[ref.candidate]!.notes.filter((n) => n.quality === q);
@@ -1435,7 +1448,6 @@ function applyInput(state: State, input: Input): State {
       }
       card.interviewCount = 0;
     }
-    s.people[c.id]!.now = s.now;
     card.introduced = true;
     glimpse(s.people.nermin!, c.id, outwardSigns(s.people[c.id]!), s.now);
     s.scene = scene(
@@ -1624,6 +1636,7 @@ function applyInput(state: State, input: Input): State {
       return s;
     }
     if (input.type === 'withdraw') {
+      interruptPlacement(s.people[p.candidate]!, s.now);
       reopen(s, p);
       p.status = 'withdrawn';
       delete p.pending;
@@ -1891,6 +1904,7 @@ export function view(state: State): View {
         pendingFee: _pendingFee,
         disagreement: _disagreement,
         bendUntil: _bendUntil,
+        lastWorkAccountStart: _lastWorkAccountStart,
         arrangementMode: _arrangementMode,
         arrangementKept: _arrangementKept,
         warning: _warning,
@@ -1973,6 +1987,7 @@ export function replay(
     apply(s, entry.input);
   }
   runTo(s, until);
+  saveFramework(s);
   return s;
 }
 export function fingerprint(state: State): string {
@@ -2012,7 +2027,8 @@ export function milestones(prev: View, next: View): string[] {
 
 // Household outcomes are private host history. Only deliverReport or a witnessed visit
 // may copy them into Nermin's notes. No view reads these moments directly.
-function moment(s: Sim, p: Placement, q: Quality, ordinal: number) {
+function moment(s: Sim, p: Placement, q: Quality, ordinal: number, workAt = s.now) {
+  const workDay = Math.floor(workAt / DAY);
   const f = FAMILIES.find((f) => f.id === p.family)!;
   const worker = s.people[p.candidate]!;
   const skill = skillLevel(worker, ROLE_SKILL[p.role]);
@@ -2023,12 +2039,12 @@ function moment(s: Sim, p: Placement, q: Quality, ordinal: number) {
   const good =
     ability +
       (p.arrangementKept ? 0.045 : 0) +
-      (s.cards[p.candidate]!.coached.length && day(s) - Math.floor(p.since / DAY) === 1 ? 0.16 : 0) -
+      (s.cards[p.candidate]!.coached.length && workDay - Math.floor(p.since / DAY) === 1 ? 0.16 : 0) -
       fatigue * 0.08 >
-    0.23 + 0.48 * roll(s, `moment:${p.id}:${day(s)}:${ordinal}`);
+    0.23 + 0.48 * roll(s, `moment:${p.id}:${workDay}:${ordinal}`);
   const text = familyMoment(f.id, q, good, name(p.candidate));
-  p.moments.push({ day: day(s), quality: q, good, text });
-  p.story.push(`${dateLabel(s.now)}: ${text}`);
+  p.moments.push({ day: workDay, quality: q, good, text });
+  p.story.push(`${dateLabel(workAt)}: ${text}`);
   for (const member of f.household) {
     const observer = s.people[member.id]!;
     observeAct(
@@ -2053,14 +2069,6 @@ function moment(s: Sim, p: Placement, q: Quality, ordinal: number) {
     });
   }
   const hardHouse = f.household.some((m) => s.people[m.id]!.traits.agreeableness < 0.3);
-  worker.body.exertion = clamp(worker.body.exertion + (hardHouse ? 0.06 : 0.02));
-  worker.needs.autonomy = clamp(
-    worker.needs.autonomy + (hardHouse ? -0.035 * (1 - worker.traits.agreeableness) : 0.012),
-  );
-  worker.needs.esteem = clamp(worker.needs.esteem + (good ? 0.025 : -0.035));
-  worker.needs.safety = clamp(
-    worker.needs.safety + (p.wage >= CANDIDATES.find((c) => c.id === worker.id)!.wage + 500 ? 0.012 : -0.008),
-  );
   perceive(worker, [
     {
       at: s.now,
@@ -2091,6 +2099,7 @@ function moment(s: Sim, p: Placement, q: Quality, ordinal: number) {
 }
 function endPlacement(s: Sim, p: Placement, status: Placement['status'], words: string) {
   if (!['trial', 'kept'].includes(p.status)) return;
+  interruptPlacement(s.people[p.candidate]!, s.now);
   p.status = status;
   delete p.pending;
   delete p.warning;
@@ -2168,45 +2177,64 @@ function deliverReport(s: Sim, p: Placement, visit = false, through = p.moments.
     family: p.family,
   });
 }
+function startPlacementWork(s: Sim) {
+  for (const p of s.placements) {
+    const prefix = `work-pending:${p.id}:`;
+    const key = `${prefix}${day(s)}`;
+    s.eventKeys = s.eventKeys.filter((event) => !event.startsWith(prefix) || (event === key && active(p)));
+    const start = (p.terms?.startHour ?? 9) * 60;
+    const end = (p.terms?.endHour ?? 18) * 60;
+    const time = s.now % DAY;
+    if (
+      !active(p) ||
+      day(s) <= Math.floor(p.since / DAY) ||
+      day(s) % 7 === (p.terms?.dayOff ?? 6) ||
+      time >= end
+    ) {
+      s.eventKeys = s.eventKeys.filter((event) => event !== key);
+      continue;
+    }
+    if (time !== start && !s.eventKeys.includes(key)) continue;
+    const worker = s.people[p.candidate]!;
+    tick(worker, s.now);
+    if (worker.activity) {
+      if (!s.eventKeys.includes(key)) s.eventKeys.push(key);
+      continue;
+    }
+    s.eventKeys = s.eventKeys.filter((event) => event !== key);
+    const hours = (p.terms?.endHour ?? 18) - (p.terms?.startHour ?? 9);
+    const requested = CANDIDATES.find((c) => c.id === p.candidate)!.wage;
+    // These are authored household terms, not an HF need-update formula.
+    const autonomy =
+      (hours <= 9 ? 0.025 : -0.035) +
+      ((p.terms?.endHour ?? 18) * 60 > workerNeed(p.candidate).finishBy ? -0.065 : 0);
+    const safety = Math.max(-0.06, Math.min(0.08, 0.018 + (p.wage / requested - 1) * 0.12));
+
+    if (
+      !schedulePlacement(worker, s.now, p.terms?.endHour ?? 18, {
+        skill: ROLE_SKILL[p.role],
+        psychological: { autonomy, safety },
+      })
+    )
+      p.story.push(`${dateLabel(s.now)}: ${name(p.candidate)} did not start the household work.`);
+  }
+}
 function placementDay(s: Sim) {
   for (const p of s.placements) {
     if (!['trial', 'kept'].includes(p.status) || day(s) <= Math.floor(p.since / DAY)) continue;
     const worker = s.people[p.candidate]!;
     if (day(s) % 7 === (p.terms?.dayOff ?? 6)) {
-      worker.body.exertion = clamp(worker.body.exertion - 0.2);
-      worker.needs.autonomy = clamp(worker.needs.autonomy + 0.08);
       p.story.push(`${dateLabel(s.now)}: ${name(p.candidate)} rested at home on the agreed day off.`);
-      continue;
     }
-    // Off-screen nights are ordinary rest, food and travel, not a month of idle HF simulation.
-    worker.now = s.now - 45;
-    worker.body.exertion *= 0.45;
-    worker.body.sleepPressure = 0.15;
-    worker.body.satiety = 0.9;
-    worker.body.hydration = 0.95;
-    worker.needs.autonomy = clamp(worker.needs.autonomy + 0.02);
     tick(worker, s.now);
-    if (p.terms) {
-      const hours = p.terms.endHour - p.terms.startHour;
-      worker.body.exertion = clamp(worker.body.exertion + (hours - 8) * 0.035);
-      worker.needs.autonomy = clamp(worker.needs.autonomy + (hours <= 9 ? 0.025 : -0.035));
-      worker.needs.safety = clamp(
-        worker.needs.safety +
-          Math.max(
-            -0.06,
-            Math.min(0.08, 0.018 + (p.wage / CANDIDATES.find((c) => c.id === p.candidate)!.wage - 1) * 0.12),
-          ),
-      );
-      if (p.terms.endHour * 60 > workerNeed(p.candidate).finishBy)
-        worker.needs.autonomy = clamp(worker.needs.autonomy - 0.065);
-    }
+    const work = placementWorkForReport(worker, s.now, p.since, p.lastWorkAccountStart);
+    if (!work) continue;
+    p.lastWorkAccountStart = work.start;
+    const workAt = work.start / 60000;
+    const workDay = Math.floor(workAt / DAY);
     const f = FAMILIES.find((f) => f.id === p.family)!;
     for (const m of f.household) {
       const member = s.people[m.id]!;
-      member.now = s.now - 30;
-      member.body.satiety = 0.9;
-      member.body.hydration = 0.95;
-      member.body.sleepPressure = 0.15;
       tick(member, s.now);
     }
     if (day(s) - Math.floor(p.since / DAY) >= 3) {
@@ -2214,8 +2242,8 @@ function placementDay(s: Sim) {
       confirm(worker, `${f.id}:kind`, fair, s.now);
       confirm(worker, 'nermin:reliable', fair, s.now);
     }
-    const count = 1 + (hash(`${s.seed}:count:${p.id}:${day(s)}`) % 3);
-    const early = day(s) <= firstWorkDay(p) + 1;
+    const count = 1 + (hash(`${s.seed}:count:${p.id}:${workDay}`) % 3);
+    const early = workDay <= firstWorkDay(p) + 1;
     const promises = p.vouched
       .filter((q) => !p.moments.some((m) => m.quality === q))
       .sort(
@@ -2223,15 +2251,15 @@ function placementDay(s: Sim) {
           Number(s.cards[p.candidate]!.notes.some((n) => n.quality === a && n.source === 'seen')) -
           Number(s.cards[p.candidate]!.notes.some((n) => n.quality === b && n.source === 'seen')),
       );
-    if (early) for (const [i, q] of promises.entries()) moment(s, p, q, 200 + i);
+    if (early) for (const [i, q] of promises.entries()) moment(s, p, q, 200 + i, workAt);
     for (let n = 0; n < count && ['trial', 'kept'].includes(p.status); n++) {
       const q =
-        n === 0 ? f.pressure : QUALITIES[hash(`${s.seed}:${p.id}:${day(s)}:${n}`) % QUALITIES.length]!;
-      moment(s, p, q, n);
+        n === 0 ? f.pressure : QUALITIES[hash(`${s.seed}:${p.id}:${workDay}:${n}`) % QUALITIES.length]!;
+      moment(s, p, q, n, workAt);
     }
     if (active(p) && s.cards[p.candidate]!.coached.length && day(s) - Math.floor(p.since / DAY) === 3) {
       p.story.push('The family remembered Nermin’s coached promise to finish the work on time.');
-      moment(s, p, 'hardworking', 100);
+      moment(s, p, 'hardworking', 100, workAt);
     }
     if (!['trial', 'kept'].includes(p.status)) continue;
     if (
@@ -2308,7 +2336,7 @@ function verdicts(s: Sim) {
       believe(family, 'nermin:reliable', true, 0.9, 'nermin', s.now);
       confirm(family, 'nermin:reliable', kept, s.now);
       const worker = s.people[p.candidate]!;
-      worker.memory.sourceTrust.nermin = clamp(trustOf(worker, 'nermin') + (kept ? 0.08 : -0.12));
+      sourceResponse(worker, 'nermin', kept, s.now);
       confirm(worker, `${p.family}:kind`, kept, s.now);
       confirm(worker, 'nermin:reliable', kept, s.now);
       queue(
@@ -2598,7 +2626,7 @@ function offerChoice(s: Sim, sc: SceneView, choice: string) {
       secret.told = true;
       s.cash += 1800;
       const family = s.people[`${sc.with}-0`]!;
-      family.memory.sourceTrust.nermin = clamp(trustOf(family, 'nermin') + 0.06);
+      sourceResponse(family, 'nermin', true, s.now);
       log(
         s,
         'money',
@@ -2641,7 +2669,7 @@ function offerChoice(s: Sim, sc: SceneView, choice: string) {
       s.cash -= 1200;
       log(s, 'money', `You returned ₺1200 to ${name(offer.candidate)}.`);
     } else {
-      worker.memory.sourceTrust.nermin = clamp(trustOf(worker, 'nermin') - 0.25);
+      sourceResponse(worker, 'nermin', false, s.now);
       confirm(worker, 'nermin:honest', false, s.now);
       confirm(worker, 'nermin:reliable', false, s.now);
       log(
@@ -2666,9 +2694,7 @@ function offerChoice(s: Sim, sc: SceneView, choice: string) {
         s.cash += 6000;
         endPlacement(s, p, 'withdrawn', `Nermin found me a job with ${f.name} that pays more.`);
         p.reportedStatus = 'withdrawn';
-        s.people[`${old}-0`]!.memory.sourceTrust.nermin = clamp(
-          trustOf(s.people[`${old}-0`]!, 'nermin') - 0.3,
-        );
+        sourceResponse(s.people[`${old}-0`]!, 'nermin', false, s.now);
         log(
           s,
           'money',
@@ -2737,7 +2763,7 @@ function traceSecrets(s: Sim) {
           'Something from inside this house has been repeated. We know who told you. The placement cannot continue.',
         );
       const worker = s.people[candidate]!;
-      worker.memory.sourceTrust.nermin = clamp(trustOf(worker, 'nermin') - 0.25);
+      sourceResponse(worker, 'nermin', false, s.now);
       believe(worker, 'nermin:discreet', false, 0.98, 'self', s.now);
       confirm(worker, 'nermin:reliable', false, s.now);
       log(
@@ -3056,6 +3082,7 @@ function intervention(s: Sim, p: Placement, sc: SceneView, choice: string) {
     return;
   }
   if (choice === 'withdraw') {
+    interruptPlacement(s.people[p.candidate]!, s.now);
     reopen(s, p);
     p.status = 'withdrawn';
     p.reportedStatus = 'withdrawn';
@@ -3068,9 +3095,7 @@ function intervention(s: Sim, p: Placement, sc: SceneView, choice: string) {
       `You brought ${name(p.candidate)} back from ${name(p.family)}. The opening needs a replacement.`,
       { placement: p.id, family: p.family },
     );
-    s.people[p.candidate]!.memory.sourceTrust.nermin = clamp(
-      trustOf(s.people[p.candidate]!, 'nermin') + 0.06,
-    );
+    sourceResponse(s.people[p.candidate]!, 'nermin', true, s.now);
     s.scene = null;
     runTo(s, s.now + 15);
     return;
@@ -3170,16 +3195,7 @@ function arrangementTests(s: Sim) {
       p.story.push(
         `${label(s.now)}. ${mode === 'promise' ? 'Nermin’s promised reply was due.' : 'The family tested the agreed arrangement.'} The family said, “${familyWords}”`,
       );
-      if (spec.moment === 'funds' || spec.moment === 'pay')
-        worker.needs.safety = clamp(worker.needs.safety + (kept ? 0.12 : -0.1));
-      if (spec.moment === 'break' || spec.moment === 'day-off' || spec.moment === 'finish')
-        worker.body.exertion = clamp(worker.body.exertion + (kept ? -0.12 : 0.08));
-      if (spec.moment === 'instructions' || spec.moment === 'route' || spec.moment === 'duties')
-        worker.needs.competence = clamp(worker.needs.competence + (kept ? 0.08 : -0.06));
-      worker.memory.sourceTrust.nermin = clamp(
-        trustOf(worker, 'nermin') + (kept ? 0.12 : bent ? -0.025 : -0.16),
-      );
-      worker.needs.autonomy = clamp(worker.needs.autonomy + (kept ? 0.15 : -0.09));
+      sourceResponse(worker, 'nermin', kept, s.now);
       perceive(worker, [
         {
           at: s.now,
@@ -3312,7 +3328,7 @@ function talkPair(s: Sim, from: string, to: string, place: string): TalkThread |
       s.referrals.push({ candidate: to, from, thread: thread.id, at: (day(s) + 1) * DAY + 540 });
     }
     if (claim.prop === 'nermin:discreet' && !claim.value && s.cards[to])
-      listener.memory.sourceTrust.nermin = clamp(trustOf(listener, 'nermin') - 0.12);
+      sourceResponse(listener, 'nermin', false, s.now);
   }
   perceive(listener, exchange.told);
   for (const ev of exchange.socialEvents.speaker) socialEvent(speaker, ev);
@@ -3587,11 +3603,19 @@ function householdReply(s: Sim, sc: SceneView, family: string, member: string, t
   const trusted = trustOf(person, 'nermin') > 0.45;
   let words: string;
   if (topic === 'smooth') {
-    person.affect.mood.valence = clamp((person.affect.mood.valence + 1) / 2 + 0.04) * 2 - 1;
-    person.needs.autonomy = clamp(person.needs.autonomy + 0.025);
-    person.memory.sourceTrust.nermin = clamp(
-      trustOf(person, 'nermin') + (person.traits.agreeableness > 0.35 ? 0.025 : -0.01),
-    );
+    perceive(person, [
+      {
+        at: s.now,
+        channel: 'social',
+        kind: 'calm-conversation',
+        actorId: 'nermin',
+        targetId: person.id,
+        salience: 0.5,
+        valence: 0.08,
+        summary: 'Nermin spoke calmly about settling the disagreement.',
+      },
+    ]);
+    sourceResponse(person, 'nermin', person.traits.agreeableness > 0.35, s.now);
     words =
       person.traits.agreeableness > 0.35
         ? 'All right. I can listen. Tell the worker that we will speak before changing the day.'
@@ -3624,9 +3648,7 @@ function householdReply(s: Sim, sc: SceneView, family: string, member: string, t
       words = trusted
         ? `${name(p.candidate)} is working ${hourWords(p.terms?.startHour ?? 8)} to ${hourWords(p.terms?.endHour ?? 18)}. ${person.traits.honesty > 0.5 ? 'Those are the hours we agreed; ask the worker whether we have kept them.' : 'We have a busy home. You should hear the worker too.'}`
         : 'Speak to the worker directly. I can only tell you what happens while I am here.';
-      s.people[p.candidate]!.memory.sourceTrust.nermin = clamp(
-        trustOf(s.people[p.candidate]!, 'nermin') + 0.015,
-      );
+      sourceResponse(s.people[p.candidate]!, 'nermin', true, s.now);
     } else {
       words = `${voice} ${read === 'good' ? `${name(p.candidate)} seems to be settling into the work` : read === 'poor' ? `I am finding the work with ${name(p.candidate)} difficult` : `I am still getting to know ${name(p.candidate)}`}. ${grandmother ? 'I notice the little interruptions during the day.' : tense ? 'We are all tired at the moment.' : 'Ask again after a few ordinary days.'}`;
       if (read !== 'uncertain')
@@ -3642,4 +3664,23 @@ function householdReply(s: Sim, sc: SceneView, family: string, member: string, t
     ...(p ? { placement: p.id, candidate: p.candidate } : {}),
   });
   runTo(s, s.now + 6);
+}
+
+export function advance(state: State, minutes: number): State {
+  if (state.version <= 4) return advanceInternal(state, minutes);
+  bindFramework(state);
+  try {
+    return advanceInternal(state, minutes);
+  } finally {
+    saveFramework(state);
+  }
+}
+export function apply(state: State, input: Input): State {
+  if (state.version <= 4) return applyInternal(state, input);
+  bindFramework(state);
+  try {
+    return applyInternal(state, input);
+  } finally {
+    saveFramework(state);
+  }
 }

@@ -1,5 +1,5 @@
-import { estimate, type Person } from '@adam0white/human-framework';
 import { householdConsequence } from './backstories.ts';
+import { estimate, type Person } from './hf4.ts';
 import type { Quality, SceneChoice } from './types.ts';
 import { CANDIDATES, FAMILIES, QUALITY_MAP, type Referee } from './world.ts';
 

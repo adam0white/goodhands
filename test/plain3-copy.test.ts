@@ -2,7 +2,7 @@ import { expect, test } from 'vitest';
 import { personalAnswer } from '../src/sim/dialogue.ts';
 import { apply, newGame, view } from '../src/sim/index.ts';
 import { answer } from '../src/sim/voices.ts';
-import { CANDIDATES, FAMILIES, makePeople, REFEREES } from '../src/sim/world.ts';
+import { CANDIDATES, FAMILIES, REFEREES } from '../src/sim/world.ts';
 
 test('current monthly people have readable names and family requests speak literally', () => {
   const names = [...CANDIDATES, ...REFEREES, ...FAMILIES.flatMap((family) => family.household)].map(
@@ -31,7 +31,7 @@ test('experience replies remain first-person speech and keep the note separate',
 });
 
 test('interview observations name the person without an ambiguous plural pronoun', () => {
-  const people = makePeople(1);
+  const people = newGame(1).people;
   for (const candidate of CANDIDATES) {
     for (let variant = 0; variant < 6; variant++) {
       const notice = answer(

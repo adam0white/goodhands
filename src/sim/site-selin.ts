@@ -2,7 +2,11 @@
  * Office practice remains office practice. Archived source memories are not invented here.
  * This route has no dedicated Voice return prefix and grants no return ownership.
  */
-import { admitCalendarPersona, DEFAULT_NORMS, validateCalendarPersona } from '@adam0white/human-framework';
+import {
+  admitCalendarPersona,
+  DEFAULT_NORMS,
+  validateCalendarPersona,
+} from '@adam0white/human-framework-legacy3';
 import { canonicalPersona, type PersonaEnvelope } from '@adam0white/lab-client';
 import { freshGuest, type GuestAdmission } from './guests.ts';
 export function prepareSiteSelin(envelope: PersonaEnvelope): GuestAdmission {

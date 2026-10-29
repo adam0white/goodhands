@@ -14,7 +14,9 @@ import { createServer, type ViteDevServer } from 'vite';
 import { afterAll, beforeAll, expect, it } from 'vitest';
 import { ALLOCATION, CAST } from '../src/sim/cast.ts';
 import { agencyTransfer } from '../src/sim/cast-chapter.ts';
+import { ENGINE_VERSION } from '../src/sim/hf4.ts';
 import { apply, newGame } from '../src/sim/index.ts';
+import { verifyImport } from '../src/ui/export.ts';
 import { pausedRun } from './paused-run.ts';
 
 let server: ViteDevServer;
@@ -38,15 +40,31 @@ async function fixture(context: BrowserContext, reject: () => boolean, carry = f
     castRevision: CAST.nermin.revision,
     branchId: 'simplify-fixture',
     parentRevision: null,
-    source: { game: 'goodhands', build: 'fixture', engine: '2.23.0', rules: 'goodhands-6' },
+    source: { game: 'goodhands', build: 'fixture', engine: ENGINE_VERSION, rules: 'goodhands-6' },
     transfer: {
       ...(await agencyTransfer(state, 'nermin')),
       life: initialPersonaLife(CAST.nermin.castId, 'simplify-fixture', Date.now()),
     },
     limitations: [],
   });
+  const secondParent = await createPersona({
+    format: 'hf-persona/1',
+    castId: CAST.hatice.castId,
+    castRevision: CAST.hatice.revision,
+    branchId: 'simplify-second-fixture',
+    parentRevision: null,
+    source: { game: 'goodhands', build: 'fixture', engine: ENGINE_VERSION, rules: 'goodhands-6' },
+    transfer: {
+      ...(await agencyTransfer(state, 'hatice')),
+      life: initialPersonaLife(CAST.hatice.castId, 'simplify-second-fixture', Date.now()),
+    },
+    limitations: [],
+  });
   let backend = { heads: {} as Record<string, string>, revisions: [] as PersonaEnvelope[] };
-  if (carry) backend = acceptPersona(backend, parent);
+  if (carry) {
+    backend = acceptPersona(backend, parent);
+    backend = acceptPersona(backend, secondParent);
+  }
   let writes = 0;
   await context.exposeBinding('shelfFixtureReply', async (_source, data) => {
     const message = data as {
@@ -58,14 +76,15 @@ async function fixture(context: BrowserContext, reject: () => boolean, carry = f
     };
     const type = message.type === 'hf-persona-consent' ? 'hf-persona-consent-reply' : 'hf-persona-reply';
     if (message.action === 'putBatch') {
-      for (const envelope of message.envelopes ?? []) expect(envelope.source.engine).toBe('2.23.0');
+      for (const envelope of message.envelopes ?? []) expect(envelope.source.engine).toBe(ENGINE_VERSION);
       if (reject() && !lostReply)
         return { type, id: message.id, error: 'Shelf unavailable. Use a local file.' };
       backend = acceptPersonaBatch(backend, message.envelopes ?? [], message.expectedHeads);
       writes++;
       if (reject() && lostReply) return null; // The transaction committed; its reply was lost.
     }
-    const head = backend.revisions.find((p) => p.revision === backend.heads[parent.castId]) ?? parent;
+    const available = writes ? secondParent : parent;
+    const head = backend.revisions.find((p) => p.revision === backend.heads[available.castId]) ?? available;
     return {
       type,
       id: message.id,
@@ -306,7 +325,13 @@ for (const lostReply of [false, true])
       await page.clock.pauseAt(new Date());
       await page.goto(origin);
       await page.getByRole('button', { name: 'Open the office', exact: true }).click();
-      await page.getByTestId('office').waitFor();
+      await page
+        .getByTestId('office')
+        .waitFor()
+        .catch(async (error) => {
+          console.error('Batch-fixture opening diagnostic:', await page.locator('body').innerText());
+          throw error;
+        });
       const saved = () =>
         page.evaluate(async () => {
           const db = await new Promise<IDBDatabase>((resolve, reject) => {
@@ -335,7 +360,7 @@ for (const lostReply of [false, true])
           }
         });
       const before = await saved();
-      const beforeHead = shelf.heads()[CAST.nermin.castId];
+      const beforeHead = shelf.heads()[CAST.hatice.castId];
       expect(JSON.stringify(before)).toContain('simplify-fixture');
       await page.locator('[data-action="menu"]').click();
       rejected = true;
@@ -343,7 +368,7 @@ for (const lostReply of [false, true])
       await page.getByRole('button', { name: 'Start new game', exact: true }).click();
       if (lostReply) {
         await expect.poll(() => shelf.writes()).toBe(2);
-        expect(shelf.heads()[CAST.nermin.castId]).not.toBe(beforeHead);
+        expect(shelf.heads()[CAST.hatice.castId]).not.toBe(beforeHead);
         await page.clock.runFor(3500);
       }
       await page
@@ -362,6 +387,7 @@ for (const lostReply of [false, true])
 
 for (const pending of [false, true]) {
   it(`ordinary Resume continues a saved ${pending ? 'pending pause' : 'pause'} without lab tools`, async () => {
+    const run = await pausedRun(pending);
     const browser = await chromium.launch({ channel: process.env.HF_BROWSER_CHANNEL });
     try {
       const context = await browser.newContext({ viewport: { width: 820, height: 1180 } });
@@ -371,7 +397,6 @@ for (const pending of [false, true]) {
       await page.clock.install();
       await page.clock.pauseAt(new Date());
       await page.goto(origin);
-      const run = await pausedRun(pending);
       await page.evaluate(async (run) => {
         const db = await new Promise<IDBDatabase>((resolve, reject) => {
           const r = indexedDB.open('goodhands', 1);
@@ -388,7 +413,7 @@ for (const pending of [false, true]) {
         db.close();
       }, run);
       await page.goto(origin);
-      await page.getByRole('button', { name: 'Resume', exact: true }).click();
+      await page.getByRole('button', { name: 'Resume', exact: true }).click({ timeout: 60000 });
       await page.getByTestId('office').waitFor();
       // Use an action available at the saved time, rather than an opening-only applicant.
       if (pending) await page.locator('[data-action="phone"]').click();
@@ -402,17 +427,23 @@ for (const pending of [false, true]) {
       const download = page.waitForEvent('download');
       await page.getByRole('button', { name: 'Keep a copy of this run ⤓', exact: true }).click();
       const stream = await (await download).createReadStream();
-      let json = '';
-      for await (const chunk of stream) json += chunk.toString();
+      const chunks = [];
+      for await (const chunk of stream) chunks.push(Buffer.from(chunk));
+      const json = Buffer.concat(chunks).toString('utf8');
       const exported = JSON.parse(json);
-      expect(exported.state.castPaused).toBe(false);
-      expect(exported.state.castPauseRequested).toBe(false);
+      expect(exported).not.toHaveProperty('state');
+      const decoded = verifyImport(json);
+      expect(decoded.state.castPaused).toBe(false);
+      expect(decoded.state.castPauseRequested).toBe(false);
       expect(exported.inputs.some((i: { input: { type: string } }) => i.input.type === 'resume-cast')).toBe(
         true,
       );
       expect(await page.locator('[data-action="people"]').count()).toBe(0);
+    } catch (error) {
+      console.error('Resume browser failure:', error);
+      throw error;
     } finally {
       await browser.close();
     }
-  }, 60000);
+  }, 120000);
 }

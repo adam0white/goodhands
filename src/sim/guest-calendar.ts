@@ -15,7 +15,7 @@ import {
   retimeCommitments,
   scheduleMakeUp,
   validateCalendarPersona,
-} from '@adam0white/human-framework';
+} from '@adam0white/human-framework-legacy3';
 import type { PersonaEnvelope } from '@adam0white/lab-client';
 
 export interface CalendarHost {

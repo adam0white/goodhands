@@ -11,7 +11,7 @@ import {
   DEFAULT_NORMS,
   type Person,
   validateCalendarPersona,
-} from '@adam0white/human-framework';
+} from '@adam0white/human-framework-legacy3';
 import { canonicalPersona, type PersonaEnvelope } from '@adam0white/lab-client';
 export async function prepareMurmurAylin(envelope: PersonaEnvelope, opening: Person): Promise<Person> {
   const t = envelope.transfer;

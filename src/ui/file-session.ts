@@ -1,7 +1,7 @@
 /** Memory-only native export controller. No browser save or Shelf dependencies. */
 import * as sim from '../sim/index.ts';
 import type { Input } from '../sim/types.ts';
-import { exportRun, type RunExport, validateContinuity, verifyImport } from './export.ts';
+import { exportRun, exportWorkingRun, type RunExport, validateContinuity, verifyImport } from './export.ts';
 import { resumeForPlay } from './resume.ts';
 
 const MiB = 1024 * 1024;
@@ -21,6 +21,7 @@ export function createFileSession(
   const selectedLimit = bounds.selectedBytes ?? 20 * MiB;
   const currentLimit = bounds.currentBytes ?? 20 * MiB;
   const aggregateLimit = bounds.aggregateBytes ?? 40 * MiB;
+  // These bounds measure serialized files, not the reconstructed simulation's memory use.
   let epoch = 0;
   let held: Held | null = null;
   let original: Original | null = null;
@@ -34,11 +35,14 @@ export function createFileSession(
     return { ...structuredClone(next.source), ...exportRun(next.state, next.inputs, next.continuity) };
   }
   function capacity(next: Held, rawSize = original?.size ?? 0) {
-    const size = encoder.encode(JSON.stringify(complete(next))).byteLength;
+    const size = encoder.encode(JSON.stringify(working(next))).byteLength;
     if (size > currentLimit || rawSize + size > aggregateLimit) {
       running = false;
       throw new Error('File session capacity reached. Download the complete run or choose another file.');
     }
+  }
+  function working(next: Held) {
+    return exportWorkingRun(next.state, next.inputs, next.continuity, next.source);
   }
   function stage(change: (next: Held) => void) {
     if (!held) throw new Error('Choose a run first.');
@@ -60,6 +64,7 @@ export function createFileSession(
     },
     original: () => (original ? structuredClone(original) : null),
     snapshot: () => (held ? complete(held) : null),
+    workingSnapshot: () => (held ? working(held) : null),
     loaded: () =>
       held ? structuredClone({ state: held.state, inputs: held.inputs, continuity: held.continuity }) : null,
     async select(file?: File): Promise<boolean> {

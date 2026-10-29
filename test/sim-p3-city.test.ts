@@ -1,4 +1,4 @@
-import { trustOf } from '@adam0white/human-framework';
+import { trustOf } from '@adam0white/human-framework-legacy3';
 import { expect, test } from 'vitest';
 import type { State } from '../src/sim/types.ts';
 import { advance, apply, fingerprint, newGame, replay, view } from './previous-simulation.ts';

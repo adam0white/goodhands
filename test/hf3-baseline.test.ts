@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { expect, test } from 'vitest';
-import { advance, apply, newGame, view } from '../src/sim/index.ts';
+import { advance, apply, newGame, view } from '../src/sim/v6/index.ts';
 
 const baseline = JSON.parse(
   readFileSync(new URL('./fixtures/hf3-baseline-hashes.json', import.meta.url), 'utf8'),
@@ -21,6 +21,9 @@ test('preserves complete seeded old continuation; only current Person engine sta
         // This one enumerated metadata field is the entire permitted baseline difference.
         compared.people[id]!.engine = '2.21.0';
       }
-    expect(createHash('sha256').update(JSON.stringify(compared)).digest('hex')).toBe(row.sha256);
+    expect(
+      createHash('sha256').update(JSON.stringify(compared)).digest('hex'),
+      `edition ${row.edition} seed ${row.seed}`,
+    ).toBe(row.sha256);
   }
 });
