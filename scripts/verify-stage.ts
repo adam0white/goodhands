@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict';
 import { chromium } from 'playwright-core';
 import { createServer } from 'vite';
-import { advance, apply, newGame, view } from '../src/sim/index.ts';
+import { newGame } from '../src/sim/index.ts';
 import { exportRun, verifyImport } from '../src/ui/export.ts';
 
 const phaseStart = performance.now();
@@ -13,12 +13,6 @@ phase('prepare current opening import');
 const current = newGame(1);
 const currentRun = exportRun(current, current.inputs);
 verifyImport(JSON.stringify(currentRun));
-phase('prepare historical early ending');
-const early = newGame(1, 4);
-for (let n = 0; n < 2000 && !view(early).ended; n++) advance(early, 40000);
-assert.equal(view(early).dateLabel, 'Friday 13 November');
-const earlyRun = exportRun(early, []);
-verifyImport(JSON.stringify(earlyRun));
 phase('fixtures ready');
 const server = await createServer({
   server: { host: '127.0.0.1', port, strictPort: true, hmr: false, watch: null },
@@ -224,24 +218,11 @@ try {
     });
     await page.waitForTimeout(50);
     await fits('imported');
-    // The natural two-rent calendar/date fixture is the historical edition 4.
-    phase('import historical early ending');
-    await page.locator('[data-action="menu"]').click();
-    await page.getByRole('button', { name: 'To the title page', exact: true }).click();
-    await page.locator('[data-action="menu"]').click();
-    await page.locator('[data-open-saved]').click();
-    const earlyChooser = page.waitForEvent('filechooser');
-    await page.locator('[data-action="import"]').click();
-    await (await earlyChooser).setFiles({
-      name: 'early-ending.json',
-      mimeType: 'application/json',
-      buffer: Buffer.from(JSON.stringify(earlyRun)),
-    });
-    await page.locator('.review').waitFor();
-    assert.equal(await page.locator('.topbar-label').innerText(), 'Month’s end · 13 Nov');
-    await fits('early-ending');
-    phase('historical early ending imported');
-    assert.equal((await lifecycle()).active, 0);
+    // Historical edition 4 cannot be imported by current play. The separate
+    // verify-source-offer control exercises current review UI at both viewports.
+    await page.getByTestId('office').waitFor();
+    await checkStage();
+    assert.equal((await lifecycle()).active, 1);
     assert.deepEqual(errors, []);
     await page.close();
   }
