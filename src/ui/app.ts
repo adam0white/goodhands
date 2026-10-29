@@ -211,8 +211,8 @@ function cancelArchive() {
 let pendingFileChoice = false;
 let openingMonth = false;
 let receiving: ReceivingJournal | null = null;
-// Storage denial permits local play, but never native replacement or shared writes.
-let nativeStorageUnavailable = false;
+// A tab-only month never authorizes native replacement or shared writes.
+let tabOnlyReason: 'storage' | 'unresolved' | null = null;
 function runExport(): RunExport {
   if (!state) throw new Error('Open a month first.');
   return fileSession?.snapshot() ?? exportRun(state, inputs, continuity);
@@ -282,7 +282,7 @@ function candidate(v: View): CandidateView | undefined {
 }
 function save(): void {
   if (!state) return;
-  if (fileMode || nativeStorageUnavailable) {
+  if (fileMode || tabOnlyReason) {
     lab?.captureSave({ key: 'run', value: runExport() });
     return;
   }
@@ -301,7 +301,7 @@ function showNotice(): void {
   const el = root.querySelector<HTMLElement>('[data-status]');
   if (el) {
     el.textContent = plainText(notice);
-    if (nativeStorageUnavailable) el.hidden = false;
+    if (tabOnlyReason) el.hidden = false;
   }
 }
 function changed(previous: View, next: View): void {
@@ -391,6 +391,16 @@ function title(): void {
         if (receiving) downloadJson('goodhands-prepared-month.json', receiving.run);
       }),
     );
+    if (receiving.phase === 'sending')
+      actions?.append(
+        button(
+          'Start a fresh month in this tab',
+          () => {
+            void newMonth(true);
+          },
+          'primary',
+        ),
+      );
     if (receiving.phase === 'prepared')
       actions?.append(
         button('Discard this unsent opening', () => {
@@ -423,6 +433,7 @@ function title(): void {
                 );
               if (!isCurrent()) return;
               receiving = null;
+              tabOnlyReason = null;
               await begin(
                 restored.state,
                 restored.inputs,
@@ -468,7 +479,7 @@ function title(): void {
         actions?.append(confirm);
       }),
     );
-  } else
+  } else if (receiving?.phase !== 'sending')
     actions?.append(
       button(
         'Open the office',
@@ -483,7 +494,7 @@ function title(): void {
   credit.textContent = 'People by the Human Framework';
   actions?.append(credit);
 }
-async function newMonth(): Promise<void> {
+async function newMonth(freshLocal = false): Promise<void> {
   if (fileMode || !shelf) return;
   if (openingMonth) return;
   // An interrupted admission is never silently retried or replaced. The source
@@ -494,8 +505,8 @@ async function newMonth(): Promise<void> {
   const isCurrent = () => pageActive && startup === generation;
   // Scope: a storage capability failure is not permission to claim people.
   // Keep the existing native data untouched, even if storage later recovers.
-  const openTemporary = async () => {
-    nativeStorageUnavailable = true;
+  const openTemporary = async (reason: 'storage' | 'unresolved') => {
+    tabOnlyReason = reason;
     const seed = crypto.getRandomValues(new Uint32Array(1))[0] ?? 20261102;
     const chapter = await prepareAgencyChapter([], seed);
     const book = emptyContinuity();
@@ -516,15 +527,17 @@ async function newMonth(): Promise<void> {
     )
       return;
     notice =
-      'This month stays in this tab because this browser cannot save. Download it before closing. Your saved month and your people are not changed.';
+      reason === 'storage'
+        ? 'This month stays in this tab because this browser cannot save. Download it before closing. Your saved month and your people are not changed.'
+        : 'This fresh month stays in this tab. The earlier opening is kept separately, and whether its people were accepted is unknown. Download this month before closing. Your saved month and your people are not changed.';
     noticeUntil = Infinity;
     continuityStatus = notice;
     showNotice();
   };
   let priorNative: Awaited<ReturnType<typeof captureNative>>;
   try {
-    if (nativeStorageUnavailable) {
-      await openTemporary();
+    if (tabOnlyReason) {
+      await openTemporary(tabOnlyReason);
       openingMonth = false;
       return;
     }
@@ -534,8 +547,9 @@ async function newMonth(): Promise<void> {
       return;
     }
     if (receiving) {
+      if (freshLocal && receiving.phase === 'sending') await openTemporary('unresolved');
+      else title();
       openingMonth = false;
-      title();
       return;
     }
     priorNative = await captureNative();
@@ -543,7 +557,7 @@ async function newMonth(): Promise<void> {
     try {
       if (!isCurrent()) return;
       console.error('Native storage unavailable; opening a local month without shared people', error);
-      await openTemporary();
+      await openTemporary('storage');
     } finally {
       openingMonth = false;
     }
@@ -760,8 +774,7 @@ async function begin(
   return true;
 }
 function checkpoint(fork = false, record = false): Promise<void> {
-  if (!pageActive || fileMode || nativeStorageUnavailable || !shelf || !continuitySession)
-    return Promise.resolve();
+  if (!pageActive || fileMode || tabOnlyReason || !shelf || !continuitySession) return Promise.resolve();
   const activeGeneration = generation;
   const pinned = state ? structuredClone(state) : null;
   const sourceInputCount = inputs.length;
@@ -1531,7 +1544,7 @@ function confirmNewGame(container: Element): void {
   container.querySelector('.restart-confirm')?.remove();
   const confirm = document.createElement('div');
   confirm.className = 'restart-confirm';
-  confirm.innerHTML = nativeStorageUnavailable
+  confirm.innerHTML = tabOnlyReason
     ? '<p>A new month replaces the month in this tab. Your saved month is not changed.</p>'
     : '<p>A new month replaces your saved month after it starts successfully.</p>';
   confirm.append(
@@ -1545,10 +1558,10 @@ function confirmNewGame(container: Element): void {
 /** Publication is a source operation. The receiving game owns its admission decision. */
 function sourceOffer(): void {
   if (!pageActive || fileMode || !state || state.version !== 6) return;
-  if (nativeStorageUnavailable) {
+  if (tabOnlyReason) {
     openSheet(
       'What happens to these people next',
-      '<p>This month stays in this tab because this browser cannot save. Its people are not shared with other games. Download the month before closing.</p><button type="button" data-action="download-source">Download this run</button>',
+      '<p>This month stays in this tab. Its people are not shared with other games. Download the month before closing.</p><button type="button" data-action="download-source">Download this run</button>',
       'source',
     );
     return;
@@ -1719,11 +1732,11 @@ function menu(): void {
     }
     const chooser = openSheet(
       'Open a saved month',
-      nativeStorageUnavailable
-        ? '<p>This browser cannot replace your saved month. Open a file in this tab only.</p><a href="/file/">Play in this tab only</a><button type="button" data-cancel-file>Cancel</button>'
+      tabOnlyReason
+        ? '<p>This month stays in this tab. Your saved month is not changed. Open a file in this tab only.</p><a href="/file/">Play in this tab only</a><button type="button" data-cancel-file>Cancel</button>'
         : '<p>Replace your saved month, or play the file in this tab only?</p><button type="button" data-action="import">Replace saved month</button><a href="/file/">Play in this tab only</a><button type="button" data-cancel-file>Cancel</button>',
     );
-    if (!nativeStorageUnavailable)
+    if (!tabOnlyReason)
       chooser.querySelector('.sheet-content')?.append(
         button('Verify and import complete source archive', () => {
           closeSheet();
@@ -2636,7 +2649,7 @@ document.addEventListener('visibilitychange', () => {
     const run = runExport();
     lab?.setPersonaRecording(continuitySession?.recordingKey ?? null);
     lab?.captureSave({ key: 'run', value: run });
-    if (!fileMode && !nativeStorageUnavailable) putNow('run', workingRun());
+    if (!fileMode && !tabOnlyReason) putNow('run', workingRun());
     lab?.flush();
   }
 });
@@ -2651,7 +2664,7 @@ window.addEventListener('pagehide', () => {
     const run = runExport();
     lab?.setPersonaRecording(continuitySession?.recordingKey ?? null);
     lab?.captureSave({ key: 'run', value: run });
-    if (!fileMode && !nativeStorageUnavailable) putNow('run', workingRun());
+    if (!fileMode && !tabOnlyReason) putNow('run', workingRun());
   }
 });
 window.addEventListener('pageshow', () => {

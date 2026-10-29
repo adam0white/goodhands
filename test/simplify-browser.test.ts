@@ -749,3 +749,67 @@ for (const denial of ['open', 'capture'] as const) {
     }
   }, 60_000);
 }
+
+it('an unknown first reply retains its receiver and permits explicit fresh tab-only play without retrying claims', async () => {
+  // Synthetic lost transport reply and retained native journal, not a peer journey.
+  const browser = await chromium.launch({ channel: process.env.HF_BROWSER_CHANNEL });
+  try {
+    const context = await browser.newContext({ viewport: { width: 360, height: 690 } });
+    const shelf = await fixture(context, () => true, true, true);
+    const page = await context.newPage();
+    await page.clock.install();
+    await page.clock.pauseAt(new Date());
+    await page.goto(origin);
+    await page.getByRole('button', { name: 'Open the office', exact: true }).click();
+    await expect.poll(() => shelf.writes(), { timeout: 20000 }).toBe(1);
+    await page.clock.runFor(3500);
+    await page.getByText('This month could not finish opening.', { exact: false }).waitFor();
+    await page.reload();
+    await page.getByText('Whether its people were accepted is unknown.', { exact: false }).waitFor();
+    const inspect = () =>
+      page.evaluate(async () => {
+        const store = await (
+          new Function('return import("/src/ui/store.ts")') as () => Promise<
+            typeof import('../src/ui/store.ts')
+          >
+        )();
+        return { native: (await store.get('run'))?.value ?? null, journal: await store.readReceiving() };
+      });
+    const original = await inspect();
+    expect(original.native).toBeNull();
+    expect(original.journal?.phase).toBe('sending');
+    expect(original.journal?.run.continuity?.initialClaims?.length).toBe(1);
+    await page.getByRole('button', { name: 'Start a fresh month in this tab', exact: true }).click();
+    await page.getByTestId('office').waitFor();
+    await page.getByText('This fresh month stays in this tab.', { exact: false }).waitFor();
+    await page.getByRole('button', { name: 'Gülce Aksoy', exact: true }).click();
+    await page.locator('[data-action="interview"]').click();
+    await page.locator('[data-action="more-choices"]').click();
+    await page.locator('[data-choice="wage"]').click();
+    await page.getByRole('button', { name: 'Game menu', exact: true }).click();
+    const pending = page.waitForEvent('download');
+    await page.getByRole('button', { name: 'Download this run', exact: true }).click();
+    const chunks: Buffer[] = [];
+    for await (const chunk of await (await pending).createReadStream()) chunks.push(chunk);
+    const json = Buffer.concat(chunks).toString();
+    const restored = verifyImport(json);
+    expect(restored.state).toEqual(JSON.parse(json).state);
+    expect(restored.inputs.length).toBeGreaterThan(0);
+    expect(restored.continuity.initialClaims).toEqual([]);
+    await page.getByRole('button', { name: 'What happens to these people next', exact: true }).click();
+    expect(await page.getByRole('button', { name: /Publish paused|Pause and prepare/ }).count()).toBe(0);
+    await page.evaluate(() => dispatchEvent(new Event('pagehide')));
+    expect(await inspect()).toEqual(original);
+    expect(shelf.writes()).toBe(1);
+    await page.reload();
+    await page.getByRole('button', { name: 'Start a fresh month in this tab', exact: true }).waitFor();
+    expect(await inspect()).toEqual(original);
+    expect(shelf.writes()).toBe(1);
+  } finally {
+    for (const context of browser.contexts()) {
+      await context.setOffline(true);
+      await context.unrouteAll({ behavior: 'wait' });
+    }
+    await browser.close();
+  }
+}, 60_000);
