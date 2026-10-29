@@ -212,7 +212,7 @@ let pendingFileChoice = false;
 let openingMonth = false;
 let receiving: ReceivingJournal | null = null;
 // A tab-only month never authorizes native replacement or shared writes.
-let tabOnlyReason: 'storage' | 'unresolved' | null = null;
+let tabOnlyReason: 'storage' | 'retained' | null = null;
 function runExport(): RunExport {
   if (!state) throw new Error('Open a month first.');
   return fileSession?.snapshot() ?? exportRun(state, inputs, continuity);
@@ -391,16 +391,15 @@ function title(): void {
         if (receiving) downloadJson('goodhands-prepared-month.json', receiving.run);
       }),
     );
-    if (receiving.phase === 'sending')
-      actions?.append(
-        button(
-          'Start a fresh month in this tab',
-          () => {
-            void newMonth(true);
-          },
-          'primary',
-        ),
-      );
+    actions?.append(
+      button(
+        'Start a fresh month in this tab',
+        () => {
+          void newMonth(true);
+        },
+        'primary',
+      ),
+    );
     if (receiving.phase === 'prepared')
       actions?.append(
         button('Discard this unsent opening', () => {
@@ -479,7 +478,7 @@ function title(): void {
         actions?.append(confirm);
       }),
     );
-  } else if (receiving?.phase !== 'sending')
+  } else if (!receiving)
     actions?.append(
       button(
         'Open the office',
@@ -505,7 +504,7 @@ async function newMonth(freshLocal = false): Promise<void> {
   const isCurrent = () => pageActive && startup === generation;
   // Scope: a storage capability failure is not permission to claim people.
   // Keep the existing native data untouched, even if storage later recovers.
-  const openTemporary = async (reason: 'storage' | 'unresolved') => {
+  const openTemporary = async (reason: 'storage' | 'retained') => {
     tabOnlyReason = reason;
     const seed = crypto.getRandomValues(new Uint32Array(1))[0] ?? 20261102;
     const chapter = await prepareAgencyChapter([], seed);
@@ -529,7 +528,11 @@ async function newMonth(freshLocal = false): Promise<void> {
     notice =
       reason === 'storage'
         ? 'This month stays in this tab because this browser cannot save. Download it before closing. Your saved month and your people are not changed.'
-        : 'This fresh month stays in this tab. The earlier opening is kept separately, and whether its people were accepted is unknown. Download this month before closing. Your saved month and your people are not changed.';
+        : receiving?.phase === 'acknowledged'
+          ? 'This fresh month stays in this tab. The accepted opening is kept separately. Download this month before closing. Your saved month and your people are not changed.'
+          : receiving?.phase === 'prepared'
+            ? 'This fresh month stays in this tab. The unsent opening is kept separately. Download this month before closing. Your saved month and your people are not changed.'
+            : 'This fresh month stays in this tab. The earlier opening is kept separately, and whether its people were accepted is unknown. Download this month before closing. Your saved month and your people are not changed.';
     noticeUntil = Infinity;
     continuityStatus = notice;
     showNotice();
@@ -547,7 +550,7 @@ async function newMonth(freshLocal = false): Promise<void> {
       return;
     }
     if (receiving) {
-      if (freshLocal && receiving.phase === 'sending') await openTemporary('unresolved');
+      if (freshLocal) await openTemporary('retained');
       else title();
       openingMonth = false;
       return;

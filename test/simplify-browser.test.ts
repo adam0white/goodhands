@@ -17,7 +17,7 @@ import { ALLOCATION, CAST } from '../src/sim/cast.ts';
 import { agencyTransfer } from '../src/sim/cast-chapter.ts';
 import { ENGINE_VERSION } from '../src/sim/hf4.ts';
 import { apply, newGame } from '../src/sim/index.ts';
-import { type RunExport, verifyImport } from '../src/ui/export.ts';
+import { exportRun, type RunExport, verifyImport } from '../src/ui/export.ts';
 import { pausedRun } from './paused-run.ts';
 
 let server: ViteDevServer;
@@ -160,23 +160,25 @@ async function fixture(context: BrowserContext, reject: () => boolean, carry = f
     };
   });
   await context.route('**/*', async (route) => {
-    const url = new URL(route.request().url());
-    if (
-      route.request().method() === 'POST' &&
-      url.origin === 'https://human.adamwhite.work' &&
-      url.pathname.startsWith('/lab/api/')
-    )
-      return route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        headers: { 'Access-Control-Allow-Origin': '*' },
-        body: JSON.stringify({ id: 'local-stored-receipt', ok: true }),
-      });
-    if (route.request().method() === 'POST' && url.hostname.endsWith('adamwhite.work')) return route.abort();
-    if (url.origin === origin && url.pathname === '/@vite/client')
-      return route.fulfill({
-        contentType: 'text/javascript',
-        body: `
+    try {
+      const url = new URL(route.request().url());
+      if (
+        route.request().method() === 'POST' &&
+        url.origin === 'https://human.adamwhite.work' &&
+        url.pathname.startsWith('/lab/api/')
+      )
+        return route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          headers: { 'Access-Control-Allow-Origin': '*' },
+          body: JSON.stringify({ id: 'local-stored-receipt', ok: true }),
+        });
+      if (route.request().method() === 'POST' && url.hostname.endsWith('adamwhite.work'))
+        return route.abort();
+      if (url.origin === origin && url.pathname === '/@vite/client')
+        return route.fulfill({
+          contentType: 'text/javascript',
+          body: `
         // Fixtures need Vite CSS injection, but no development WebSocket on a routed HTTPS origin.
         const styles = new Map();
         export function updateStyle(id, css) { let style = styles.get(id); if (!style) { style = document.createElement('style'); styles.set(id, style); document.head.append(style); } style.textContent = css; }
@@ -185,38 +187,51 @@ async function fixture(context: BrowserContext, reject: () => boolean, carry = f
         export function injectQuery(url) { return url; }
         export class ErrorOverlay extends HTMLElement {}
       `,
-      });
-    if (url.origin === origin) {
-      const response = await route.fetch({ url: `${local.replace(/\/$/, '')}${url.pathname}${url.search}` });
-      if (carry && url.pathname.endsWith('/portable-readers.js')) {
-        // Synthetic certifications for these in-memory transport fixtures only; not deployment evidence.
-        const readers = Object.fromEntries(
-          ALLOCATION.flatMap((person) => portableWriteBlockers(person.castId, 'goodhands')).map((game) => [
-            game,
-            { client: '0.5.7', perPersonSkips: true },
-          ]),
-        );
-        const source = await response.text();
-        const fixtureSource = source.replace(
-          'export const PORTABLE_READERS = {};',
-          `export const PORTABLE_READERS = ${JSON.stringify(readers)};`,
-        );
-        expect(fixtureSource).not.toBe(source);
-        return route.fulfill({ response, body: fixtureSource });
+        });
+      if (url.origin === origin) {
+        const response = await route.fetch({
+          url: `${local.replace(/\/$/, '')}${url.pathname}${url.search}`,
+        });
+        if (carry && url.pathname.endsWith('/portable-readers.js')) {
+          // Synthetic certifications for these in-memory transport fixtures only; not deployment evidence.
+          const readers = Object.fromEntries(
+            ALLOCATION.flatMap((person) => portableWriteBlockers(person.castId, 'goodhands')).map((game) => [
+              game,
+              { client: '0.5.7', perPersonSkips: true },
+            ]),
+          );
+          const source = await response.text();
+          const fixtureSource = source.replace(
+            'export const PORTABLE_READERS = {};',
+            `export const PORTABLE_READERS = ${JSON.stringify(readers)};`,
+          );
+          expect(fixtureSource).not.toBe(source);
+          return route.fulfill({ response, body: fixtureSource });
+        }
+        return route.fulfill({ response });
       }
-      return route.fulfill({ response });
-    }
-    if (url.origin === 'https://human.adamwhite.work' && url.pathname === '/lab/identity/')
-      return route.fulfill({
-        contentType: 'text/html',
-        body: `<script>addEventListener('message', async e => {
+      if (url.origin === 'https://human.adamwhite.work' && url.pathname === '/lab/identity/')
+        return route.fulfill({
+          contentType: 'text/html',
+          body: `<script>addEventListener('message', async e => {
         if (e.data?.type !== 'hf-persona-consent' && e.data?.type !== 'hf-persona-request') return;
         const result = await window.shelfFixtureReply(e.data);
         if (result === null) return;
         if (e.ports[0]) e.ports[0].postMessage(result); else e.source.postMessage(result, e.origin);
       });</script>`,
-      });
-    return route.continue();
+        });
+      return route.continue();
+    } catch (error) {
+      // Navigation/teardown can abort a routed Vite fetch. Ignore only an
+      // already-handled route with an actual browser-reported request failure.
+      if (
+        error instanceof Error &&
+        error.message.includes('Route is already handled') &&
+        route.request().failure()
+      )
+        return;
+      throw error;
+    }
   });
   return {
     writes: () => writes,
@@ -750,66 +765,108 @@ for (const denial of ['open', 'capture'] as const) {
   }, 60_000);
 }
 
-it('an unknown first reply retains its receiver and permits explicit fresh tab-only play without retrying claims', async () => {
-  // Synthetic lost transport reply and retained native journal, not a peer journey.
-  const browser = await chromium.launch({ channel: process.env.HF_BROWSER_CHANNEL });
-  try {
-    const context = await browser.newContext({ viewport: { width: 360, height: 690 } });
-    const shelf = await fixture(context, () => true, true, true);
-    const page = await context.newPage();
-    await page.clock.install();
-    await page.clock.pauseAt(new Date());
-    await page.goto(origin);
-    await page.getByRole('button', { name: 'Open the office', exact: true }).click();
-    await expect.poll(() => shelf.writes(), { timeout: 20000 }).toBe(1);
-    await page.clock.runFor(3500);
-    await page.getByText('This month could not finish opening.', { exact: false }).waitFor();
-    await page.reload();
-    await page.getByText('Whether its people were accepted is unknown.', { exact: false }).waitFor();
-    const inspect = () =>
-      page.evaluate(async () => {
-        const store = await (
-          new Function('return import("/src/ui/store.ts")') as () => Promise<
-            typeof import('../src/ui/store.ts')
-          >
-        )();
-        return { native: (await store.get('run'))?.value ?? null, journal: await store.readReceiving() };
-      });
-    const original = await inspect();
-    expect(original.native).toBeNull();
-    expect(original.journal?.phase).toBe('sending');
-    expect(original.journal?.run.continuity?.initialClaims?.length).toBe(1);
-    await page.getByRole('button', { name: 'Start a fresh month in this tab', exact: true }).click();
-    await page.getByTestId('office').waitFor();
-    await page.getByText('This fresh month stays in this tab.', { exact: false }).waitFor();
-    await page.getByRole('button', { name: 'Gülce Aksoy', exact: true }).click();
-    await page.locator('[data-action="interview"]').click();
-    await page.locator('[data-action="more-choices"]').click();
-    await page.locator('[data-choice="wage"]').click();
-    await page.getByRole('button', { name: 'Game menu', exact: true }).click();
-    const pending = page.waitForEvent('download');
-    await page.getByRole('button', { name: 'Download this run', exact: true }).click();
-    const chunks: Buffer[] = [];
-    for await (const chunk of await (await pending).createReadStream()) chunks.push(chunk);
-    const json = Buffer.concat(chunks).toString();
-    const restored = verifyImport(json);
-    expect(restored.state).toEqual(JSON.parse(json).state);
-    expect(restored.inputs.length).toBeGreaterThan(0);
-    expect(restored.continuity.initialClaims).toEqual([]);
-    await page.getByRole('button', { name: 'What happens to these people next', exact: true }).click();
-    expect(await page.getByRole('button', { name: /Publish paused|Pause and prepare/ }).count()).toBe(0);
-    await page.evaluate(() => dispatchEvent(new Event('pagehide')));
-    expect(await inspect()).toEqual(original);
-    expect(shelf.writes()).toBe(1);
-    await page.reload();
-    await page.getByRole('button', { name: 'Start a fresh month in this tab', exact: true }).waitFor();
-    expect(await inspect()).toEqual(original);
-    expect(shelf.writes()).toBe(1);
-  } finally {
-    for (const context of browser.contexts()) {
-      await context.setOffline(true);
-      await context.unrouteAll({ behavior: 'wait' });
+for (const phase of ['sending', 'acknowledged'] as const)
+  it(`a retained ${phase} opening permits explicit fresh tab-only play without retrying claims`, async () => {
+    // Synthetic lost transport reply and retained native journal, not a peer journey.
+    const browser = await chromium.launch({ channel: process.env.HF_BROWSER_CHANNEL });
+    try {
+      const context = await browser.newContext({ viewport: { width: 360, height: 690 } });
+      const shelf = await fixture(context, () => phase === 'sending', true, true);
+      const page = await context.newPage();
+      await page.clock.install();
+      await page.clock.pauseAt(new Date());
+      await page.goto(origin);
+      if (phase === 'sending') {
+        await page.getByRole('button', { name: 'Open the office', exact: true }).click();
+        await expect.poll(() => shelf.writes(), { timeout: 20000 }).toBe(1);
+        await page.clock.runFor(3500);
+        await page.getByText('This month could not finish opening.', { exact: false }).waitFor();
+      } else {
+        // Synthetic acknowledged journal and actual native compare-and-swap conflict.
+        await page.evaluate(
+          async ({ run, prior, changed }) => {
+            const store = await (
+              new Function('return import("/src/ui/store.ts")') as () => Promise<
+                typeof import('../src/ui/store.ts')
+              >
+            )();
+            await store.put('run', prior);
+            const journal = {
+              id: 'synthetic-accepted-conflict',
+              phase: 'prepared' as const,
+              run,
+              expectedHeads: {},
+              priorNative: await store.captureNative(),
+              createdAt: 1,
+            };
+            await store.retainReceiving(journal);
+            await store.retainReceiving({ ...journal, phase: 'sending' });
+            await store.retainReceiving({ ...journal, phase: 'acknowledged' });
+            await store.put('run', changed);
+          },
+          {
+            run: exportRun(newGame(81), []),
+            prior: exportRun(newGame(82), []),
+            changed: exportRun(newGame(83), []),
+          },
+        );
+      }
+      await page.reload();
+      if (phase === 'sending')
+        await page.getByText('Whether its people were accepted is unknown.', { exact: false }).waitFor();
+      else {
+        await page.getByRole('button', { name: 'Resume the accepted month', exact: true }).click();
+        await page
+          .getByText('Your saved month changed. Download the accepted month to keep it separately.', {
+            exact: true,
+          })
+          .waitFor();
+      }
+      const inspect = () =>
+        page.evaluate(async () => {
+          const store = await (
+            new Function('return import("/src/ui/store.ts")') as () => Promise<
+              typeof import('../src/ui/store.ts')
+            >
+          )();
+          return { native: (await store.get('run'))?.value ?? null, journal: await store.readReceiving() };
+        });
+      const original = await inspect();
+      if (phase === 'sending') expect(original.native).toBeNull();
+      else expect(original.native).toEqual(exportRun(newGame(83), []));
+      expect(original.journal?.phase).toBe(phase);
+      if (phase === 'sending') expect(original.journal?.run.continuity?.initialClaims?.length).toBe(1);
+      await page.getByRole('button', { name: 'Start a fresh month in this tab', exact: true }).click();
+      await page.getByTestId('office').waitFor();
+      await page.getByText('This fresh month stays in this tab.', { exact: false }).waitFor();
+      await page.getByRole('button', { name: 'Gülce Aksoy', exact: true }).click();
+      await page.locator('[data-action="interview"]').click();
+      await page.locator('[data-action="more-choices"]').click();
+      await page.locator('[data-choice="wage"]').click();
+      await page.getByRole('button', { name: 'Game menu', exact: true }).click();
+      const pending = page.waitForEvent('download');
+      await page.getByRole('button', { name: 'Download this run', exact: true }).click();
+      const chunks: Buffer[] = [];
+      for await (const chunk of await (await pending).createReadStream()) chunks.push(chunk);
+      const json = Buffer.concat(chunks).toString();
+      const restored = verifyImport(json);
+      expect(restored.state).toEqual(JSON.parse(json).state);
+      expect(restored.inputs.length).toBeGreaterThan(0);
+      expect(restored.continuity.initialClaims).toEqual([]);
+      await page.getByRole('button', { name: 'What happens to these people next', exact: true }).click();
+      expect(await page.getByRole('button', { name: /Publish paused|Pause and prepare/ }).count()).toBe(0);
+      await page.evaluate(() => dispatchEvent(new Event('pagehide')));
+      expect(await inspect()).toEqual(original);
+      expect(shelf.writes()).toBe(phase === 'sending' ? 1 : 0);
+      await page.reload();
+      await page.getByRole('button', { name: 'Start a fresh month in this tab', exact: true }).waitFor();
+      expect(await inspect()).toEqual(original);
+      expect(shelf.writes()).toBe(phase === 'sending' ? 1 : 0);
+    } finally {
+      for (const context of browser.contexts()) {
+        await context.setOffline(true);
+        await context.unrouteAll({ behavior: 'wait' });
+      }
+      await browser.close();
     }
-    await browser.close();
-  }
-}, 60_000);
+  }, 60_000);
