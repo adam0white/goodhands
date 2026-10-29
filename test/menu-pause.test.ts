@@ -31,18 +31,22 @@ it('holds the menu and information, then resumes without speed inputs', async ()
   const held = await clock.innerText();
   const debug = page.locator('.debug-footer details');
   expect(await debug.getAttribute('open')).toBeNull();
-  expect(await page.locator('[data-action="import"]').isVisible()).toBe(true);
+  expect(await page.getByRole('button', { name: 'Open a saved month…' }).isVisible()).toBe(true);
   expect(await page.locator('[data-action="title"]').isVisible()).toBe(true);
-  expect(await page.locator('[data-action="download"]').isVisible()).toBe(true);
+  expect(await page.locator('[data-action="download-source"]').isVisible()).toBe(true);
+  expect(await page.locator('.page-setting').innerText()).toContain('Colours');
+  await page.getByRole('button', { name: 'Open a saved month…' }).click();
   expect(
-    await page.getByRole('link', { name: 'Continue a file without replacing the saved month' }).isVisible(),
+    await page.getByText('Replace your saved month, or play the file in this tab only?').isVisible(),
   ).toBe(true);
+  expect(await page.getByRole('link', { name: 'Play in this tab only' }).getAttribute('href')).toBe('/file/');
+  await page.getByRole('button', { name: 'Cancel', exact: true }).click();
   expect(await page.locator('[data-pace-choice]').count()).toBe(4);
   expect(await page.getByRole('link', { name: 'People across games' }).getAttribute('href')).toBe(
     'https://human.adamwhite.work/lab/people/',
   );
   await debug.locator('summary').click();
-  expect(await page.locator('[data-action="import"]').isVisible()).toBe(true);
+  expect(await page.getByRole('button', { name: 'Open a saved month…' }).isVisible()).toBe(true);
   await debug.locator('summary').click();
   await page.clock.runFor(6000);
   expect(await clock.innerText()).toBe(held);

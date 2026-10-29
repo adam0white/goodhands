@@ -70,6 +70,28 @@ async function fixture(context: BrowserContext, reject: () => boolean, carry = f
     backend = acceptPersona(backend, secondParent);
   }
   let writes = 0;
+  // Synthetic admission observer. It sees committed host journals only; no
+  // production certification or cross-origin ownership claim is made.
+  await context.addInitScript(() => {
+    const fixture = window as typeof window & { receivingPhases: Promise<string>[] };
+    fixture.receivingPhases = [];
+    const put = IDBObjectStore.prototype.put;
+    IDBObjectStore.prototype.put = function (value, key) {
+      if (key === 'receiving' && value.blob) {
+        fixture.receivingPhases.push(
+          new Promise((resolve, reject) => {
+            this.transaction.addEventListener('complete', () => {
+              void new Response(value.blob.stream().pipeThrough(new DecompressionStream('gzip')))
+                .text()
+                .then((text) => resolve(JSON.parse(text).phase), reject);
+            });
+            this.transaction.addEventListener('abort', () => reject(new Error('Journal aborted')));
+          }),
+        );
+      }
+      return put.call(this, value, key);
+    };
+  });
   await context.exposeBinding('shelfFixtureReply', async (_source, data) => {
     const message = data as {
       type: string;
@@ -80,6 +102,25 @@ async function fixture(context: BrowserContext, reject: () => boolean, carry = f
     };
     const type = message.type === 'hf-persona-consent' ? 'hf-persona-consent-reply' : 'hf-persona-reply';
     if (message.action === 'putBatch') {
+      const persisted = await _source.page.evaluate(async () => {
+        const modulePath = '/src/ui/store.ts';
+        const storage = await (
+          new Function('path', 'return import(path)') as (
+            path: string,
+          ) => Promise<typeof import('../src/ui/store.ts')>
+        )(modulePath);
+        const fixture = window as typeof window & { receivingPhases: Promise<string>[] };
+        return { journal: await storage.readReceiving(), phases: await Promise.all(fixture.receivingPhases) };
+      });
+      expect(persisted.journal?.phase).toBe('sending');
+      if (carry) expect(persisted.phases).toContain('prepared');
+      expect(persisted.journal?.run.state).toBeTruthy();
+      expect(persisted.journal?.run.continuity?.initialClaims).toEqual(message.envelopes ?? []);
+      expect(persisted.journal?.expectedHeads).toEqual(message.expectedHeads);
+      if (carry)
+        expect(
+          persisted.journal?.run.continuity?.chapter?.skipped?.map((p: { castId: string }) => p.castId),
+        ).toContain(CAST.hulya.castId);
       for (const envelope of message.envelopes ?? []) expect(envelope.source.engine).toBe(ENGINE_VERSION);
       if (reject() && !lostReply)
         return { type, id: message.id, error: 'Shelf unavailable. Use a local file.' };
@@ -101,7 +142,9 @@ async function fixture(context: BrowserContext, reject: () => boolean, carry = f
                   ALLOCATION.map((c) => [c.castId, backend.heads[c.castId] ?? null]),
                 ),
                 inputs: carry ? [preparePersonaLife(head, Date.now())] : [],
-                blocked: [],
+                blocked: carry
+                  ? [{ castId: CAST.hulya.castId, reason: 'Synthetic unavailable person.' }]
+                  : [],
               }
             : true,
     };
@@ -248,10 +291,13 @@ for (const [name, engine] of [
             'https://human.adamwhite.work/lab/people/',
           );
           expect(await menu.locator('.debug-footer details').getAttribute('open')).toBeNull();
-          expect(await menu.locator('[data-action="import"]').isVisible()).toBe(true);
+          expect(await menu.locator('[data-open-saved]').isVisible()).toBe(true);
           await menu.getByText('Debug', { exact: true }).click();
-          expect(await menu.locator('[data-action="import"]').isVisible()).toBe(true);
+          expect(await menu.locator('[data-open-saved]').isVisible()).toBe(true);
           await menu.getByText('Debug', { exact: true }).click();
+          await menu.locator('[data-open-saved]').click();
+          expect(await page.getByRole('button', { name: 'Replace saved month' }).isVisible()).toBe(true);
+          await page.getByRole('button', { name: 'Cancel', exact: true }).click();
           await page.getByRole('button', { name: 'Resume', exact: true }).click();
           await page.getByRole('button', { name: 'Gülce Aksoy', exact: true }).click();
           expect(await page.locator('.look').innerText()).toBe(
@@ -325,6 +371,10 @@ for (const [name, engine] of [
           expect(await page.locator('[data-pace-choice]').count()).toBe(4);
           expect(await page.locator('.debug-footer details').getAttribute('open')).toBeNull();
         } finally {
+          for (const context of browser.contexts()) {
+            await context.setOffline(true);
+            await context.unrouteAll({ behavior: 'wait' });
+          }
           await browser.close();
         }
       },
@@ -340,6 +390,10 @@ for (const lostReply of [false, true])
       let rejected = false;
       const shelf = await fixture(context, () => rejected, true, lostReply);
       const page = await context.newPage();
+      page.on('pageerror', (error) => console.error('Admission page error', error.message));
+      page.on('console', (msg) => {
+        if (msg.type() === 'error') console.error('Admission console', msg.text());
+      });
       page.setDefaultTimeout(8000);
       await page.clock.install();
       await page.clock.pauseAt(new Date());
@@ -398,7 +452,7 @@ for (const lostReply of [false, true])
         await page.clock.runFor(3500);
       }
       await page
-        .getByText('This month could not start because its people could not be loaded safely.', {
+        .getByText('This month could not finish opening.', {
           exact: false,
         })
         .last()
@@ -406,7 +460,22 @@ for (const lostReply of [false, true])
       expect(await saved()).toEqual(before);
       expect(await page.locator('.menu-sheet').innerText()).not.toContain('Shelf unavailable');
       expect(await page.locator('[data-action="people"]').count()).toBe(0);
+      await page.reload();
+      await page.getByText('Whether its people were accepted is unknown.', { exact: false }).waitFor();
+      expect(await saved()).toEqual(before);
+      const artifact = page.waitForEvent('download');
+      await page.getByRole('button', { name: 'Download the prepared month', exact: true }).click();
+      const stream = await (await artifact).createReadStream();
+      const chunks: Buffer[] = [];
+      for await (const chunk of stream!) chunks.push(chunk);
+      const recovered = verifyImport(Buffer.concat(chunks).toString());
+      expect(recovered.continuity.initialClaims?.length).toBe(1);
+      expect(recovered.continuity.chapter?.skipped?.some((p) => p.castId === CAST.hulya.castId)).toBe(true);
     } finally {
+      for (const context of browser.contexts()) {
+        await context.setOffline(true);
+        await context.unrouteAll({ behavior: 'wait' });
+      }
       await browser.close();
     }
   }, 60_000);
@@ -469,7 +538,92 @@ for (const pending of [false, true]) {
       console.error('Resume browser failure:', error);
       throw error;
     } finally {
+      for (const context of browser.contexts()) {
+        await context.setOffline(true);
+        await context.unrouteAll({ behavior: 'wait' });
+      }
       await browser.close();
     }
   }, 120000);
+}
+
+for (const mode of ['abort', 'cancel'] as const) {
+  it(`synthetic receiving ${mode} leaves the native save and sends no shelf write`, async () => {
+    const browser = await chromium.launch({ channel: process.env.HF_BROWSER_CHANNEL });
+    try {
+      const context = await browser.newContext({ viewport: { width: 820, height: 1180 } });
+      const shelf = await fixture(context, () => false, true);
+      await context.addInitScript((scenario) => {
+        const state = window as typeof window & { receivingAttempt?: boolean; receivingPrepared?: boolean };
+        addEventListener('unhandledrejection', (event) => event.preventDefault());
+        const put = IDBObjectStore.prototype.put;
+        IDBObjectStore.prototype.put = function (value, key) {
+          const result = put.call(this, value, key);
+          if (key === 'receiving' && !state.receivingAttempt) {
+            state.receivingAttempt = true;
+            if (scenario === 'abort') queueMicrotask(() => this.transaction.abort());
+            else
+              this.transaction.addEventListener('complete', () => {
+                state.receivingPrepared = true;
+                dispatchEvent(new Event('hf-persona-preference'));
+              });
+          }
+          return result;
+        };
+      }, mode);
+      const page = await context.newPage();
+      await page.goto(origin);
+      const sentinel = { syntheticOriginal: 'unchanged' };
+      await page.evaluate(async (value) => {
+        const store = await (
+          new Function('return import("/src/ui/store.ts")') as () => Promise<
+            typeof import('../src/ui/store.ts')
+          >
+        )();
+        if (!(await store.put('run', value))) throw new Error('Could not seed synthetic native save.');
+      }, sentinel);
+      await page.getByRole('button', { name: 'Open the office', exact: true }).click();
+      await expect
+        .poll(
+          () =>
+            page.evaluate(() => (window as typeof window & { receivingAttempt?: boolean }).receivingAttempt),
+          { timeout: 30000 },
+        )
+        .toBe(true);
+      if (mode === 'cancel')
+        await expect
+          .poll(() =>
+            page.evaluate(
+              () => (window as typeof window & { receivingPrepared?: boolean }).receivingPrepared,
+            ),
+          )
+          .toBe(true);
+      await page.waitForTimeout(500);
+      expect(shelf.writes()).toBe(0);
+      const inspect = () =>
+        page.evaluate(async () => {
+          const store = await (
+            new Function('return import("/src/ui/store.ts")') as () => Promise<
+              typeof import('../src/ui/store.ts')
+            >
+          )();
+          return { native: (await store.get('run'))?.value, journal: await store.readReceiving() };
+        });
+      const beforeReload = await inspect();
+      expect(beforeReload.native).toEqual(sentinel);
+      expect(beforeReload.journal?.phase ?? null).toBe(mode === 'cancel' ? 'prepared' : null);
+      await page.reload();
+      const afterReload = await inspect();
+      expect(afterReload.native).toEqual(sentinel);
+      expect(afterReload.journal?.phase ?? null).toBe(mode === 'cancel' ? 'prepared' : null);
+      expect(shelf.writes()).toBe(0);
+      await context.unrouteAll({ behavior: 'wait' });
+    } finally {
+      for (const context of browser.contexts()) {
+        await context.setOffline(true);
+        await context.unrouteAll({ behavior: 'wait' });
+      }
+      await browser.close();
+    }
+  }, 60_000);
 }

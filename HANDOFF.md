@@ -1,3 +1,13 @@
+## Receiving journal and public menu follow-through — 2026-10-29
+
+What remains: sole hosted review, exact source/main CI, normal clean deployment and served controls for this follow-up. PR10 at dccf97d remains the delivered migration; this source change does not replace that receipt. Adam owns feel/readiness acceptance on2026-11-03. One necessary follow-up PR is the authorized exception to the original one-PR target after PR10 merged separately.
+
+The saved-month menu has one entry with explicit replace or tab-only choices and Cancel. The complete download follows Feedback. File play keeps its original bytes, native isolation, cancellation and caps. Colours retains the existing theme preference. File reassurance names the saved month and people; recording diagnostics stay in Debug.
+
+The awaited public SDK admission callback now validates and persists the complete receiving opening, including skipped people, before claims can be sent. A separate strict-durability IndexedDB journal moves through prepared, sending and acknowledged. Exact claims and expected source heads are committed before putBatch. Nermin remains required. Successful promotion compares the captured native save token in the same transaction that installs the acknowledged month and removes the journal. A changed native save refuses promotion. A cancelled preparation is retained for download or explicit unsent discard; unknown acceptance retains the complete journal and never automatically retries or replaces the native month. Restart offers its download and labels acceptance unknown; an acknowledged retained opening can resume only if the original native save still matches. File continuation remains local and nonpublishing.
+
+These are host persistence and technical recovery controls. The SDK response is not a formal source-retirement ACK or an atomic cross-origin transaction. Shared SDK/shelf owners retain generic lifecycle, receipt-to-source binding and retirement dependencies for2026-10-30 review. Default-closed peer guards, finite authored source maps, original provenance and canonical GDI704 exclusion remain. No genuine peer journey, owner-profile persistence result, whole-month player run or readiness acceptance follows from synthetic fixtures.
+
 ## HF 4.8.1 migration — 2026-10-29
 
 What remains for owner acceptance: the separate feel/readiness work due2026-11-03. The migration delivery receipt and any outstanding technical gates are in ~/code/.lab-scratch/codex/goodhands-hf481.md. This migration is technically done when its commit serves HF4.8.1/client0.5.7/kit0.5.24 with dirty:false and its browser playtest export replays exactly. Adam accepts the existing separate feel/readiness work on2026-11-03.

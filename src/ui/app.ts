@@ -66,6 +66,7 @@ import { fileMode, lab, preservationStatus } from './lab.ts';
 import { cityFigurePositions, drawCity, MAP_HEIGHT, MAP_WIDTH } from './map.ts';
 import { drawOffice, officeSeats } from './office.ts';
 import { familySpeech, plainText } from './plain-english.ts';
+import type { ReceivingJournal } from './receiving.ts';
 import {
   addedEvidence,
   automaticPace,
@@ -92,9 +93,26 @@ import {
   vouchLabel,
 } from './render.ts';
 import { resumeForPlay } from './resume.ts';
-import { get, put, putNow, retainSourceArchive } from './store.ts';
+import {
+  captureNative,
+  discardReceiving,
+  get,
+  promoteReceiving,
+  put,
+  putNow,
+  readReceiving,
+  retainReceiving,
+  retainSourceArchive,
+} from './store.ts';
 
 const h = (value: string) => escapeHtml(plainText(value));
+
+try {
+  const theme = localStorage.getItem('goodhands-theme');
+  if (theme === 'light' || theme === 'dark') document.documentElement.dataset.theme = theme;
+} catch {
+  // The current page can still use a colour choice when storage is unavailable.
+}
 
 const host = document.querySelector<HTMLDivElement>('#app');
 if (!host) throw new Error('Good Hands needs an app element.');
@@ -192,6 +210,7 @@ function cancelArchive() {
 }
 let pendingFileChoice = false;
 let openingMonth = false;
+let receiving: ReceivingJournal | null = null;
 function runExport(): RunExport {
   if (!state) throw new Error('Open a month first.');
   return fileSession?.snapshot() ?? exportRun(state, inputs, continuity);
@@ -352,6 +371,56 @@ function title(): void {
   setScreen('title');
   root.innerHTML = `<main class="title-page">${topbar(`<a href="${ALL_GAMES}" target="_top">All games</a>`)}<section class="title-body"><p class="eyebrow">Izmir · November 2026</p><div class="agency-mark" aria-hidden="true">G H<span>placement agency</span></div><h1>Good Hands</h1><p class="subtitle">You are Nermin, and you run Good Hands, a placement agency in Izmir, for one month.</p><p class="goal">A family needs a nanny by Tuesday 08:00. Three job applicants are waiting on the bench in your office. Rent of ₺5,000 is due to Mr Hüsnü, your landlord, on Friday.</p><p class="title-status" role="status">${savedMonthStatus(saveReady, saveNeedsFreshStart, saveUnreadable)}</p></section><div class="title-actions lk-commit"></div></main>`;
   const actions = root.querySelector('.title-actions');
+  if (receiving) {
+    const recovery = document.createElement('p');
+    recovery.setAttribute('role', 'status');
+    recovery.textContent =
+      receiving.phase === 'acknowledged'
+        ? 'An accepted month was saved separately. Your saved month has not been replaced.'
+        : receiving.phase === 'sending'
+          ? 'A prepared month was saved separately. Whether its people were accepted is unknown. Your saved month has not been replaced.'
+          : 'A prepared month was saved separately before its people were sent. Your saved month has not been replaced.';
+    actions?.append(
+      recovery,
+      button('Download the prepared month', () => {
+        if (receiving) downloadJson('goodhands-prepared-month.json', receiving.run);
+      }),
+    );
+    if (receiving.phase === 'prepared')
+      actions?.append(
+        button('Discard this unsent opening', () => {
+          const id = receiving?.id;
+          if (id)
+            void discardReceiving(id).then((discarded) => {
+              if (discarded) {
+                receiving = null;
+                title();
+              }
+            });
+        }),
+      );
+    if (receiving.phase === 'acknowledged')
+      actions?.append(
+        button('Resume the accepted month', () => {
+          const journal = receiving;
+          if (!journal) return;
+          void (async () => {
+            try {
+              const restored = verifyImport(JSON.stringify(journal.run));
+              await validateContinuity(restored.continuity, restored.state, restored.inputs);
+              if (!(await promoteReceiving(journal)))
+                throw new Error(
+                  'Your saved month changed. Download the accepted month to keep it separately.',
+                );
+              receiving = null;
+              await begin(restored.state, restored.inputs, restored.continuity, false, () => true, true);
+            } catch (error) {
+              recovery.textContent = errorText(error);
+            }
+          })();
+        }),
+      );
+  }
   if (saved) {
     actions?.append(
       button(
@@ -399,6 +468,25 @@ function title(): void {
 async function newMonth(): Promise<void> {
   if (fileMode || !shelf) return;
   if (openingMonth) return;
+  // An interrupted admission is never silently retried or replaced. The source
+  // and exact prepared receiver remain available while an ACK is unknown.
+  openingMonth = true;
+  try {
+    receiving = await readReceiving();
+  } catch (error) {
+    openingMonth = false;
+    console.error('Could not check prepared month', error);
+    const status = root.querySelector('[role="status"]');
+    if (status)
+      status.textContent =
+        'This browser could not check your saved months. Your saved month has not been replaced.';
+    return;
+  }
+  if (receiving) {
+    openingMonth = false;
+    title();
+    return;
+  }
   openingMonth = true;
   const startup = ++generation;
   continuitySession?.invalidate();
@@ -406,6 +494,10 @@ async function newMonth(): Promise<void> {
   try {
     const seed = crypto.getRandomValues(new Uint32Array(1))[0] ?? 20261102;
     const book = emptyContinuity();
+    const priorNative = await captureNative();
+    const receivingId = crypto.randomUUID();
+    let pending: ReceivingJournal | null = null;
+    let expectedHeads: Record<string, string | null> = {};
     await shelf.ready;
     if (!isCurrent()) return;
     // The owner made ordinary continuity automatic. Use the released channel's
@@ -421,24 +513,63 @@ async function newMonth(): Promise<void> {
       let preparedBlocked: SkippedPerson[] = [];
       let acceptedInputs: LifePreparation[] = [];
       let checkedSkipped: SkippedPerson[] = [];
+      // Scope: durable host preparation, not a cross-origin transaction or a
+      // source-retirement receipt. Every accepted/omitted person enters this
+      // same complete opening before the SDK may send its batch.
+      const admitOpening = async (
+        inputs: LifePreparation[],
+        claims: PersonaEnvelope[] = [],
+        sending = false,
+      ) => {
+        if (!isCurrent()) throw new Error('The run changed. Choose again.');
+        checkedSkipped = skippedBeforeAcceptance(
+          preparedInputs,
+          preparedBlocked,
+          inputs.map((input) => input.parent),
+        );
+        const prepared = await prepareAgencyChapter(inputs, seed, checkedSkipped);
+        const next = sim.newGame(seed, 6, prepared.guests, prepared);
+        const preparedBook = emptyContinuity();
+        preparedBook.chapter = prepared;
+        if (!sending) {
+          preparedBook.fileOrigin = true;
+          preparedBook.fileUnlinked = true;
+        }
+        preparedBook.initialClaims = structuredClone(claims);
+        preparedBook.heads = structuredClone(claims);
+        await validateContinuity(preparedBook, next, []);
+        pending = {
+          id: receivingId,
+          phase: sending ? 'sending' : 'prepared',
+          run: exportRun(next, [], preparedBook),
+          expectedHeads: structuredClone(expectedHeads),
+          priorNative,
+          createdAt: pending?.createdAt ?? Date.now(),
+        };
+        await retainReceiving(pending);
+        receiving = pending;
+        if (!isCurrent()) throw new Error('The run changed. Choose again.');
+        return prepared;
+      };
       const batch = await claimCastChapterBatch(
         {
           ...shelf,
           request: async <T>(request: Parameters<typeof shelf.request>[0]): Promise<T> => {
             if (request.action === 'putBatch') {
-              checkedSkipped = skippedBeforeAcceptance(
-                preparedInputs,
-                preparedBlocked,
-                request.envelopes ?? [],
-              );
-              const checked = await prepareAgencyChapter(acceptedInputs, seed, checkedSkipped);
-              sim.newGame(seed, 6, checked.guests, checked);
-              if (!isCurrent()) throw new Error('The run changed. Choose again.');
               for (const envelope of request.envelopes ?? []) assertPortableWrite(envelope);
+              // This also covers the SDK's empty-local-cast fast path, which
+              // does not invoke admit. Persist exact claims before transport.
+              if (!pending) await admitOpening(acceptedInputs);
+              await admitOpening(acceptedInputs, request.envelopes ?? [], true);
             }
             const result = await shelf.request<T>(request);
             if (request.action === 'prepareBatch') {
-              const prepared = result as { inputs: LifePreparation[]; blocked: SkippedPerson[] };
+              const prepared = result as {
+                inputs: LifePreparation[];
+                blocked: SkippedPerson[];
+                expectedHeads: Record<string, string | null>;
+              };
+              expectedHeads = prepared.expectedHeads;
               preparedInputs = prepared.inputs;
               preparedBlocked = prepared.blocked;
             }
@@ -449,9 +580,7 @@ async function newMonth(): Promise<void> {
         agencySource(lab?.build().c || 'development'),
         async (inputs) => {
           acceptedInputs = inputs;
-          const prepared = await prepareAgencyChapter(inputs, seed);
-          sim.newGame(seed, 6, prepared.guests, prepared);
-          return prepared;
+          return admitOpening(inputs);
         },
         {
           isCurrent,
@@ -467,7 +596,7 @@ async function newMonth(): Promise<void> {
         const actualIds = batch.blocked.map((p) => p.castId).sort();
         if (canonicalPersona(checkedIds) !== canonicalPersona(actualIds))
           throw new Error('The people admitted to this month could not be verified.');
-        chapter = await prepareAgencyChapter(batch.inputs, seed, batch.blocked);
+        chapter = batch.initial;
         sim.newGame(seed, 6, chapter.guests, chapter);
         book.initialClaims = batch.claims;
         book.heads = structuredClone(batch.claims);
@@ -476,8 +605,26 @@ async function newMonth(): Promise<void> {
     book.chapter = chapter;
     book.initialClaims ??= [];
     if (!isCurrent()) return;
+    const next = sim.newGame(seed, 6, chapter.guests, chapter);
+    // An acknowledged result permits local promotion only while the original
+    // native save still matches. A lost reply leaves 'sending' for restart.
+    if (pending) {
+      const acknowledged: ReceivingJournal = {
+        ...(pending as ReceivingJournal),
+        phase: 'acknowledged',
+        run: exportRun(next, [], book),
+      };
+      await retainReceiving(acknowledged);
+      receiving = acknowledged;
+      if (!isCurrent()) return;
+      if (!(await promoteReceiving(acknowledged)))
+        throw new Error(
+          'Your saved month changed while this month was opening. The accepted month is saved separately.',
+        );
+      receiving = null;
+    }
     closeSheet(false);
-    await begin(sim.newGame(seed, 6, chapter.guests, chapter), [], book);
+    await begin(next, [], book, false, () => true, !!pending);
     continuityStatus = chapter.inputs.length
       ? `Loaded ${chapter.inputs.length} people together with their earlier history. Their starting state and ages are saved.`
       : 'This month starts with a new local cast. Earlier history has not been reset.';
@@ -487,8 +634,9 @@ async function newMonth(): Promise<void> {
     if (isCurrent()) {
       console.error('Could not open the agency month', e);
       continuityStatus = errorText(e);
-      notice =
-        'This month could not start because its people could not be loaded safely. Your saved month is unchanged. Try again or use Feedback.';
+      notice = receiving
+        ? 'This month could not finish opening. Its prepared state is saved separately. Return to the title to download it. Your saved month has not been replaced.'
+        : 'This month could not start because its people could not be loaded safely. Your saved month is unchanged. Try again or use Feedback.';
       noticeUntil = Infinity;
       if (!playing) {
         const line = root.querySelector('[role="status"]');
@@ -1476,18 +1624,10 @@ function menu(): void {
   if (state) save();
   const d = openSheet(
     'Game menu',
-    `<button type="button" data-action="send-run">Feedback</button><button type="button" data-action="fullscreen">Full screen</button><a href="${ALL_GAMES}" target="_top">All games</a><a href="https://human.adamwhite.work/lab/people/" target="_top">${PEOPLE_ACROSS_GAMES}</a><button type="button" data-new-game>New game</button>${state ? '<button type="button" data-action="day-notes">The day’s notes</button>' : ''}${!fileMode && state?.version === 6 ? '<button type="button" data-action="source-offer">People after this month</button>' : ''}<div class="page-setting">Page ${['System', 'Light', 'Dark'].map((theme) => `<button type="button" data-theme-choice="${theme.toLowerCase()}">${theme}</button>`).join('')}</div><div class="pace-setting"><span>Pace</span>${['Automatic', 'Slow', 'Steady', 'Fast'].map((speed) => `<button type="button" data-pace-choice="${speed.toLowerCase()}">${speed}</button>`).join('')}</div><button type="button" data-action="title">To the title page</button><button type="button" data-action="import">${fileMode ? 'Choose a run file' : 'Import and replace saved month'}</button>${fileMode ? '' : '<a href="/file/">Continue a file without replacing the saved month</a>'}${state ? '<button type="button" data-action="download">Download this run</button>' : ''}<div class="file-actions"></div><div class="recording-footer"></div><div class="debug-footer" style="display:flex;align-items:baseline;gap:.75rem;flex-wrap:wrap"><a href="https://human.adamwhite.work/lab/privacy/" target="_top">Lab privacy</a><details><summary>Debug</summary><p>Build: ${h(lab?.build().c || 'unavailable')}</p><p>Storage: ${h(preservationStatus)}</p></details></div>`,
+    `<button type="button" data-action="send-run">Feedback</button>${state ? '<button type="button" data-action="download-source">Download this run</button>' : ''}<button type="button" data-action="fullscreen">Full screen</button><a href="${ALL_GAMES}" target="_top">All games</a><a href="https://human.adamwhite.work/lab/people/" target="_top">${PEOPLE_ACROSS_GAMES}</a><button type="button" data-new-game>New game</button>${state ? '<button type="button" data-action="day-notes">The day’s notes</button>' : ''}${!fileMode && state?.version === 6 ? '<button type="button" data-action="source-offer">What happens to these people next</button>' : ''}<div class="page-setting">Colours: ${['System', 'Light', 'Dark'].map((theme) => `<button type="button" data-theme-choice="${theme.toLowerCase()}">${theme}</button>`).join(' · ')}</div><div class="pace-setting"><span>Pace</span>${['Automatic', 'Slow', 'Steady', 'Fast'].map((speed) => `<button type="button" data-pace-choice="${speed.toLowerCase()}">${speed}</button>`).join('')}</div><button type="button" data-action="title">To the title page</button><div class="recording-footer"></div><div class="debug-footer" style="display:flex;align-items:baseline;gap:.75rem;flex-wrap:wrap"><a href="https://human.adamwhite.work/lab/privacy/" target="_top">Lab privacy</a><details><summary>Debug</summary><p>Build: ${h(lab?.build().c || 'unavailable')}</p><p>Storage: ${h(preservationStatus)}</p></details></div><div class="file-actions"></div><button type="button" data-open-saved>Open a saved month…</button>`,
     'menu',
   );
   if (lab) d.querySelector('.recording-footer')?.append(telemetryToggle(lab));
-  if (state)
-    d.querySelector('.file-actions')?.append(
-      button('Download complete source archive', () => downloadJson('goodhands-source.json', runExport())),
-    );
-  if (!fileSession)
-    d.querySelector('.file-actions')?.append(
-      button('Verify and import complete source archive', importArchive),
-    );
   if (fileSession) {
     d.querySelector('[data-new-game]')?.remove();
     d.querySelector('.file-actions')?.append(button('Download original file', downloadOriginal));
@@ -1495,6 +1635,20 @@ function menu(): void {
     line.textContent = fileStatus();
     d.querySelector('.recording-footer')?.append(line);
   }
+  d.querySelector('[data-open-saved]')?.addEventListener('click', () => {
+    if (fileMode) {
+      chooseFile();
+      return;
+    }
+    const chooser = openSheet(
+      'Open a saved month',
+      '<p>Replace your saved month, or play the file in this tab only?</p><button type="button" data-action="import">Replace saved month</button><a href="/file/">Play in this tab only</a><button type="button" data-cancel-file>Cancel</button>',
+    );
+    chooser
+      .querySelector('.sheet-content')
+      ?.append(button('Verify and import complete source archive', importArchive));
+    chooser.querySelector('[data-cancel-file]')?.addEventListener('click', () => closeSheet());
+  });
   const confirmationContent = d.querySelector<HTMLElement>('.sheet-content');
   if (!confirmationContent) throw new Error('Missing new-game confirmation content.');
   d.querySelector('[data-new-game]')?.addEventListener('click', () => confirmNewGame(confirmationContent));
@@ -1946,6 +2100,12 @@ function handleClick(event: Event): void {
   if (b.dataset.themeChoice) {
     if (b.dataset.themeChoice === 'system') delete document.documentElement.dataset.theme;
     else document.documentElement.dataset.theme = b.dataset.themeChoice;
+    try {
+      if (b.dataset.themeChoice === 'system') localStorage.removeItem('goodhands-theme');
+      else localStorage.setItem('goodhands-theme', b.dataset.themeChoice);
+    } catch {
+      // Keep the choice for this page when storage is unavailable.
+    }
     for (const control of root.querySelectorAll('[data-theme-choice]'))
       control.setAttribute(
         'aria-pressed',
@@ -2429,22 +2589,30 @@ window.addEventListener('resize', redraw);
 window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', redraw);
 title();
 if (!fileMode)
-  void get<RunExport>('run').then(async (row) => {
-    if (row) {
-      try {
-        const validated = verifyImport(JSON.stringify(row.value));
-        await validateContinuity(validated.continuity, validated.state, validated.inputs);
-        saved = validated;
-      } catch (error) {
-        saved = null;
-        saveNeedsFreshStart =
-          error instanceof Error && /older version of the Human Framework/.test(error.message);
-        saveUnreadable = !saveNeedsFreshStart;
+  void Promise.all([get<RunExport>('run'), readReceiving()])
+    .then(async ([row, journal]) => {
+      receiving = journal;
+      if (row) {
+        try {
+          const validated = verifyImport(JSON.stringify(row.value));
+          await validateContinuity(validated.continuity, validated.state, validated.inputs);
+          saved = validated;
+        } catch (error) {
+          saved = null;
+          saveNeedsFreshStart =
+            error instanceof Error && /older version of the Human Framework/.test(error.message);
+          saveUnreadable = !saveNeedsFreshStart;
+        }
       }
-    }
-    saveReady = true;
-    if (!playing && !sheet && !openingMonth) title();
-  });
+      saveReady = true;
+      if (!playing && !sheet && !openingMonth) title();
+    })
+    .catch((error) => {
+      console.error('Could not read saved months', error);
+      saveReady = true;
+      saveUnreadable = true;
+      if (!playing && !sheet && !openingMonth) title();
+    });
 if (!fileMode) frameId = scheduleFrame();
 
 if (import.meta.hot) import.meta.hot.dispose(destroyStage);
@@ -2464,7 +2632,7 @@ function retireFileCallbacks(): void {
   playing = false;
 }
 function fileStatus(): string {
-  return `File session: native saves and people on the shelf are untouched. ${lab ? 'Recording follows your saved preference.' : `Recording unavailable (${preservationStatus}).`}`;
+  return 'Your saved month and your people are not changed.';
 }
 function refuseFileAdvance(error: unknown): void {
   retireFileCallbacks();
@@ -2491,7 +2659,7 @@ function fileTitle(): void {
   closeSheet(false);
   shown = '';
   setScreen('title');
-  root.innerHTML = `<main class="title-page">${topbar('File session')}<section class="title-body"><h1>Good Hands</h1><p>Continue a run in memory. Download it before leaving this page.</p><p>${h(fileStatus())}</p><p role="status"></p></section><div class="title-actions lk-commit"></div></main>`;
+  root.innerHTML = `<main class="title-page">${topbar('File session')}<section class="title-body"><h1>Good Hands</h1><p>Continue a run in memory. Download it before leaving this page.</p><p>${h(fileStatus())}</p><details><summary>Debug</summary><p>Recording: ${h(lab ? 'available' : preservationStatus)}</p></details><p role="status"></p></section><div class="title-actions lk-commit"></div></main>`;
   const actions = root.querySelector('.title-actions');
   actions?.append(button('Choose a run file', chooseFile));
   const original = fileSession?.original();

@@ -121,17 +121,17 @@ it('uses the full game in /file/ without native DB or Shelf, and retains ordinar
       }, first);
       first = false;
       await page.locator('[data-action="menu"]').click();
-      expect(await page.locator('[data-action="import"]').isVisible()).toBe(true);
+      expect(await page.locator('[data-open-saved]').isVisible()).toBe(true);
       expect(await page.locator('[data-action="title"]').isVisible()).toBe(true);
-      expect(await page.locator('[data-action="download"]').isVisible()).toBe(true);
+      expect(await page.locator('[data-action="download-source"]').isVisible()).toBe(true);
       expect(await page.getByRole('button', { name: 'Download original file' }).isVisible()).toBe(true);
       const continuedDownload = page.waitForEvent('download');
-      await page.locator('[data-action="download"]').evaluate((b: HTMLButtonElement) => b.click());
+      await page.locator('[data-action="download-source"]').evaluate((b: HTMLButtonElement) => b.click());
       const continued = await (await continuedDownload).createReadStream();
       const continuedChunks: Buffer[] = [];
       for await (const chunk of continued!) continuedChunks.push(chunk);
       const continuedRun = JSON.parse(Buffer.concat(continuedChunks).toString());
-      expect(continuedRun).not.toHaveProperty('state');
+      expect(continuedRun).toHaveProperty('state');
       expect(verifyImport(JSON.stringify(continuedRun)).state).toEqual(
         apply(structuredClone(run.state), { type: 'resume-cast' }),
       );

@@ -212,6 +212,7 @@ try {
     assert.equal((await lifecycle()).active, 0);
     await page.locator('[data-action="menu"]').click();
     page.on('dialog', (dialog) => void dialog.accept());
+    await page.locator('[data-open-saved]').click();
     const chooser = page.waitForEvent('filechooser');
     await page.locator('[data-action="import"]').click();
     await (await chooser).setFiles({
@@ -226,6 +227,7 @@ try {
     await page.locator('[data-action="menu"]').click();
     await page.getByRole('button', { name: 'To the title page', exact: true }).click();
     await page.locator('[data-action="menu"]').click();
+    await page.locator('[data-open-saved]').click();
     const earlyChooser = page.waitForEvent('filechooser');
     await page.locator('[data-action="import"]').click();
     await (await earlyChooser).setFiles({
