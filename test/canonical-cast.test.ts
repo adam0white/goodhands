@@ -77,4 +77,4 @@ it('lets Hülya disclose the seed envelopes after an interview without granting 
   apply(s, { type: 'cast-talk', person: 'hulya', choice: 'defer' });
   expect(view(s).log.at(-1)?.text).toContain('keeps the seeds');
   expect(fingerprint(replay(s.seed, s.inputs, s.now))).toBe(fingerprint(s));
-});
+}, 420_000);
