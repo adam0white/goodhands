@@ -1,3 +1,7 @@
+# Story save results — 2026-10-30 source update
+
+A confirmed shared story save remains reported as saved if later local recording fails. A publication without a confirmed reply reports an unknown result. Historical reports and publication/source/CAS behavior stay intact. Synthetic actual-SDK fault controls prove accepted heads and the two distinct results; they do not prove a player journey. Independent Codex review clears the outcome repair and the bounded browser-fixture HF3 prebundle correction. Exact new source/main CI and normal deployment remain required.
+
 ## Reader qualification source follow-through — 2026-10-30
 
 What remains: director acceptance, complete reader qualification and normal delivery gates. This source change is uncommitted and undeployed. Production at df5e3f20e02603e022081422f76811eecacc3bad was tested with isolated synthetic shelf transport; it saved skipped IDs but did not name the omitted people in the ordinary office after opening or reload. The candidate office now names those people in plain language using the persisted IDs and says their saved histories stay unchanged. It does not display raw SDK diagnostics. The focused browser regression failed before the change and passed after it. Existing saves, source ownership and gameplay are unchanged.

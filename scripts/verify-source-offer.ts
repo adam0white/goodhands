@@ -3,9 +3,15 @@
  * The separately retained actual month proves full-length ending and cold reconstruction.
  * Fixture shelf only; no live journey or publication. */
 import assert from 'node:assert/strict';
-import { acceptPersona, type PersonaRequest, type PersonaShelfState } from '@adam0white/lab-client';
+import {
+  acceptPersona,
+  type PersonaRequest,
+  type PersonaShelfState,
+  portableWriteBlockers,
+} from '@adam0white/lab-client';
 import { chromium } from 'playwright-core';
 import { createServer } from 'vite';
+import { ALLOCATION } from '../src/sim/cast.ts';
 import { prepareAgencyChapter } from '../src/sim/cast-chapter.ts';
 import { newGame } from '../src/sim/index.ts';
 import { emptyContinuity } from '../src/ui/continuity.ts';
@@ -16,6 +22,7 @@ function phase(stage: string) {
   console.log(JSON.stringify({ stage, milliseconds: Math.round(performance.now() - phaseStart) }));
 }
 const port = Number(process.argv[2] ?? 48837);
+let certified = false;
 const server = await createServer({
   server: { host: '127.0.0.1', port, strictPort: true, hmr: false, watch: null },
   plugins: [
@@ -24,11 +31,16 @@ const server = await createServer({
       enforce: 'pre',
       transform(code, id) {
         if (id.split('?')[0]?.endsWith('/src/ui/app.ts'))
-          return code.replace(
-            '  const resumed = resumeForPlay(next, history);',
-            "\n      const fixture = sessionStorage.getItem('goodhands-app-world-fixture');\n      sessionStorage.removeItem('goodhands-app-world-fixture');\n      if (fixture) {\n        // Synthetic App wiring only: move host arrival/rent conditions, never actor state.\n        next.cards.aylin.arrived = next.now + 1;\n        sim.advance(next, 1);\n        if (!next.cards.aylin.met) throw new Error('Synthetic public arrival did not meet Aylin.');\n        if (fixture === 'ended') {\n          next.cash = 0;\n          next.missedRent = 1;\n          next.rentDue = next.now + 1;\n          sim.advance(next, 1);\n          if (next.scene?.kind !== 'rent') throw new Error('Synthetic rent boundary did not open.');\n          sim.apply(next, {type:'choose',scene:next.scene.id,choice:'promise'});\n          if (!next.ended || !next.review) throw new Error('Ordinary rent choice did not end the fixture.');\n        }\n        history = structuredClone(next.inputs);\n      }\n" +
+          return code
+            .replace(
+              'await continuitySession?.recording(continuity);',
+              "if (sessionStorage.getItem('checkpoint-fault')) throw new Error('fixture recording failure'); await continuitySession?.recording(continuity);",
+            )
+            .replace(
               '  const resumed = resumeForPlay(next, history);',
-          );
+              "\n      const fixture = sessionStorage.getItem('goodhands-app-world-fixture');\n      sessionStorage.removeItem('goodhands-app-world-fixture');\n      if (fixture) {\n        // Synthetic App wiring only: move host arrival/rent conditions, never actor state.\n        next.cards.aylin.arrived = next.now + 1;\n        sim.advance(next, 1);\n        if (!next.cards.aylin.met) throw new Error('Synthetic public arrival did not meet Aylin.');\n        if (fixture === 'ended') {\n          next.cash = 0;\n          next.missedRent = 1;\n          next.rentDue = next.now + 1;\n          sim.advance(next, 1);\n          if (next.scene?.kind !== 'rent') throw new Error('Synthetic rent boundary did not open.');\n          sim.apply(next, {type:'choose',scene:next.scene.id,choice:'promise'});\n          if (!next.ended || !next.review) throw new Error('Ordinary rent choice did not end the fixture.');\n        }\n        history = structuredClone(next.inputs);\n      }\n" +
+                '  const resumed = resumeForPlay(next, history);',
+            );
       },
     },
   ],
@@ -48,7 +60,10 @@ try {
   for (const viewport of [
     { width: 360, height: 690 },
     { width: 1280, height: 800 },
-  ]) {
+    { width: 361, height: 690 },
+    { width: 362, height: 690 },
+  ].filter((v) => !process.env.FAULT_ONLY || v.width === 361 || v.width === 362)) {
+    certified = viewport.width === 361 || viewport.width === 362;
     phase(`viewport ${viewport.width}`);
     const context = await browser.newContext({ viewport });
     let shelf: PersonaShelfState = { heads: {}, revisions: [] };
@@ -61,6 +76,7 @@ try {
       }
       assert.equal(message.action, 'put');
       shelf = acceptPersona(shelf, message.envelope!, message.fork);
+      if (viewport.width === 362) throw new Error('fixture reply failed after acceptance');
       return message.envelope;
     });
     await context.route('**/*', async (route) => {
@@ -72,6 +88,21 @@ try {
             body: '<!doctype html><body>Synthetic fixture</body>',
           });
         const response = await route.fetch({ url: `http://127.0.0.1:${port}${url.pathname}${url.search}` });
+        if (certified && url.pathname.endsWith('/@adam0white_lab-client.js')) {
+          const readers = Object.fromEntries(
+            ALLOCATION.flatMap((person) => portableWriteBlockers(person.castId, 'goodhands')).map((game) => [
+              game,
+              { client: '0.5.7', perPersonSkips: true },
+            ]),
+          );
+          const source = await response.text();
+          const modified = source.replace(
+            'var PORTABLE_READERS = {};',
+            `var PORTABLE_READERS = ${JSON.stringify(readers)};`,
+          );
+          assert.notEqual(modified, source);
+          return route.fulfill({ response, body: modified });
+        }
         return route.fulfill({ response });
       }
       if (url.href === 'https://human.adamwhite.work/lab/identity/')
@@ -127,6 +158,58 @@ try {
       await page.getByRole('button', { name: /^Resume/ }).click();
       phase(`resumed ${fixture ?? 'untouched opening'}`);
     }
+    if (viewport.width === 361 || viewport.width === 362) {
+      shelf = { heads: {}, revisions: [] };
+      requests.length = 0;
+      await seed(exportRun(opening, opening.inputs, book), 'met');
+      if (viewport.width === 361) await page.evaluate(() => sessionStorage.setItem('checkpoint-fault', '1'));
+      await page.locator('[data-action="menu"]').click();
+      await page.getByRole('button', { name: 'What happens to these people next', exact: true }).click();
+      await page.getByRole('button', { name: 'Pause and save people’s stories', exact: true }).click();
+      await page
+        .locator('[data-source-status]')
+        .getByText(/Aylin’s story/)
+        .waitFor();
+      const status = await page.locator('[data-source-status]').innerText();
+      assert.ok(requests.some((r) => r.action === 'put'));
+      assert.ok(
+        Object.keys(shelf.heads).length > 0,
+        'accepted SDK write changes the actual fixture shelf head',
+      );
+      const accepted = requests.find(
+        (r) => r.action === 'put' && r.envelope?.castId === 'hf.cast.aylin.murmur',
+      )?.envelope;
+      assert.ok(accepted);
+      assert.equal(shelf.heads[accepted.castId], accepted.revision);
+      assert.doesNotMatch(status, /could not be saved|saved history stays|refused/);
+      if (viewport.width === 361) {
+        assert.match(status, /Aylin’s story is saved for the next game/);
+        assert.match(status, /could not update the local record/);
+        assert.equal((status.match(/Aylin’s story is saved/g) ?? []).length, 1);
+        phase('accepted write followed by recording failure reports saved outcome');
+      } else {
+        assert.match(status, /Aylin’s story: the save result could not be confirmed/);
+        assert.doesNotMatch(status, /Aylin’s story is saved/);
+        phase('accepted write followed by failed reply reports unconfirmed outcome');
+      }
+      const download = page.waitForEvent('download');
+      await page.getByRole('button', { name: 'Download this run', exact: true }).last().click();
+      const stream = await (await download).createReadStream();
+      assert.ok(stream);
+      const chunks: Buffer[] = [];
+      for await (const chunk of stream) chunks.push(Buffer.from(chunk));
+      // This synthetic host overlay is not replayable; inspect its raw report only.
+      const loaded = JSON.parse(Buffer.concat(chunks).toString());
+      const results: string[] = loaded.continuity.publications?.at(-1)?.results ?? [];
+      const aylin = results.filter((result) => result.startsWith('Aylin:'));
+      assert.ok(aylin.length);
+      assert.ok(aylin.every((result) => !result.includes('refused')));
+      assert.ok(
+        aylin.some((result) => result.includes(viewport.width === 361 ? 'published' : 'outcome unconfirmed')),
+      );
+      await context.close();
+      continue;
+    }
     await seed(exportRun(opening, opening.inputs, book));
     await page.locator('[data-action="menu"]').click();
     await page.getByRole('button', { name: 'What happens to these people next', exact: true }).click();
@@ -134,7 +217,7 @@ try {
     await page.getByRole('button', { name: 'Pause and save people’s stories', exact: true }).click();
     await page
       .locator('[data-source-status]')
-      .getByText(/Aylin’s story could not be saved for another game this time/)
+      .getByText(/Aylin’s story: the save result could not be confirmed/)
       .waitFor();
     assert.doesNotMatch(
       await page.locator('[data-source-status]').innerText(),
@@ -146,7 +229,7 @@ try {
       await page
         .locator('[data-source-status]')
         .innerText()
-        .then((s) => s.includes('could not be saved')),
+        .then((s) => s.includes('save result could not be confirmed')),
     );
     assert.equal(
       await page.getByRole('link', { name: 'Check Aylin’s continuation in Murmur' }).count(),
@@ -172,7 +255,7 @@ try {
       assert.equal(loaded.continuity.publications?.length, 1);
       assert.ok(
         loaded.continuity.publications[0]!.results.some((s) =>
-          /Aylin: refused.*cannot be shared yet/.test(s),
+          /Aylin: publication outcome unconfirmed.*cannot be shared yet/.test(s),
         ),
       );
       assert.deepEqual(loaded.continuity.heads, []);
@@ -186,7 +269,7 @@ try {
         await page.locator('[data-action="menu"]').click();
         await page.getByRole('button', { name: 'What happens to these people next', exact: true }).click();
         const status = await page.locator('[data-source-status]').innerText();
-        if (lab) assert.match(status, /Aylin: refused.*cannot be shared yet/);
+        if (lab) assert.match(status, /Aylin: publication outcome unconfirmed.*cannot be shared yet/);
         else assert.doesNotMatch(status, /refused|cannot be shared yet|checkpoint|chapter|shelf/);
       }
       phase('saved raw reports require exact lab=1 after reload');
@@ -204,7 +287,7 @@ try {
     await page.getByRole('button', { name: 'Pause and save people’s stories', exact: true }).click();
     await page
       .locator('[data-source-status]')
-      .getByText(/Aylin’s story could not be saved for another game this time/)
+      .getByText(/Aylin’s story: the save result could not be confirmed/)
       .waitFor();
     assert.equal(await page.getByRole('link', { name: 'Check Aylin’s continuation in Murmur' }).count(), 0);
     assert.equal(requests.filter((r) => r.action === 'put').length, 0);
@@ -220,7 +303,7 @@ try {
     await page.getByRole('button', { name: 'Pause and save people’s stories', exact: true }).click();
     await page
       .locator('[data-source-status]')
-      .getByText(/Aylin’s story could not be saved for another game this time/)
+      .getByText(/Aylin’s story: the save result could not be confirmed/)
       .waitFor();
     await page.evaluate(() => {
       Object.defineProperty(document, 'visibilityState', { value: 'hidden', configurable: true });

@@ -86,6 +86,8 @@ beforeAll(async () => {
       exclude: ['@adam0white/lab-client'],
       include: [
         '@adam0white/human-framework/portable',
+        '@adam0white/human-framework-legacy3',
+        '@adam0white/lab-client > @adam0white/hf-legacy',
         '@adam0white/lab-client-legacy3 > @adam0white/human-framework',
       ],
     },
