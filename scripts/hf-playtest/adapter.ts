@@ -1,7 +1,7 @@
 /** HF sees only the public View and chooses the same Inputs as the office UI. */
-import { advance, apply, fingerprint, newGame, view } from '../../src/sim/v6/index.ts';
-import type { Input, Quality, State, View } from '../../src/sim/v6/types.ts';
-import { QUALITIES, SPEEDS } from '../../src/sim/v6/types.ts';
+import { advance, apply, fingerprint, newGame, view } from '../../src/sim/index.ts';
+import type { Input, Quality, State, View } from '../../src/sim/types.ts';
+import { QUALITIES, SPEEDS } from '../../src/sim/types.ts';
 import { clockLabels } from '../../src/ui/render.ts';
 
 type Action = {
@@ -34,8 +34,8 @@ export class GoodHandsAdapter {
   private previousCash: number;
   private interviewed = new Set<string>();
 
-  constructor(seed: number, version: 1 | 2 | 3 | 4 = 3) {
-    this.state = newGame(seed, version);
+  constructor(seed: number) {
+    this.state = newGame(seed);
     this.previousCash = view(this.state).cash;
   }
 
@@ -177,7 +177,7 @@ export class GoodHandsAdapter {
                 ? `Call back after ${clockLabels(c.interviewAfter).dateLabel}, ${clockLabels(c.interviewAfter).timeLabel}`
                 : undefined),
           );
-        if ((v.simulation ?? 1) >= 3 && c.presence !== 'office')
+        if (c.presence !== 'office')
           add(
             `call-in:${c.id}`,
             `Call ${c.name} into the office`,
@@ -198,14 +198,13 @@ export class GoodHandsAdapter {
             r.status === 'open' &&
             r.by > v.now &&
             c.roles.includes(r.role) &&
-            ((v.simulation ?? 1) >= 3 || c.wage === null || c.wage <= r.wage) &&
             !c.refuses?.some((x) => x.family === r.family),
         )) {
           const family = v.families.find((f) => f.id === request.family)?.name ?? request.family;
           const vouched = this.supported(c.notes);
           add(
             `place:${c.id}:${request.family}`,
-            `${(v.simulation ?? 1) >= 3 ? 'Negotiate a placement for' : 'Place'} ${c.name} with ${family}; vouch for ${vouched.length ? vouched.join(', ') : 'no qualities yet'}`,
+            `Negotiate a placement for ${c.name} with ${family}; vouch for ${vouched.length ? vouched.join(', ') : 'no qualities yet'}`,
             { type: 'place', candidate: c.id, family: request.family, vouch: vouched },
             c.notes.length ? 0.8 : 0.4,
           );
@@ -219,19 +218,18 @@ export class GoodHandsAdapter {
             );
         }
       }
-      if ((v.simulation ?? 1) >= 3)
-        for (const family of v.families)
-          for (const member of family.household) {
-            if (!member.id) continue;
-            for (const topic of ['progress', 'complaint', 'smooth', 'worker'] as const)
-              add(
-                `household:${family.id}:${member.id}:${topic}`,
-                `Phone ${member.name} at ${family.name}: ${{ progress: 'ask how things are going', complaint: 'hear a complaint', smooth: 'smooth a disagreement', worker: 'check on the worker' }[topic]}`,
-                { type: 'call-household', family: family.id, member: member.id, topic },
-                0.4,
-                member.phoneUnavailable,
-              );
-          }
+      for (const family of v.families)
+        for (const member of family.household) {
+          if (!member.id) continue;
+          for (const topic of ['progress', 'complaint', 'smooth', 'worker'] as const)
+            add(
+              `household:${family.id}:${member.id}:${topic}`,
+              `Phone ${member.name} at ${family.name}: ${{ progress: 'ask how things are going', complaint: 'hear a complaint', smooth: 'smooth a disagreement', worker: 'check on the worker' }[topic]}`,
+              { type: 'call-household', family: family.id, member: member.id, topic },
+              0.4,
+              member.phoneUnavailable,
+            );
+        }
       for (const p of v.placements.filter((p) => ['trial', 'kept'].includes(p.status))) {
         const candidate = [...v.bench, ...v.books].find((c) => c.id === p.candidate)?.name ?? p.candidate;
         const family = v.families.find((f) => f.id === p.family)?.name ?? p.family;

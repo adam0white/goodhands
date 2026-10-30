@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { GoodHandsAdapter } from '../scripts/hf-playtest/adapter.ts';
+import { GoodHandsAdapter } from './historical-adapter.ts';
 import { type Policy, runPolicy } from './previous-policy.ts';
 import { advance, apply, fingerprint, QUALITIES, view } from './previous-simulation.ts';
 
