@@ -131,18 +131,22 @@ try {
     await page.locator('[data-action="menu"]').click();
     await page.getByRole('button', { name: 'What happens to these people next', exact: true }).click();
     assert.equal(requests.length, 0, 'reading an offer never publishes or pauses');
-    await page.getByRole('button', { name: 'Pause and prepare checkpoints', exact: true }).click();
+    await page.getByRole('button', { name: 'Pause and save people’s stories', exact: true }).click();
     await page
       .locator('[data-source-status]')
-      .getByText(/Aylin: refused — This person cannot be shared yet/)
+      .getByText(/Aylin’s story could not be saved for another game this time/)
       .waitFor();
+    assert.doesNotMatch(
+      await page.locator('[data-source-status]').innerText(),
+      /Error:|refused|chapter|checkpoint|shelf|edition/,
+    );
     const before = requests.length;
     assert.equal(before, 0, 'reader gate prevents all publication requests');
     assert.ok(
       await page
         .locator('[data-source-status]')
         .innerText()
-        .then((s) => s.includes('refused')),
+        .then((s) => s.includes('could not be saved')),
     );
     assert.equal(
       await page.getByRole('link', { name: 'Check Aylin’s continuation in Murmur' }).count(),
@@ -175,7 +179,21 @@ try {
       assert.deepEqual(loaded.continuity.rows, []);
     }
     phase('untouched opening full/compact replay verified');
-    await page.getByRole('button', { name: 'Resume agency play', exact: true }).click();
+    if (viewport.width === 360) {
+      for (const lab of [false, true, false]) {
+        await page.goto(`${origin}/${lab ? '?lab=1' : ''}`);
+        await page.getByRole('button', { name: /^Resume/ }).click();
+        await page.locator('[data-action="menu"]').click();
+        await page.getByRole('button', { name: 'What happens to these people next', exact: true }).click();
+        const status = await page.locator('[data-source-status]').innerText();
+        if (lab) assert.match(status, /Aylin: refused.*cannot be shared yet/);
+        else assert.doesNotMatch(status, /refused|cannot be shared yet|checkpoint|chapter|shelf/);
+      }
+      phase('saved raw reports require exact lab=1 after reload');
+    }
+    // Ordinary Resume already clears the pause in the reload control above.
+    if (viewport.width !== 360)
+      await page.getByRole('button', { name: 'Resume agency play', exact: true }).click();
     assert.equal(requests.length, before, 'resume is local recorded input, not a claim');
     shelf = { heads: {}, revisions: [] };
     requests.length = 0;
@@ -183,10 +201,10 @@ try {
     await page.locator('.review').waitFor();
     assert.equal(await page.locator('.topbar-label').innerText(), 'Month’s end · 2 Nov');
     await page.locator('.review-actions [data-action="source-offer"]').click();
-    await page.getByRole('button', { name: 'Pause and prepare checkpoints', exact: true }).click();
+    await page.getByRole('button', { name: 'Pause and save people’s stories', exact: true }).click();
     await page
       .locator('[data-source-status]')
-      .getByText(/Aylin: refused — This person cannot be shared yet/)
+      .getByText(/Aylin’s story could not be saved for another game this time/)
       .waitFor();
     assert.equal(await page.getByRole('link', { name: 'Check Aylin’s continuation in Murmur' }).count(), 0);
     assert.equal(requests.filter((r) => r.action === 'put').length, 0);
@@ -199,10 +217,10 @@ try {
     await seed(exportRun(opening, opening.inputs, book), 'met');
     await page.locator('[data-action="menu"]').click();
     await page.getByRole('button', { name: 'What happens to these people next', exact: true }).click();
-    await page.getByRole('button', { name: 'Pause and prepare checkpoints', exact: true }).click();
+    await page.getByRole('button', { name: 'Pause and save people’s stories', exact: true }).click();
     await page
       .locator('[data-source-status]')
-      .getByText(/Aylin: refused — This person cannot be shared yet/)
+      .getByText(/Aylin’s story could not be saved for another game this time/)
       .waitFor();
     await page.evaluate(() => {
       Object.defineProperty(document, 'visibilityState', { value: 'hidden', configurable: true });
@@ -237,7 +255,7 @@ try {
         return result;
       };
     });
-    await page.getByRole('button', { name: 'Pause and prepare checkpoints', exact: true }).click();
+    await page.getByRole('button', { name: 'Pause and save people’s stories', exact: true }).click();
     await page.waitForFunction(() => (window as Window & { sourceDigestHeld?: boolean }).sourceDigestHeld);
     assert.equal(requests.length, 0);
     await page.evaluate(() => {

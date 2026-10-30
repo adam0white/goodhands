@@ -31,10 +31,14 @@ it('keeps frozen-edition dialogue readable', () => {
     'I can work from eight until six. I need the 18:10 bus because my mother is alone at home.',
   );
 });
-it('keeps the actual footer node without a gameplay query gate', () => {
+it('keeps the actual footer node independent of lab diagnostics', () => {
   const app = readFileSync(new URL('../src/ui/app.ts', import.meta.url), 'utf8');
-  expect(app).not.toContain('URLSearchParams');
-  expect(app).not.toContain('labTools');
+  const footerMount = app.slice(
+    app.indexOf('const recordingNotice ='),
+    app.indexOf('root.after(noticeFooter)'),
+  );
+  // Diagnostic copy may require ?lab=1; the real notice must mount in every view.
+  expect(footerMount).not.toMatch(/URLSearchParams|labTools/);
   expect(app).toContain('noticeFooter.append(recordingNotice)');
   expect(app).not.toContain('recordingNoticeDone');
   expect(app).not.toContain("openSheet('Send word'");
