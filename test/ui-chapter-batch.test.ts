@@ -20,7 +20,7 @@ test('precommit omission includes refused heads, not fresh absent people', () =>
 
 test('older saves get a start-new message and the shared caption is used', () => {
   expect(savedMonthStatus(true, true, false)).toBe(
-    'This saved month uses an older version. Start a new game.',
+    'This saved month uses an older version. Keep the saved month and start a new game.',
   );
   expect(savedMonthStatus(false, true, false)).toBe('Looking for a saved month…');
   expect(PEOPLE_ACROSS_GAMES).toBe('People across games');

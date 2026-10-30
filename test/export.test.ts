@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { advance, apply, fingerprint, newGame, replay, view } from '../src/sim/index';
+import { advance, apply, fingerprint, newGame, view } from '../src/sim/index';
 import type { LoggedInput } from '../src/sim/types';
+import { replay as historicalReplay } from '../src/sim/v1/index.ts';
+import {
+  compactRun as historicalCompact,
+  exportRun as historicalExport,
+  verifyImport as historicalVerify,
+} from '../src/sim/v6/export.ts';
 import { compactRun, exportRun, verifyImport } from '../src/ui/export';
 
 describe('run exports', () => {
@@ -54,9 +60,9 @@ describe('run exports', () => {
     expect(() => verifyImport(overflowing)).toThrow('Invalid input history.');
   });
   it('rejects a historical original-edition envelope clock beyond its actual end', () => {
-    const state = replay(17, [], 40320, 1);
-    const run = compactRun(exportRun(state, []));
-    expect(() => verifyImport(JSON.stringify({ ...run, minute: run.minute + 1 }))).toThrow('clock');
+    const state = historicalReplay(17, [], 40320);
+    const run = historicalCompact(historicalExport(state, []));
+    expect(() => historicalVerify(JSON.stringify({ ...run, minute: run.minute + 1 }))).toThrow('clock');
   });
   it('rejects a current envelope clock before the actual opening', () => {
     const run = compactRun(exportRun(newGame(17), []));
@@ -145,8 +151,9 @@ it('loads an unversioned simulation export through the frozen original engine', 
     ],
     fingerprint: 'ef02eb7b',
   };
-  const imported = verifyImport(JSON.stringify(run));
+  const imported = historicalVerify(JSON.stringify(run));
+  expect(() => verifyImport(JSON.stringify(run))).toThrow(/keep.*start a new game/i);
   expect(imported.state.version).toBe(1);
   expect(fingerprint(imported.state)).toBe('ef02eb7b');
-  expect(compactRun(exportRun(imported.state, imported.inputs))).toEqual(run);
+  expect(historicalCompact(historicalExport(imported.state, imported.inputs))).toEqual(run);
 });

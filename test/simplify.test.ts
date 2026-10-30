@@ -122,7 +122,7 @@ it('preserves punctuation after grouped and ungrouped money', () => {
 });
 
 it('keeps an actual visit observation in report voice and known family speech in first person', () => {
-  const state = runPolicy(1, 'careful', 2600, 6 as 4);
+  const state = runPolicy(1, 'careful', 2600, 6);
   const observation = view(state).placements[0]!.lastWord!;
   expect(observation).toBe(
     'You said the worker was patient. Şebnem Eren let the household member finish explaining. The household could follow the agreed routine. You were right about this worker.',

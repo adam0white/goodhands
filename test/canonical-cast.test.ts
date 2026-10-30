@@ -49,7 +49,11 @@ it('requires an actual encounter before a private conversation and replays the c
   }
   expect(fingerprint(replay(s.seed, s.inputs, s.now))).toBe(fingerprint(s));
   const run = compactRun(exportRun(s, s.inputs));
-  expect(() => verifyImport(JSON.stringify({ ...run, simulation: 5 }))).toThrow(/older cast|Start fresh/);
+  const original = { ...run, simulation: 5 };
+  const bytes = JSON.stringify(original);
+  expect(() => verifyImport(bytes)).toThrow('Keep the original saved game or file and start a new game.');
+  expect(JSON.stringify(original)).toBe(bytes);
+  expect(fingerprint(s)).toBe(run.fingerprint);
 });
 
 it('keeps the former fixed roster unnamed and gives new cooks only their actual role', () => {

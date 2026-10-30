@@ -1,6 +1,8 @@
 import { expect, test } from 'vitest';
-import { apply, fingerprint, newGame, view } from '../src/sim/index.ts';
+import { newGame } from '../src/sim/index.ts';
 import { termsWords } from '../src/sim/negotiation.ts';
+import * as historicalExport from '../src/sim/v6/export.ts';
+import * as historical from '../src/sim/v6/index.ts';
 import { compactRun, exportRun, verifyImport } from '../src/ui/export.ts';
 
 const terms = { wage: 9000, startHour: 8, endHour: 17, dayOff: 6, trialDays: 3, fee: 4000 };
@@ -11,33 +13,38 @@ test.each([
   expect(termsWords({ ...terms, trialDays })).toContain(words);
 });
 test('phase 1 compact histories keep simulation 2 and its fingerprint', () => {
-  const state = newGame(37, 2);
-  apply(state, { type: 'interview', candidate: 'sevda' });
-  apply(state, { type: 'choose', scene: view(state).scene!.id, choice: 'q-patient' });
-  expect(fingerprint(state)).toBe('8ac987cc');
-  const run = compactRun(exportRun(state, state.inputs));
+  const state = historical.newGame(37, 2);
+  historical.apply(state, { type: 'interview', candidate: 'sevda' });
+  historical.apply(state, { type: 'choose', scene: historical.view(state).scene!.id, choice: 'q-patient' });
+  expect(historical.fingerprint(state)).toBe('8ac987cc');
+  const run = historicalExport.compactRun(historicalExport.exportRun(state, state.inputs));
   expect(run.simulation).toBe(2);
-  expect(fingerprint(verifyImport(JSON.stringify(run)).state)).toBe('8ac987cc');
+  expect(historical.fingerprint(historicalExport.verifyImport(JSON.stringify(run)).state)).toBe('8ac987cc');
 });
 test('full and compact simulation 3 exports replay each new verb', () => {
   for (const verb of ['call-in', 'propose-terms', 'call-household']) {
-    const state = newGame(17, 3);
+    const state = historical.newGame(17, 3);
     if (verb === 'call-in') {
-      apply(state, { type: 'take-number', candidate: 'sevda' });
-      apply(state, { type: 'call-in', candidate: 'sevda' });
+      historical.apply(state, { type: 'take-number', candidate: 'sevda' });
+      historical.apply(state, { type: 'call-in', candidate: 'sevda' });
     } else if (verb === 'propose-terms') {
-      apply(state, { type: 'place', candidate: 'sevda', family: 'arslans', vouch: [] });
-      expect(view(state).scene?.kind).toBe('negotiation');
-      apply(state, { type: 'propose-terms', scene: view(state).scene!.id, terms });
+      historical.apply(state, { type: 'place', candidate: 'sevda', family: 'arslans', vouch: [] });
+      expect(historical.view(state).scene?.kind).toBe('negotiation');
+      historical.apply(state, { type: 'propose-terms', scene: historical.view(state).scene!.id, terms });
     } else {
-      apply(state, { type: 'call-household', family: 'arslans', member: 'arslans-0', topic: 'progress' });
+      historical.apply(state, {
+        type: 'call-household',
+        family: 'arslans',
+        member: 'arslans-0',
+        topic: 'progress',
+      });
     }
-    const full = exportRun(state, state.inputs);
+    const full = historicalExport.exportRun(state, state.inputs);
     expect(full.simulation).toBe(3);
     expect(state.inputs.some((entry) => entry.input.type === verb)).toBe(true);
-    for (const run of [full, compactRun(full)]) {
-      const imported = verifyImport(JSON.stringify(run));
-      expect(fingerprint(imported.state)).toBe(full.fingerprint);
+    for (const run of [full, historicalExport.compactRun(full)]) {
+      const imported = historicalExport.verifyImport(JSON.stringify(run));
+      expect(historical.fingerprint(imported.state)).toBe(full.fingerprint);
       expect(imported.inputs).toEqual(state.inputs);
     }
   }
@@ -58,18 +65,16 @@ test('imports reject malformed new inputs before running them', () => {
       'Invalid input history',
     );
   }
-  expect(() => verifyImport(JSON.stringify({ ...run, simulation: 99 }))).toThrow(
-    'Unsupported simulation version',
-  );
+  expect(() => verifyImport(JSON.stringify({ ...run, simulation: 99 }))).toThrow('Keep the original');
 });
 
 test('full and compact edition 4 exports retain their rules edition', () => {
-  const state = newGame(17, 4);
-  apply(state, { type: 'interview', candidate: 'sevda' });
-  apply(state, { type: 'choose', scene: view(state).scene!.id, choice: 'last-family' });
-  const full = exportRun(state, state.inputs);
+  const state = historical.newGame(17, 4);
+  historical.apply(state, { type: 'interview', candidate: 'sevda' });
+  historical.apply(state, { type: 'choose', scene: historical.view(state).scene!.id, choice: 'last-family' });
+  const full = historicalExport.exportRun(state, state.inputs);
   expect(full.simulation).toBe(4);
-  for (const run of [full, compactRun(full)]) {
-    expect(verifyImport(JSON.stringify(run)).state).toEqual(state);
+  for (const run of [full, historicalExport.compactRun(full)]) {
+    expect(historicalExport.verifyImport(JSON.stringify(run)).state).toEqual(state);
   }
 });

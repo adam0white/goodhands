@@ -181,6 +181,7 @@ try {
     requests.length = 0;
     await seed(exportRun(opening, opening.inputs, book), 'ended');
     await page.locator('.review').waitFor();
+    assert.equal(await page.locator('.topbar-label').innerText(), 'Month’s end · 2 Nov');
     await page.locator('.review-actions [data-action="source-offer"]').click();
     await page.getByRole('button', { name: 'Pause and prepare checkpoints', exact: true }).click();
     await page

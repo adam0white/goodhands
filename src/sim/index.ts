@@ -13,7 +13,7 @@ import {
   unavailable,
 } from './hf4.ts';
 
-// Versions 1, 2 and 3 are frozen for exact replay of earlier saves and compact exports.
+// Historical editions remain in their own modules for recorded replay checks.
 
 import { arrangementSpec } from './arrangements.ts';
 import { applyGuest, type GuestAdmission, guestViews, initGuests, stepGuests } from './guests.ts';
@@ -64,10 +64,6 @@ import type {
   View,
 } from './types.ts';
 import { QUALITIES } from './types.ts';
-import * as legacy from './v1/index.ts';
-import * as previous from './v2/index.ts';
-import * as third from './v3/index.ts';
-import * as fourth from './v4/index.ts';
 
 export * from './guests.ts';
 
@@ -544,14 +540,7 @@ export function newGame(
   admissions: GuestAdmission[] = [],
   chapter?: AgencyChapter,
 ): State {
-  if (version === 1) return legacy.newGame(seed);
-  if (version === 2) return previous.newGame(seed);
-  if (version === 3) return third.newGame(seed);
-  if (version === 4) return fourth.newGame(seed);
-  if (version === 5)
-    throw new Error(
-      'This saved game uses an older cast. Start a new game. You can keep the exported file to read later.',
-    );
+  if (version !== 6) throw new Error('Keep the original saved game and start a new game.');
   if (admissions.length)
     throw new Error('This file uses an older guest version. Keep the file and start a new game.');
   beginFramework(Math.trunc(seed) || 1);
@@ -829,10 +818,7 @@ function runTo(s: Sim, target: number, stopOnNew = false) {
 }
 function advanceInternal(state: State, minutes: number): State {
   if (state.castPaused) return state;
-  if (state.version === 1) return legacy.advance(state as legacy.State, minutes);
-  if (state.version === 2) return previous.advance(state as previous.State, minutes);
-  if (state.version === 3) return third.advance(state as third.State, minutes);
-  if (state.version === 4) return fourth.advance(state as fourth.State, minutes);
+  if (state.version !== 6) throw new Error('Keep the original saved game and start a new game.');
   snapshots.delete(state);
   const s = sim(state);
   if (Number.isFinite(minutes) && minutes > 0) runTo(s, s.now + minutes, true);
@@ -879,10 +865,7 @@ function choiceReply(s: Sim, sc: SceneView, choice: string, cashBefore: number):
   );
 }
 function applyInternal(state: State, input: Input): State {
-  if (state.version === 1) return legacy.apply(state as legacy.State, input as legacy.Input);
-  if (state.version === 2) return previous.apply(state as previous.State, input as previous.Input);
-  if (state.version === 3) return third.apply(state as third.State, input as third.Input);
-  if (state.version === 4) return fourth.apply(state as fourth.State, input as fourth.Input);
+  if (state.version !== 6) throw new Error('Keep the original saved game and start a new game.');
   if (input.type === 'pause-cast' || input.type === 'resume-cast') {
     state.castPauseRequested = input.type === 'pause-cast';
     state.castPaused = state.castPauseRequested && Object.keys(CAST).every((k) => !state.people[k]?.activity);
@@ -1723,10 +1706,7 @@ function applyInput(state: State, input: Input): State {
   return s;
 }
 export function view(state: State): View {
-  if (state.version === 1) return legacy.view(state as legacy.State);
-  if (state.version === 2) return previous.view(state as previous.State);
-  if (state.version === 3) return third.view(state as third.State);
-  if (state.version === 4) return fourth.view(state as fourth.State);
+  if (state.version !== 6) throw new Error('Keep the original saved game and start a new game.');
   const cached = snapshots.get(state);
   if (cached) return cached;
   const s = sim(state);
@@ -1988,14 +1968,7 @@ export function replay(
   admissions: GuestAdmission[] = [],
   chapter?: AgencyChapter,
 ): State {
-  if (version === 1) return legacy.replay(seed, inputs as legacy.LoggedInput[], until);
-  if (version === 2) return previous.replay(seed, inputs as previous.LoggedInput[], until);
-  if (version === 3) return third.replay(seed, inputs as third.LoggedInput[], until);
-  if (version === 4) return fourth.replay(seed, inputs as fourth.LoggedInput[], until);
-  if (version === 5)
-    throw new Error(
-      'This saved game uses an older cast. Start a new game. You can keep the exported file to read later.',
-    );
+  if (version !== 6) throw new Error('Keep the original saved game and start a new game.');
   const s = sim(newGame(seed, version, admissions, chapter));
   for (const entry of inputs) {
     if (entry.at > until) break;
@@ -3690,7 +3663,7 @@ function householdReply(s: Sim, sc: SceneView, family: string, member: string, t
 }
 
 export function advance(state: State, minutes: number): State {
-  if (state.version <= 4) return advanceInternal(state, minutes);
+  if (state.version !== 6) throw new Error('Keep the original saved game and start a new game.');
   bindFramework(state);
   try {
     return advanceInternal(state, minutes);
@@ -3699,7 +3672,7 @@ export function advance(state: State, minutes: number): State {
   }
 }
 export function apply(state: State, input: Input): State {
-  if (state.version <= 4) return applyInternal(state, input);
+  if (state.version !== 6) throw new Error('Keep the original saved game and start a new game.');
   bindFramework(state);
   try {
     return applyInternal(state, input);

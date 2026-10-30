@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'vitest';
 import { MONTH_END, type Policy, runPolicy } from '../scripts/policy.ts';
-import { fingerprint, replay, view } from '../src/sim/index.ts';
+import { fingerprint, replay, view } from '../src/sim/v6/index.ts';
 
 type Outcome = {
   seed: number;
@@ -17,7 +17,7 @@ describe('current simulation month acceptance', { concurrent: false, shuffle: fa
   test.each(seeds.flatMap((seed) => policies.map((policy) => ({ seed, policy }))))(
     '$policy completes and exactly replays seed $seed',
     ({ seed, policy }) => {
-      const state = runPolicy(seed, policy);
+      const state = runPolicy(seed, policy, MONTH_END, 3);
       const visible = view(state);
       expect(state.version).toBe(3);
       expect(visible.ended).toBe(true);

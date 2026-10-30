@@ -2,7 +2,7 @@ import { execFileSync, spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { expect, it } from 'vitest';
 
-it('accepts the phone stage, presence, negotiation, household calls, saves and desktop docking', async () => {
+it('accepts the current office stage, saved opening, menu and desktop docking', async () => {
   const child = spawn(process.execPath, ['scripts/verify-stage.ts', String(48000 + (process.pid % 1000))], {
     cwd: fileURLToPath(new URL('..', import.meta.url)),
     stdio: ['ignore', 'pipe', 'pipe'],
