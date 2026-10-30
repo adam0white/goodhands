@@ -891,6 +891,8 @@ function checkpoint(fork = false, record = false): Promise<void> {
           continue;
         }
         const parent = continuity.heads.find((p) => p.castId === cast.castId);
+        let published = false;
+        let reportedSaved = false;
         try {
           const stamps = agencySource(lab?.build().c || 'development');
           let envelope: PersonaEnvelope;
@@ -948,6 +950,7 @@ function checkpoint(fork = false, record = false): Promise<void> {
               sourceIsCurrent() &&
               !!(await retainSourceArchive(exportRun(pinned, sourceHistory, continuity))),
           });
+          published = true;
           if (!sourceIsCurrent()) return;
           const idx = continuity.heads.findIndex((p) => p.castId === cast.castId);
           if (idx < 0) continuity.heads.push(envelope);
@@ -971,13 +974,27 @@ function checkpoint(fork = false, record = false): Promise<void> {
               ? `${cast.name}’s story has ended and is saved.`
               : `${cast.name}’s story is saved for the next game.`,
           );
+          reportedSaved = true;
           await continuitySession?.recording(continuity);
           save();
         } catch (e) {
-          dispositions.push(`${cast.name}: refused — ${e instanceof Error ? e.message : String(e)}`);
-          playerDispositions.push(
-            `${cast.name}’s story could not be saved for another game this time. Their saved history stays as it was.`,
-          );
+          const reason = e instanceof Error ? e.message : String(e);
+          if (published) {
+            if (!reportedSaved) {
+              dispositions.push(`${cast.name}: published; local record failed — ${reason}`);
+              playerDispositions.push(
+                !person.body.alive
+                  ? `${cast.name}’s story has ended and is saved.`
+                  : `${cast.name}’s story is saved for the next game.`,
+              );
+            } else {
+              dispositions[dispositions.length - 1] += ` Local record failed — ${reason}`;
+            }
+            playerDispositions.push(`${cast.name}: could not update the local record.`);
+          } else {
+            dispositions.push(`${cast.name}: publication outcome unconfirmed — ${reason}`);
+            playerDispositions.push(`${cast.name}’s story: the save result could not be confirmed.`);
+          }
         } finally {
           if (activeGeneration === generation)
             continuityStatus = (labTools ? dispositions : playerDispositions).join('\n');
