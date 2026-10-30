@@ -975,3 +975,32 @@ for (const phase of ['sending', 'acknowledged'] as const)
       await closeFixtureBrowser(browser);
     }
   }, 60_000);
+
+it('shows the named unavailable person in the office after opening and reload', async () => {
+  const browser = await chromium.launch({ channel: process.env.HF_BROWSER_CHANNEL });
+  try {
+    const context = await browser.newContext({ viewport: { width: 360, height: 690 } });
+    await fixture(context, () => false, true);
+    const page = await context.newPage();
+    await page.goto(origin);
+    await page.getByRole('button', { name: 'Open the office', exact: true }).click();
+    await page.getByTestId('office').waitFor({ timeout: 30000 });
+    expect(
+      await page
+        .getByTestId('office')
+        .getByText(/Hülya.*could not enter this month/)
+        .isVisible(),
+    ).toBe(true);
+    await page.reload();
+    await page.getByRole('button', { name: 'Resume', exact: true }).click();
+    await page.getByTestId('office').waitFor({ timeout: 30000 });
+    expect(
+      await page
+        .getByTestId('office')
+        .getByText(/Hülya.*could not enter this month/)
+        .isVisible(),
+    ).toBe(true);
+  } finally {
+    await closeFixtureBrowser(browser);
+  }
+}, 90000);

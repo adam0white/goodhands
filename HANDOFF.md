@@ -1,3 +1,9 @@
+## Reader qualification source follow-through — 2026-10-30
+
+What remains: director acceptance, complete reader qualification and normal delivery gates. This source change is uncommitted and undeployed. Production at df5e3f20e02603e022081422f76811eecacc3bad was tested with isolated synthetic shelf transport; it saved skipped IDs but did not name the omitted people in the ordinary office after opening or reload. The candidate office now names those people in plain language using the persisted IDs and says their saved histories stay unchanged. It does not display raw SDK diagnostics. The focused browser regression failed before the change and passed after it. Existing saves, source ownership and gameplay are unchanged.
+
+The live manifest matched the source SHA and dirty:false, and 15 served non-HTML files matched the prior clean-build receipt. Synthetic fixtures covered two incompatible/occupied heads and an SDK-valid v1 passport, all in the actual seven-ID batch request; candidate and production evidence, full-envelope shelf hashes, CAS and direct write-guard controls, and replay limits are in ~/code/.lab-scratch/games-deferred/resume-goodhands-reader-report.md. This is not a deployed peer journey or SDK reader certificate. Do not infer current deployment of the candidate. Adam's play acceptance and paused panels remain separate.
+
 ## Merged88 fixture repair — 2026-10-29
 
 What remains: root resumes the SAME single Opus assessment on this repair delta, fast-forwards main only after actual clearance and an unchanged88 base, then requires exact new main CI before normal clean deployment and served controls. No new PR or reviewer is requested. The author pushes only the repair backup branch. Adam’s separate feel/readiness acceptance remains2026-11-03.
