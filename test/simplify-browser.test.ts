@@ -856,7 +856,9 @@ for (const denial of ['open', 'capture'] as const) {
       expect(
         await page.getByText('Its people are not shared with other games.', { exact: false }).isVisible(),
       ).toBe(true);
-      expect(await page.getByRole('button', { name: /Publish paused|Pause and prepare/ }).count()).toBe(0);
+      expect(await page.getByRole('button', { name: /Save people’s stories|Pause and save/ }).count()).toBe(
+        0,
+      );
       await page.evaluate(() => dispatchEvent(new Event('pagehide')));
       const retained = await page.evaluate(async () => {
         const store = await (
@@ -963,7 +965,9 @@ for (const phase of ['sending', 'acknowledged'] as const)
       expect(restored.inputs.length).toBeGreaterThan(0);
       expect(restored.continuity.initialClaims).toEqual([]);
       await page.getByRole('button', { name: 'What happens to these people next', exact: true }).click();
-      expect(await page.getByRole('button', { name: /Publish paused|Pause and prepare/ }).count()).toBe(0);
+      expect(await page.getByRole('button', { name: /Save people’s stories|Pause and save/ }).count()).toBe(
+        0,
+      );
       await page.evaluate(() => dispatchEvent(new Event('pagehide')));
       expect(await inspect()).toEqual(original);
       expect(shelf.writes()).toBe(phase === 'sending' ? 1 : 0);
@@ -988,16 +992,23 @@ it('shows the named unavailable person in the office after opening and reload', 
     expect(
       await page
         .getByTestId('office')
-        .getByText(/Hülya.*could not enter this month/)
+        .getByText(/Hülya.*could not come to the office this month/)
         .isVisible(),
     ).toBe(true);
+    expect(await page.locator('.unavailable').getAttribute('role')).toBeNull();
+    await page.locator('[data-action="menu"]').click();
+    await page.getByRole('button', { name: 'What happens to these people next', exact: true }).click();
+    expect(await page.locator('[data-source-status]').innerText()).toContain('Hülya could not come');
+    expect(await page.locator('.sheet-content').innerText()).not.toMatch(
+      /Synthetic unavailable|local cast|shelf|chapter|checkpoint|edition/,
+    );
     await page.reload();
     await page.getByRole('button', { name: 'Resume', exact: true }).click();
     await page.getByTestId('office').waitFor({ timeout: 30000 });
     expect(
       await page
         .getByTestId('office')
-        .getByText(/Hülya.*could not enter this month/)
+        .getByText(/Hülya.*could not come to the office this month/)
         .isVisible(),
     ).toBe(true);
   } finally {

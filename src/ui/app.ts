@@ -26,6 +26,7 @@ import {
   continuityRow,
   emptyContinuity,
 } from './continuity.ts';
+import { continuityError, sourceStatus, unavailablePeople } from './continuity-copy.ts';
 import '@adam0white/lab-kit/stage.css';
 import {
   defineTerms,
@@ -116,6 +117,7 @@ try {
 
 const host = document.querySelector<HTMLDivElement>('#app');
 if (!host) throw new Error('Good Hands needs an app element.');
+const labTools = new URLSearchParams(location.search).get('lab') === '1';
 const root = host;
 const recordingNotice = fileMode
   ? telemetryNotice(undefined, { preservation: 'preserve' })
@@ -704,8 +706,9 @@ async function newMonth(freshLocal = false): Promise<void> {
     await begin(next, [], book, false, () => pageActive, !!pending, startup);
     continuityStatus = chapter.inputs.length
       ? `Loaded ${chapter.inputs.length} people together with their earlier history. Their starting state and ages are saved.`
-      : 'This month starts with a new local cast. Earlier history has not been reset.';
-    if (chapter.skipped?.length) continuityStatus += ` ${chapter.skipped.map((p) => p.reason).join(' ')}`;
+      : 'This month starts with new people. Saved histories from other games stay as they were.';
+    if (chapter.skipped?.length)
+      continuityStatus += ` ${labTools ? chapter.skipped.map((p) => p.reason).join(' ') : unavailablePeople(chapter.skipped)}`;
     lab?.milestone('run started');
   } catch (e) {
     if (isCurrent()) {
@@ -728,10 +731,11 @@ async function newMonth(freshLocal = false): Promise<void> {
     openingMonth = false;
   }
 }
-function errorText(e: unknown): string {
-  return e instanceof Error
-    ? e.message
-    : 'People’s history between games is unavailable. You can still start a new game or load a local file.';
+function errorText(
+  e: unknown,
+  fallback = 'This saved month could not be opened or continued. It has not been deleted. Keep the original and start a new month, or send Feedback from the menu.',
+): string {
+  return continuityError(e, labTools, fallback);
 }
 async function begin(
   next: State | null,
@@ -818,7 +822,7 @@ function checkpoint(fork = false, record = false): Promise<void> {
       save();
     } catch {
       continuityStatus +=
-        '\nThe complete publication report does not fit. Existing source and reports are unchanged. Keep a copy of this run.';
+        '\nThe save report does not fit. Your month and earlier reports stay as they were. Download the complete month.';
     }
   };
   checkpointQueue = checkpointQueue
@@ -828,7 +832,7 @@ function checkpoint(fork = false, record = false): Promise<void> {
       if (!pinned || !sourceIsCurrent()) return;
       if (record && (continuity.publications?.length ?? 0) >= 32) {
         continuityStatus =
-          'This run’s publication reports are full. Download the complete run. No checkpoint was published.';
+          'This month has no room for another save report. Download the complete month. No stories were saved for other games.';
         return;
       }
       if (reservedReport) {
@@ -839,19 +843,19 @@ function checkpoint(fork = false, record = false): Promise<void> {
           });
         } catch {
           continuityStatus =
-            'This source has no room for another complete publication report. No checkpoint was published. Keep the full run.';
+            'This month has no room for another save report. No stories were saved for other games. Download the complete month.';
           return;
         }
       }
       if (!shelf.enabled) {
         continuityStatus =
-          'People across games is off or unavailable. No checkpoint was published. Your source stays here.';
+          'Sharing people between games is off or unavailable. No stories were saved for other games. Your month stays here.';
         report([continuityStatus]);
         return;
       }
       if (continuity.fileOrigin && !fork) {
         continuityStatus =
-          'This file remains a local history. An explicit new branch is required before publishing it.';
+          'People from this file cannot be saved for other games here. Keep the complete file.';
         report([continuityStatus]);
         return;
       }
@@ -866,16 +870,21 @@ function checkpoint(fork = false, record = false): Promise<void> {
       }
       if (!sourceIsCurrent()) return;
       const dispositions: string[] = [];
+      const playerDispositions: string[] = [];
       for (const id of CAST_KEYS) {
         if (!sourceIsCurrent()) return;
         const cast = CAST[id],
           person = pinned.people[id];
         if (continuity.chapter?.skipped?.some((p) => p.castId === cast.castId)) {
           dispositions.push(`${cast.name}: not in this month; saved history unchanged.`);
+          playerDispositions.push(
+            `${cast.name} could not come this month. Their saved history stays as it was.`,
+          );
           continue;
         }
         if (!person) {
           dispositions.push(`${cast.name}: no person in this chapter.`);
+          playerDispositions.push(`${cast.name} is not in this month.`);
           continue;
         }
         const parent = continuity.heads.find((p) => p.castId === cast.castId);
@@ -885,6 +894,9 @@ function checkpoint(fork = false, record = false): Promise<void> {
           if (!person.body.alive) {
             if (!parent) {
               dispositions.push(`${cast.name}: dead, with no owned branch to close.`);
+              playerDispositions.push(
+                `${cast.name}’s story has ended. Their history from other games stays as it was.`,
+              );
               continue;
             }
             envelope = await closePersonaBranch(parent, stamps, person.now);
@@ -951,12 +963,21 @@ function checkpoint(fork = false, record = false): Promise<void> {
           dispositions.push(
             `${cast.name}: published ${envelope.terminal ? 'terminal closure' : 'paused chapter checkpoint'} at person minute ${person.now}, agency minute ${pinned.now}. No receiver acceptance or departure acknowledgment.`,
           );
+          playerDispositions.push(
+            envelope.terminal
+              ? `${cast.name}’s story has ended and is saved.`
+              : `${cast.name}’s story is saved for the next game.`,
+          );
           await continuitySession?.recording(continuity);
           save();
         } catch (e) {
-          dispositions.push(`${cast.name}: refused — ${errorText(e)}`);
+          dispositions.push(`${cast.name}: refused — ${e instanceof Error ? e.message : String(e)}`);
+          playerDispositions.push(
+            `${cast.name}’s story could not be saved for another game this time. Their saved history stays as it was.`,
+          );
         } finally {
-          if (activeGeneration === generation) continuityStatus = dispositions.join('\n');
+          if (activeGeneration === generation)
+            continuityStatus = (labTools ? dispositions : playerDispositions).join('\n');
         }
       }
       report(dispositions);
@@ -966,11 +987,8 @@ function checkpoint(fork = false, record = false): Promise<void> {
 if (!fileMode) watchPersonaCheckpoint(() => checkpoint());
 function shell(v: View): void {
   destroyStage();
-  const unavailable =
-    continuity.chapter?.skipped
-      ?.map((p) => `${CAST[castKey(p.castId)].name} could not enter this month.`)
-      .join(' ') ?? '';
-  root.innerHTML = `<main class="game" data-testid="office">${topbar('<span data-date></span> · <strong data-time></strong>')}${unavailable ? `<p role="status">${h(unavailable)} Their saved histories stay unchanged.</p>` : ''}<div class="state-strip"><span data-money></span><progress class="rent-meter" max="${v.rent.amount}" value="${Math.max(0, v.cash)}" aria-label="Cash towards rent"></progress><span data-rent-due></span><span data-pace></span></div><section class="office-front" aria-label="The office"><div class="room lk-scene"><canvas id="office" role="img" aria-label="Nermin’s desk, telephone, window and the waiting bench"></canvas><div class="seat-targets"></div><div class="city-map" hidden><canvas id="city" role="img" aria-label="Izmir across the bay"></canvas><div class="city-targets"></div></div></div><p class="scene-status" data-status role="status"></p><p data-city-person class="city-person"></p><div class="phone-strip" hidden><button class="phone-control" type="button" data-action="phone"></button><p id="phone-reason" class="phone-reason reason"></p></div><button class="city-toggle" type="button" data-action="city">City</button></section><div class="caption-row"><button class="task now" type="button" aria-label="Task" data-testid="task" data-action="task"><span></span></button><button type="button" data-action="wait-for" aria-label="Skip to the next event" class="until-event"></button></div><section class="desk-sheet lk-sheet" data-content aria-label="Nermin’s desk"></section></main>`;
+  const unavailable = unavailablePeople(continuity.chapter?.skipped);
+  root.innerHTML = `<main class="game" data-testid="office">${topbar('<span data-date></span> · <strong data-time></strong>')}${unavailable ? `<p class="unavailable">${h(unavailable)}</p>` : ''}<div class="state-strip"><span data-money></span><progress class="rent-meter" max="${v.rent.amount}" value="${Math.max(0, v.cash)}" aria-label="Cash towards rent"></progress><span data-rent-due></span><span data-pace></span></div><section class="office-front" aria-label="The office"><div class="room lk-scene"><canvas id="office" role="img" aria-label="Nermin’s desk, telephone, window and the waiting bench"></canvas><div class="seat-targets"></div><div class="city-map" hidden><canvas id="city" role="img" aria-label="Izmir across the bay"></canvas><div class="city-targets"></div></div></div><p class="scene-status" data-status role="status"></p><p data-city-person class="city-person"></p><div class="phone-strip" hidden><button class="phone-control" type="button" data-action="phone"></button><p id="phone-reason" class="phone-reason reason"></p></div><button class="city-toggle" type="button" data-action="city">City</button></section><div class="caption-row"><button class="task now" type="button" aria-label="Task" data-testid="task" data-action="task"><span></span></button><button type="button" data-action="wait-for" aria-label="Skip to the next event" class="until-event"></button></div><section class="desk-sheet lk-sheet" data-content aria-label="Nermin’s desk"></section></main>`;
   const game = root.querySelector<HTMLElement>('.game');
   if (game) {
     let previousBounds = '';
@@ -1579,11 +1597,11 @@ function sourceOffer(): void {
   if (modal === 'source') closeSheet(false);
   const d = openSheet(
     'People after this month',
-    `<p>This agency source is at ${h(current().dateLabel)} · ${h(current().timeLabel)}.</p>
-    <p>Preparing a checkpoint records a pause. The agency clock stops after current activities finish. Jobs, promises and unpaid duties remain. Each person may refuse publication.</p>
-    <p>The complete month is saved in this browser before publication. Keep Download this run before starting another month, which replaces the browser save. The shelf receives a supported snapshot. Publication does not mean anyone has departed, arrived or been accepted by another game.</p>
-    <p>${h(continuity.fileOrigin ? 'This imported history cannot publish as an owned source. Keep its complete file.' : state.castPaused ? 'The source is paused.' : state.castPauseRequested ? 'Waiting for current activities to finish. Return to play, then check here again.' : 'The source has not been paused.')}</p>
-    <div data-source-status role="status">${h(continuityStatus || continuity.publications?.at(-1)?.results.join('\n') || '')}</div>
+    `<p>This month is at ${h(current().dateLabel)} · ${h(current().timeLabel)}.</p>
+    <p>Saving people’s stories pauses the month. The agency clock stops after current activities finish. Jobs, promises and unpaid duties remain. Some people may not be ready to continue in another game.</p>
+    <p>The complete month is saved in this browser first. Use Download this run before starting another month, which replaces the browser save. Each person’s story is then saved for other games. Saving does not move anyone to another game. That game will check whether they can join.</p>
+    <p>${h(continuity.fileOrigin ? 'People from this file cannot be saved for other games here. Keep the complete file.' : state.castPaused ? 'The month is paused.' : state.castPauseRequested ? 'Waiting for current activities to finish. Return to play, then check here again.' : 'The month has not been paused.')}</p>
+    <div data-source-status role="status">${h(sourceStatus(continuityStatus, continuity.publications?.at(-1)?.results, labTools) || unavailablePeople(continuity.chapter?.skipped))}</div>
     <a href="https://human.adamwhite.work/lab/people/" target="_top">${PEOPLE_ACROSS_GAMES}</a>
     <button type="button" data-action="download">Download this run</button>`,
     'source',
@@ -1602,7 +1620,7 @@ function sourceOffer(): void {
     candidates(current()).some((c) => c.id === 'aylin')
   ) {
     const p = document.createElement('p');
-    p.textContent = 'Checking Aylin’s current shelf head…';
+    p.textContent = 'Checking Aylin’s saved story…';
     content?.append(p);
     const offerGeneration = generation;
     const offerMinute = state.now,
@@ -1634,7 +1652,7 @@ function sourceOffer(): void {
     updateInspection = () => {
       if (d.isConnected && !offerIsCurrent())
         p.textContent =
-          'This source checkpoint changed. No continuation is offered from the earlier receipt.';
+          'This month has changed since Aylin’s story was saved. Save it again before continuing in another game.';
     };
     void (async () => {
       try {
@@ -1653,11 +1671,11 @@ function sourceOffer(): void {
         }
         if (!currentHead || currentHead.revision !== head.revision || currentHead.terminal) {
           p.textContent =
-            'Aylin’s shelf head no longer matches this source checkpoint. No continuation is offered from this receipt.';
+            'Aylin’s saved story has changed since this month was saved. Continuing in Murmur is not available from here.';
           return;
         }
         p.innerHTML =
-          'Aylin’s current shelf head matches this source checkpoint. <a href="https://murmur.adamwhite.work" target="_top">Check Aylin’s continuation in Murmur</a>. Start a new week there to request its automatic admission check. An existing week stays its own edition. Murmur checks the actual head again and may refuse its skills or duties. No departure or receiver acceptance has been acknowledged here.';
+          'Aylin’s story is saved. <a href="https://murmur.adamwhite.work" target="_top">Check Aylin’s continuation in Murmur</a>. Start a new week there to see whether she can join. A week already in progress stays as it was. Murmur may be unable to continue her skills or duties. She has not left this month or joined Murmur yet.';
         p.querySelector('a')?.addEventListener('click', (event) => {
           if (!offerIsCurrent()) {
             event.preventDefault();
@@ -1667,16 +1685,16 @@ function sourceOffer(): void {
       } catch {
         if (offerIsCurrent())
           p.textContent =
-            'Aylin’s current shelf head could not be checked. No continuation is offered from this receipt.';
+            'Aylin’s saved story could not be checked. Continuing in Murmur is not available from here.';
       }
     })();
   }
   if (!continuity.fileOrigin)
     content?.append(
-      button(state.castPaused ? 'Publish paused checkpoints' : 'Pause and prepare checkpoints', () => {
+      button(state.castPaused ? 'Save people’s stories' : 'Pause and save people’s stories', () => {
         if (!pageActive || state !== pinned) return;
         if ((continuity.publications?.length ?? 0) >= 32) {
-          continuityStatus = 'This run’s publication reports are full. Download the complete run.';
+          continuityStatus = 'This month has no room for another save report. Download the complete month.';
           sourceOffer();
           return;
         }
@@ -1694,8 +1712,7 @@ function sourceOffer(): void {
             ],
           });
         } catch {
-          continuityStatus =
-            'This source has no room for another complete publication report. Keep the full run.';
+          continuityStatus = 'This month has no room for another save report. Download the complete month.';
           sourceOffer();
           return;
         }
@@ -2049,7 +2066,7 @@ function importArchive(): void {
           if (!currentSelection()) return;
           archiveWorker = null;
           if (!event.data.ok || !event.data.run) {
-            status.textContent = event.data.error ?? 'Archive verification failed.';
+            status.textContent = errorText(new Error(event.data.error ?? 'Archive verification failed.'));
             choose.disabled = false;
             return;
           }
@@ -2142,7 +2159,7 @@ function importFile(): void {
     } catch (e) {
       if (selection !== fileSelection || !pageActive) return;
       const line = sheet?.querySelector('.sheet-status');
-      if (line) line.textContent = e instanceof Error ? e.message : 'This run could not be imported.';
+      if (line) line.textContent = errorText(e);
     }
   };
   file.click();
