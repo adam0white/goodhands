@@ -445,7 +445,10 @@ function title(): void {
                 recoveryGeneration,
               );
             } catch (error) {
-              recovery.textContent = errorText(error);
+              recovery.textContent = errorText(
+                error,
+                'This month could not resume. Your saved month is unchanged. Download the accepted month to keep it separately.',
+              );
             }
           })();
         }),

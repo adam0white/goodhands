@@ -81,7 +81,14 @@ async function fixtureReload(page: Page) {
 const origin = 'https://goodhands.adamwhite.work';
 beforeAll(async () => {
   server = await createServer({
-    optimizeDeps: { exclude: ['@adam0white/lab-client'] },
+    // Keep the reader-certification fixture injectable while bundling its large HF dependencies.
+    optimizeDeps: {
+      exclude: ['@adam0white/lab-client'],
+      include: [
+        '@adam0white/human-framework/portable',
+        '@adam0white/lab-client-legacy3 > @adam0white/human-framework',
+      ],
+    },
     plugins: [
       {
         name: 'synthetic-transport-diagnostics',
@@ -928,9 +935,12 @@ for (const phase of ['sending', 'acknowledged'] as const)
       else {
         await page.getByRole('button', { name: 'Resume the accepted month', exact: true }).click();
         await page
-          .getByText('Your saved month changed. Download the accepted month to keep it separately.', {
-            exact: true,
-          })
+          .getByText(
+            'This month could not resume. Your saved month is unchanged. Download the accepted month to keep it separately.',
+            {
+              exact: true,
+            },
+          )
           .waitFor();
       }
       const inspect = () =>
