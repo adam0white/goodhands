@@ -80,6 +80,7 @@ import {
   feeLedgerFor,
   feeWords,
   isInspecting,
+  keptContacts,
   matchingReason,
   money,
   monthTally,
@@ -87,6 +88,7 @@ import {
   noteSource,
   noteText,
   OPEN_OFFICE,
+  paceSettingWords,
   personName,
   phoneAvailability,
   placementDeadline,
@@ -1076,7 +1078,7 @@ function paceWords(v: View): string {
   }
   if ((sheet || (tab === 'Bench' && selected !== null)) && v.bench[0])
     return `${v.bench[0].name} is waiting while you read.`;
-  return '';
+  return v.ended ? '' : paceSettingWords(paceChoice);
 }
 function updateClock(v: View): void {
   const text = (selector: string, value: string) => {
@@ -1276,10 +1278,15 @@ function selectCandidate(id: string): void {
   }
   render(true);
 }
+/** One kept number with where that person is now. */
+function keptWords(c: CandidateView): string {
+  if (c.status === 'gone') return `${c.name} · left without leaving a number`;
+  return `${c.name} · ${c.busy ?? (c.arrival ? `coming ${c.arrival.dateLabel}` : c.presence === 'home' ? 'at home' : c.status)}`;
+}
 function benchHtml(v: View): string {
   const c = candidate(v);
   if (!c)
-    return `<nav class="bench-strip" aria-label="Waiting bench" data-testid="bench">${v.bench.map((p) => `<button type="button" data-candidate="${h(p.id)}" aria-label="${h(p.name)}" aria-pressed="false">${p.posture === 'leaving' ? '◌' : p.posture === 'restless' ? '◐' : '●'} ${h(p.name)}</button>`).join('')}</nav><div class="empty-card"><h1>Nermin’s desk</h1><p>Choose an applicant on the bench to open the application card.</p>${v.books.length ? `<div class="book-list">${v.books.map((c) => `<button type="button" data-candidate="${h(c.id)}">${h(c.name)} · ${h(c.busy ?? (c.arrival ? `coming ${c.arrival.dateLabel}` : c.presence === 'home' ? 'at home' : c.status))}</button>`).join('')}</div>` : ''}</div>`;
+    return `<nav class="bench-strip" aria-label="Waiting bench" data-testid="bench">${v.bench.map((p) => `<button type="button" data-candidate="${h(p.id)}" aria-label="${h(p.name)}" aria-pressed="false">${p.posture === 'leaving' ? '◌' : p.posture === 'restless' ? '◐' : '●'} ${h(p.name)}</button>`).join('')}</nav><div class="empty-card"><h1>Nermin’s desk</h1><p>Choose an applicant on the bench to open the application card.</p>${v.books.length ? `<div class="book-list">${v.books.map((c) => `<button type="button" data-candidate="${h(c.id)}">${h(keptWords(c))}</button>`).join('')}</div>` : ''}</div>`;
   const unavailable =
     candidateAvailability(c) ?? (!v.open ? 'The office is closed. Sleep to open tomorrow.' : undefined);
   const interviewLimit =
@@ -1299,8 +1306,14 @@ function benchHtml(v: View): string {
     '',
   )}</div><h3>Experience</h3>${c.experience.length ? c.experience.map((e) => `<p>${h(e)}</p>`).join('') : '<p>This applicant has not told you yet.</p>'}<h3>Former employers</h3>${c.referees.map((r) => `<p>${h(r.name)} · ${r.reachable ? 'reachable' : h(r.why ?? 'You cannot reach this person now. Try later.')}${r.called ? ' · already called' : ''}</p>`).join('') || '<p>You have no former employer to call yet. Ask during the interview.</p>'}</details><button type="button" data-action="all-cards">Agency records</button></article>`;
   const chips = `<nav class="bench-strip" aria-label="Waiting bench" data-testid="bench">${v.bench.map((p) => `<button type="button" data-candidate="${h(p.id)}" aria-label="${h(p.name)}" aria-pressed="${selected === p.id}">${p.posture === 'leaving' ? '◌' : p.posture === 'restless' ? '◐' : '●'} ${h(p.name)}</button>`).join('')}</nav>`;
+  // The kept numbers stay reachable beside an open card; choosing one changes the card, as it does with no card open.
+  const keptNow = keptContacts(v.books);
+  const kept = keptNow.length
+    ? `<nav class="bench-strip kept-strip" aria-label="Numbers you kept">${keptNow.map((p) => `<button type="button" data-candidate="${h(p.id)}" aria-pressed="${selected === p.id}">${h(keptWords(p))}</button>`).join('')}</nav>`
+    : '';
   return (
     chips +
+    kept +
     card
       .replace('<details class="notes-details"><summary>', '<section class="notes-details"><h3>')
       .replace('</summary><div class="card-notes">', '</h3><div class="card-notes">')

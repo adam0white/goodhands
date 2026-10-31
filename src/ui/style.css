@@ -435,6 +435,10 @@ canvas {
   flex: 1;
   font-size: clamp(14px, 1.15vw + 6px, 18px);
 }
+.kept-strip button {
+  flex: 0 1 auto;
+  font-size: clamp(12px, 1vw + 5px, 15px);
+}
 .bench-strip:empty {
   display: none;
 }

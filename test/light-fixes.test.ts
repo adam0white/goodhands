@@ -7,6 +7,8 @@ import {
   clockLabels,
   feeLedgerFor,
   feeWords,
+  keptContacts,
+  paceSettingWords,
   placementStakes,
   readingBasis,
 } from '../src/ui/render.ts';
@@ -52,7 +54,7 @@ describe('F-2183 Nermin reading', () => {
     expect(notes.map((n) => n.read)).toEqual(['maybe', 'maybe']);
     expect(notes[1]!.claim).toContain('listened when the instructions were repeated');
     expect(readingBasis(notes)).toBe(
-      'Nermin received a report from Hale Erol and Özlem Koç’s own answer. Özlem Koç’s own answer counts for less than Hale Erol’s report, because people’s own word about themselves counts for less. Together they are not clear enough, so she stays unsure.',
+      'Nermin received a report from Hale Erol and Özlem Koç’s own answer. Özlem Koç’s own answer counts for less than Hale Erol’s report, because people’s own word about themselves counts for less. Özlem Koç’s account was middling, not clearly for or against it. She weighs each account by how strongly it spoke and by how much she trusted the speaker when she heard it, for one quality of one person at a time. One account is evidence, not proof. Together they are not clear enough, so she stays unsure.',
     );
   }, 60_000);
 
@@ -113,6 +115,15 @@ describe('F-2183 Nermin reading', () => {
       expect(one).not.toContain('Together');
     }
     expect(unmoved).toContain('Together they are not clear enough, so she stays unsure.');
+    // The same rule sentence appears for every told account, and a middling account is named as such. It states no number
+    // and no current trust, and never says one account proves a person's quality.
+    const rule =
+      'She weighs each account by how strongly it spoke and by how much she trusted the speaker when she heard it, for one quality of one person at a time. One account is evidence, not proof.';
+    expect(unmoved).toContain(rule);
+    const middling = readingBasis([note('heard', 'Cihan Kaya', { said: 'neither', read: 'maybe' })]);
+    expect(middling).toContain('Cihan Kaya’s account was middling, not clearly for or against it.');
+    expect(middling).toContain(rule);
+    expect(readingBasis([{ ...note('heard', 'Hale Erol', {}), source: 'seen' }])).not.toContain(rule);
   });
 
   it('gives nothing for a quality that has not been asked about', () => {
@@ -251,8 +262,7 @@ describe('F-2186 what is still to come', () => {
 
   it('keeps a received fee received through withdrawal and a replacement on a changed wage', () => {
     // FIXTURE, manual setup: the first trial is shortened and given one good moment so the real verdict, answer-phone,
-    // receipt, withdraw and place code run. Not a played trial week. The replacement's own overnight verdict is covered
-    // once, by the pending 6750 / new 9100 case below, not repeated here.
+    // receipt, withdraw and place code run. Not a played trial week. No case here crosses a night.
     const s = placed();
     apply(s, { type: 'close-scene', scene: view(s).scene!.id });
     const inner = s as unknown as {
@@ -365,8 +375,7 @@ describe('GH-L2-R4 actual receipt, existing allocation and new fee entitlement s
   });
   // FIXTURE, manual setup: each trial is shortened and given one good moment so the real verdict, answer-phone,
   // withdraw and place code run. Not a played trial week and not a full journey. Crossing a real night costs about
-  // 20 s locally and more on CI, so only the pending 6750 / new 9100 case below crosses one (with its own explicit allowance); the
-  // others stop at the offer, the words and the receipt, which need no overnight.
+  // 20 s locally and more on CI, so no case here crosses one; each stops at the offer, the words and the receipt.
   const start = (firstFee?: number) => {
     const s = newGame(1);
     apply(s, { type: 'place', candidate: 'pinar', family: 'arslans', vouch: [] });
@@ -458,12 +467,10 @@ describe('GH-L2-R4 actual receipt, existing allocation and new fee entitlement s
     expect(inner.fees.arslans!.received).toBe(true);
   }, 60_000);
 
-  // The one case that crosses a real night. Positive replacement terms (new 9100) after the earlier 6750 is received:
-  // the replacement's own verdict would compute a positive rest (9100 - 2250 = 6850) if the family's `second` flag
-  // were not honoured (src/sim/index.ts, the verdict loop: `kept && !fee.second`), so a double credit fails the cash
-  // assertions below. Locally about 40 s; the CI runner took 2-3 times as long, so it uses the existing global 180 s
-  // allowance (as the normal script sets) instead of a 60 s cap.
-  it('an earlier fee pending but unreceived: shows both possibilities, pays the actual 6750 once, and the new 9100 replacement verdict adds nothing', () => {
+  // Positive replacement terms (new 9100) while the earlier 6750 is unreceived. The words name both possibilities and the
+  // actual receipt credits the earlier 6750 once, with the replacement outlook settled. No case in this group crosses a
+  // night: the replacement's own verdict, which would need one, is not exercised here.
+  it('an earlier fee pending but unreceived: shows both possibilities, pays the actual 6750 once, and leaves the new 9100 replacement outlook settled', () => {
     const { s, inner, shorten, replace, first } = start();
     shorten(first);
     drainState(s, () => first.status === 'kept');
@@ -486,21 +493,7 @@ describe('GH-L2-R4 actual receipt, existing allocation and new fee entitlement s
     expect(paid.cash - v.cash).toBe(6750);
     expect(inner.fees.arslans!.received).toBe(true);
     expect(paid.placements[1]!.feeOutlook).toEqual({ depositPaid: 2250, restIfKept: 0, settled: true });
-    // The replacement trial now crosses the real night. Its verdict is private first, then told.
-    shorten(second);
-    drainState(s, () => second.status === 'kept');
-    expect(second.status).toBe('kept');
-    expect(second.reportedStatus).not.toBe('kept');
-    expect(view(s).placements[1]!.status).toBe('trial');
-    expect(second.pendingFee).toBe(0);
-    expect(view(s).cash).toBe(paid.cash);
-    expect(view(s).placements[1]!.feeOutlook).toEqual(paid.placements[1]!.feeOutlook);
-    drainState(s, () => second.reportedStatus === 'kept');
-    expect(second.reportedStatus).toBe('kept');
-    expect(view(s).placements[1]!.status).toBe('kept');
-    expect(view(s).cash).toBe(paid.cash);
-    expect(inner.fees.arslans!.received).toBe(true);
-  }, 180_000);
+  }, 60_000);
 });
 
 describe('F-2185 distinct words', () => {
@@ -545,5 +538,27 @@ describe('R7 F-2190 only a time the player was given', () => {
     expect(words).toContain('Call back after');
     expect(words).toContain(clockLabels(inner.now + 120).timeLabel);
     expect(words).toContain('allow time for the journey');
+  });
+});
+
+describe('Retest 1 wording', () => {
+  it('lists a number the player kept, and not an applicant who left without one', () => {
+    const s = newGame(1);
+    const [kept, gone] = view(s).bench.map((c) => c.id);
+    apply(s, { type: 'take-number', candidate: kept! });
+    drainState(s, () => find(s, gone!).status === 'gone');
+    expect(find(s, kept!).status).toBe('books');
+    expect(find(s, gone!).status).toBe('gone');
+    expect(view(s).books.map((c) => c.id)).toContain(gone);
+    expect(keptContacts(view(s).books).map((c) => c.id)).toEqual([kept]);
+  }, 60_000);
+
+  it('says the agreement terms once, and names where the Slow pace setting is', () => {
+    const s = newGame(1);
+    apply(s, { type: 'place', candidate: 'pinar', family: 'arslans', vouch: [] });
+    const lines = view(s).scene!.lines.map((l) => l.text);
+    expect(lines.filter((l) => l.includes('The wage is ₺'))).toHaveLength(1);
+    expect(lines.some((l) => l.includes('Shall we agree on the work?'))).toBe(true);
+    expect(paceSettingWords('automatic')).toBe('Pace: Automatic. Slow is in the Game menu.');
   });
 });

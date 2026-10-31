@@ -90,7 +90,11 @@ export function referenceChoices(ref: Referee, asked: string[]): SceneChoice[] {
     { id: 'ref-patient', label: 'Ask about patience', hint: 'Ask for an example.' },
     { id: 'ref-honest', label: 'Ask about money and honesty' },
     { id: 'ref-reliable', label: 'Ask about keeping arrangements' },
-    { id: 'ref-leaving', label: 'Ask why the job ended' },
+    {
+      id: 'ref-leaving',
+      label: 'Ask how the job ended',
+      hint: 'The answer is about the handover of the work, not the worker’s reason for leaving.',
+    },
     { id: 'ref-return', label: 'Ask whether the employer would hire again' },
     {
       id: 'distrust',

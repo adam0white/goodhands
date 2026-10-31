@@ -42,7 +42,9 @@ it('requires an actual encounter before a private conversation and replays the c
   apply(s, { type: 'cast-talk', person: 'nermin', choice: 'invite' });
   expect(view(s).castContacts?.find((c) => c.id === 'nermin')?.text).toContain('unpaid nights');
   apply(s, { type: 'cast-talk', person: 'nermin', choice: 'respect' });
-  expect(view(s).log.at(-1)?.text).toContain('She has not sent the letter or paid anything yet.');
+  expect(view(s).log.at(-1)?.text).toContain(
+    'She keeps the draft. This game has no step that sends the letter or makes a payment, so nothing has been sent or paid.',
+  );
   for (const run of [exportRun(s, s.inputs), compactRun(exportRun(s, s.inputs))]) {
     const loaded = verifyImport(JSON.stringify(run));
     expect(fingerprint(loaded.state)).toBe(fingerprint(s));
