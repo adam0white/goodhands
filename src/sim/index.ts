@@ -307,13 +307,13 @@ function synthesize(s: Sim, candidate: string, q: Quality): Note['read'] {
 }
 /** What the player can actually do now, using the same checks the call-in and check-in inputs apply. */
 function nextActionWords(s: Sim, benchWaiting: boolean): string {
-  if (benchWaiting) return 'Wait or meet someone on your bench.';
   const kept = Object.entries(s.cards).find(
     ([id, c]) => c.met && c.status === 'books' && c.introduced && !c.arrivalAt && !unavailable(s, id),
   )?.[0];
   const checkTimes = s.placements.filter(active).map((p) => p.checkInAt ?? firstWorkDay(p) * DAY + 1100);
   const canCheck = checkTimes.some((at) => s.now >= at);
   const actions = [
+    benchWaiting ? 'meet someone on your bench' : '',
     kept ? `call ${name(kept)} in from the numbers you kept` : '',
     canCheck ? 'check in by phone on a placed worker' : '',
   ].filter(Boolean);
@@ -321,6 +321,7 @@ function nextActionWords(s: Sim, benchWaiting: boolean): string {
     checkTimes.length && !canCheck
       ? ` You can first check in by phone on a placed worker at ${label(Math.min(...checkTimes))}.`
       : '';
+  if (benchWaiting && actions.length === 1 && !later) return 'Wait or meet someone on your bench.';
   return `${actions.length ? `Wait, or ${actions.join(', or ')}.` : 'Wait.'}${later}`;
 }
 /**
@@ -1653,7 +1654,7 @@ function applyInput(state: State, input: Input): State {
         'negotiation',
         c.id,
         `${c.name} and ${f.name}: an agreement`,
-        `Shall we agree on the work? ${termsWords(terms)}`,
+        'Shall we agree on the work?',
         [],
       );
       sc.lines[0]!.speaker = 'Nermin';

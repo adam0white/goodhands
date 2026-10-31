@@ -145,6 +145,15 @@ export function automaticPace(v: View, inspecting = false): number {
   if (v.slowed || (inspecting && v.bench.length > 0)) return 0.5;
   return v.bench.length ? 2 : 20;
 }
+/** Numbers the player actually kept. Applicants who left without one stay in the agency records, not here. */
+export function keptContacts<T extends Pick<CandidateView, 'status'>>(books: T[]): T[] {
+  return books.filter((c) => c.status === 'books');
+}
+
+/** Where the pace setting lives, so a player who feels rushed can find Slow. Words only; the pace itself is unchanged. */
+export function paceSettingWords(choice: 'automatic' | 'slow' | 'steady' | 'fast'): string {
+  return `Pace: ${choice[0]!.toUpperCase()}${choice.slice(1)}. Slow is in the Game menu.`;
+}
 export function canWait(v: View): boolean {
   return !!v.next && !v.slowed && automaticPace(v) > 0;
 }
@@ -240,6 +249,7 @@ export function readingBasis(notes: Note[]): string {
   ].filter(Boolean);
   const told = notes.filter((n) => n.source !== 'seen');
   const unmoved = told.filter((n) => n.moved === false);
+  const middling = told.filter((n) => n.said === 'neither');
   const well = notes.filter((n) => n.said === 'well');
   const badly = notes.filter((n) => n.said === 'badly');
   const more = notes.find((n) => n.weighs === 'more');
@@ -278,8 +288,16 @@ export function readingBasis(notes: Note[]): string {
       : notes.length === 1 && told.length === 1
         ? 'This is one report from one person.'
         : '',
+    middling.length
+      ? `${names(middling)}’s ${middling.length === 1 ? 'account was' : 'accounts were'} middling, not clearly for or against it.`
+      : '',
     notes.some((n) => n.crossedOut)
       ? 'A crossed-out line stays in her record. A later account changed the reading.'
+      : '',
+    // The same rule every time: what an account amounts to depends on how strongly it spoke and on the trust recorded
+    // when it was heard, for one quality of one person. One account is evidence, not proof.
+    told.length
+      ? 'She weighs each account by how strongly it spoke and by how much she trusted the speaker when she heard it, for one quality of one person at a time. One account is evidence, not proof.'
       : '',
     outcome,
   ]
