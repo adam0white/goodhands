@@ -71,26 +71,36 @@ import type { ReceivingJournal } from './receiving.ts';
 import {
   addedEvidence,
   automaticPace,
+  awayWords,
   candidateAvailability,
   canWait,
   clockLabels,
   escapeHtml,
   evidence,
+  feeLedgerFor,
+  feeWords,
+  isInspecting,
   matchingReason,
   money,
   monthTally,
   nextOpenWeekday,
   noteSource,
   noteText,
+  OPEN_OFFICE,
   personName,
   phoneAvailability,
   placementDeadline,
   placementDepositWords,
   placementLabel,
+  placementStakes,
   placementTiming,
+  readingBasis,
   referenceReason,
   requestGroups,
   resumeLine,
+  settleOpening,
+  showsWaitingLook,
+  startOpening,
   vouchLabel,
 } from './render.ts';
 import { resumeForPlay } from './resume.ts';
@@ -483,16 +493,19 @@ function title(): void {
         actions?.append(confirm);
       }),
     );
-  } else if (!receiving)
-    actions?.append(
-      button(
-        'Open the office',
-        () => {
-          void newMonth();
-        },
-        'primary',
-      ),
+  } else if (!receiving) {
+    const open = button(
+      OPEN_OFFICE,
+      () => {
+        // Preparing the month takes a moment. Say so at once, so a second tap is not needed.
+        startOpening(open, !fileMode && !!shelf && !openingMonth);
+        // A failed or abandoned startup gives the retry back. A newer startup keeps its own state.
+        void newMonth().finally(() => settleOpening(open, openingMonth));
+      },
+      'primary',
     );
+    actions?.append(open);
+  }
   const credit = document.createElement('p');
   credit.className = 'credit';
   credit.textContent = 'People by the Human Framework';
@@ -1040,7 +1053,7 @@ function shell(v: View): void {
 }
 function pace(v: View): number {
   if (overlay || modal === 'menu' || modal === 'feedback' || waitActive()) return 0;
-  const inspecting = !!sheet || (tab === 'Bench' && selected !== null);
+  const inspecting = isInspecting({ sheet: !!sheet, tab, selected, city });
   const automatic = automaticPace(v, inspecting);
   if (automatic <= 0.5 || (inspecting && v.bench.length)) return automatic;
   return paceChoice === 'automatic' ? automatic : { slow: 0.5, steady: 2, fast: 20 }[paceChoice];
@@ -1270,17 +1283,17 @@ function benchHtml(v: View): string {
   const unavailable =
     candidateAvailability(c) ?? (!v.open ? 'The office is closed. Sleep to open tomorrow.' : undefined);
   const interviewLimit =
-    c.interviewUnavailable ??
+    awayWords(c) ??
     (c.interviewAfter
       ? `Call ${c.name} back after ${clockLabels(c.interviewAfter).dateLabel}, ${clockLabels(c.interviewAfter).timeLabel}.`
       : undefined);
   const reason =
     unavailable || interviewLimit ? `<p class="reason">${h(unavailable ?? interviewLimit ?? '')}</p>` : '';
-  const card = `<article class="candidate-card"><div class="card-heading"><h2>${h(c.name)}</h2><span>${h(c.roles.join(' / '))}</span></div>${c.presence === 'home' && c.look === WAITING_LOOK ? '' : `<p class="look">${h(c.look)}</p>`}${c.arrival ? `<p>${h(c.name)} is coming · ${h(c.arrival.dateLabel)}</p>` : ''}${(state?.version ?? 0) < 3 ? '<p class="reason">This month uses earlier rules. Start a new month for office visits and negotiated placements.</p>' : ''}<div class="candidate-actions">${(state?.version ?? 0) >= 3 && c.presence === 'home' ? action('Call in to the office', 'call-in', unavailable, 'The journey takes time.') : action('Interview', 'interview', unavailable ?? interviewLimit, 'This takes about 30 minutes.')}${action((state?.version ?? 0) >= 3 ? 'Negotiate placement' : 'Place', 'place', unavailable, (state?.version ?? 0) >= 3 ? 'Agree on the terms with both sides.' : 'Choose which qualities to promise.')}${action('Call a reference', 'references', unavailable, 'This takes about 15 minutes.')}${action('Send for a trial', 'trial', unavailable, 'The applicant will spend the next morning with the family.')}${action('Keep the phone number', 'take-number', unavailable ?? (c.status !== 'bench' ? 'You already have this applicant’s number.' : undefined), 'This takes 2 minutes. The applicant goes home, and you keep the phone number.')}</div>${reason}${c.wants ? `<p class="candidate-wants handwritten">Needs: ${h(c.wants)}</p>` : ''}<details class="notes-details"><summary>Nermin’s notes · ${c.wage === null ? 'Wage not yet asked' : `${money(c.wage)} a month`}</summary><div class="card-notes">${QUALITIES.map(
+  const card = `<article class="candidate-card"><div class="card-heading"><h2>${h(c.name)}</h2><span>${h(c.roles.join(' / '))}</span></div>${showsWaitingLook(c, WAITING_LOOK) ? `<p class="look">${h(c.look)}</p>` : ''}${c.arrival ? `<p>${h(c.name)} is coming · ${h(c.arrival.dateLabel)}</p>` : ''}${(state?.version ?? 0) < 3 ? '<p class="reason">This month uses earlier rules. Start a new month for office visits and negotiated placements.</p>' : ''}<div class="candidate-actions">${(state?.version ?? 0) >= 3 && c.presence === 'home' ? action('Call in to the office', 'call-in', unavailable, 'The journey takes time.', unavailable) : action('Interview', 'interview', unavailable ?? interviewLimit, 'This takes about 30 minutes.', unavailable)}${action((state?.version ?? 0) >= 3 ? 'Negotiate placement' : 'Place', 'place', unavailable, (state?.version ?? 0) >= 3 ? 'Agree on the terms with both sides.' : 'Choose which qualities to promise.', unavailable)}${action('Call a reference', 'references', unavailable, 'This takes about 15 minutes.', unavailable)}${action('Send for a trial', 'trial', unavailable, 'The applicant will spend the next morning with the family.', unavailable)}${action('Keep the phone number', 'take-number', unavailable ?? (c.status !== 'bench' ? 'You already have this applicant’s number.' : undefined), 'This takes 2 minutes. The applicant goes home, and you keep the phone number.', unavailable)}</div>${reason}${c.wants ? `<p class="candidate-wants handwritten">Needs: ${h(c.wants)}</p>` : ''}<details class="notes-details"><summary>Nermin’s notes · ${c.wage === null ? 'Wage not yet asked' : `${money(c.wage)} a month`}</summary><div class="card-notes">${QUALITIES.map(
     (q) => {
       const notes = c.notes.filter((n) => n.quality === q);
       const read = notes.findLast((n) => !n.crossedOut) ?? notes.at(-1);
-      return `<section class="quality-note"><h3>${q}</h3><p class="nermin-read handwritten">${read ? h(read.phrase) : 'You have not asked yet.'}</p>${notes.map((n) => `<p class="note ${n.crossedOut ? 'crossed-out' : ''}"><small>${h(noteSource(n))}</small><span class="note-claim">${h(n.claim ?? n.phrase)}</span></p>`).join('')}</section>`;
+      return `<section class="quality-note"><h3>${q}</h3><p class="nermin-read handwritten">${read ? h(read.phrase) : 'You have not asked yet.'}</p>${notes.length ? `<p class="reading-why">${h(readingBasis(notes))}</p>` : ''}${notes.map((n) => `<p class="note ${n.crossedOut ? 'crossed-out' : ''}"><small>${h(noteSource(n))}</small><span class="note-claim">${h(n.claim ?? n.phrase)}</span></p>`).join('')}</section>`;
     },
   ).join(
     '',
@@ -1297,8 +1310,10 @@ function benchHtml(v: View): string {
       )
   );
 }
-function action(label: string, key: string, disabled?: string, hint?: string): string {
-  return `<button type="button" data-action="${key}"${disabled || hint ? ` aria-description="${h(disabled ?? hint ?? '')}"` : ''} ${disabled ? 'disabled' : ''}><span>${h(label)}</span>${disabled || hint ? `<small>${h(disabled ?? hint ?? '')}</small>` : ''}</button>`;
+/** A reason that every action shares is shown once below the actions; it stays in each button's description. */
+function action(label: string, key: string, disabled?: string, hint?: string, shared?: string): string {
+  const note = disabled && disabled === shared ? undefined : (disabled ?? hint);
+  return `<button type="button" data-action="${key}"${disabled || hint ? ` aria-description="${h(disabled ?? hint ?? '')}"` : ''} ${disabled ? 'disabled' : ''}><span>${h(label)}</span>${note ? `<small>${h(note)}</small>` : ''}</button>`;
 }
 function familiesHtml(v: View): string {
   const { open, lost } = requestGroups(v.requests);
@@ -1358,7 +1373,7 @@ function sceneHtml(v: View): string {
       v.families.some((f) => f.name === l.speaker || f.household.some((member) => member.name === l.speaker));
     return `<p data-scene-line ${l.side ? `data-scene-side="${l.side}"` : ''} class="${l.kind === 'speech' && !narration ? 'speech' : l.kind === 'notice' || narration ? 'notice-line' : ''} ${l.side ? `side-${l.side}` : ''}">${l.speaker && !narration ? `<strong>${h(capFirst(l.speaker))}:</strong> ` : ''}${h(withoutWaitingLook(householdSpeaker ? familySpeech(l.text) : l.text, narration))}</p>`;
   };
-  return `<section class="scene-sheet ${moreChoices ? 'all-questions' : ''} ${s.kind === 'interview' ? 'interview-sheet' : ''}" data-testid="scene" data-scene-id="${h(s.id)}" aria-label="${h(s.title)}"><header class="sheet-heading lk-sheet-head"><h2>${moreChoices ? `All ${s.kind === 'interview' ? 'questions' : 'choices'} · ${choices.length}` : h(s.title)}</h2>${moreChoices ? '<button type="button" data-action="fewer-choices">Fewer</button>' : ''}</header><div class="lk-sheet-body scene-reading"><div class="exchange" role="region" aria-label="Latest words">${(moreChoices ? latest.slice(-1) : s.lines).map(line).join('')}</div>${s.kind === 'negotiation' && s.negotiation ? `<p class="terms-summary">${h(termsLine(s.negotiation.terms))}</p>` : ''}${
+  return `<section class="scene-sheet ${moreChoices ? 'all-questions' : ''} ${s.kind === 'interview' ? 'interview-sheet' : ''}" data-testid="scene" data-scene-id="${h(s.id)}" aria-label="${h(s.title)}"><header class="sheet-heading lk-sheet-head"><h2>${moreChoices ? `All ${s.kind === 'interview' ? 'questions' : 'choices'} · ${choices.length}` : h(s.title)}</h2>${moreChoices ? '<button type="button" data-action="fewer-choices">Fewer</button>' : ''}</header><div class="lk-sheet-body scene-reading"><div class="exchange" role="region" aria-label="Latest words">${(moreChoices ? latest.slice(-1) : s.lines).map(line).join('')}</div>${s.kind === 'negotiation' && s.negotiation ? `<p class="terms-summary">${h(termsLine(s.negotiation.terms, s.negotiation.family))}</p>` : ''}${
     s.added?.length ? `<p class="added" role="status">${h(addedEvidence(s.added))}</p>` : ''
   }</div><div class="lk-commit">${v.heldScene ? `<p class="held-scene">${h(v.heldScene.title)} is waiting.</p>` : ''}${s.kind === 'negotiation' && s.negotiation ? `<p class="placement-deadline">${h(placementDeadline(v, s.negotiation.family))}</p>` : ''}${s.interviewPace ? `<p class="question-cost">Each question takes 8–12 minutes. ${s.questionsRemaining === undefined ? h(s.interviewPace) : s.questionsRemaining > 0 ? `${s.questionsRemaining} ${s.questionsRemaining === 1 ? 'question remains' : 'questions remain'} before you must decide.` : `0 questions remain. ${h(s.interviewPace)}`}</p>` : ''}<div class="scene-choices">${choices
     .slice(0, moreChoices ? choices.length : visibleChoices)
@@ -1828,10 +1843,11 @@ function referenceSheet(): void {
   };
 }
 const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
-function termsLine(t: EmploymentTerms): string {
+/** Current rules also state the deposit and the rest of the fee, from the fee ledger. The placement sheet leaves them out. */
+function termsLine(t: EmploymentTerms, family?: string, withFee = true): string {
   const clock = (hour: number) =>
     `${String(Math.floor(hour)).padStart(2, '0')}:${String(Math.round((hour % 1) * 60)).padStart(2, '0')}`;
-  return `The wage is ${money(t.wage)} a month. Work is from ${clock(t.startHour)} to ${clock(t.endHour)}, with ${DAYS[t.dayOff]} off. The trial lasts ${t.trialDays} working ${t.trialDays === 1 ? 'day' : 'days'}. The agency fee is ${money(t.fee)}.`;
+  return `The wage is ${money(t.wage)} a month. Work is from ${clock(t.startHour)} to ${clock(t.endHour)}, with ${DAYS[t.dayOff]} off. The trial lasts ${t.trialDays} working ${t.trialDays === 1 ? 'day' : 'days'}. The agency fee is ${money(t.fee)}.${withFee && (state?.version ?? 0) >= 4 ? ` ${feeWords(t, family ? feeLedgerFor(current(), family) : undefined)}` : ''}`;
 }
 function editTerms(): void {
   const scene = current().scene;
@@ -1846,7 +1862,7 @@ function editTerms(): void {
   ] as const;
   const d = openSheet(
     'Edit the offer',
-    `<p data-terms-summary>${h(termsLine(terms))}</p>${rows.map(([key, label]) => `<div class="stepper"><span>${label}</span><button type="button" data-step="${key}" data-delta="-1" aria-label="Decrease ${label.toLowerCase()}">−</button><output data-term-output="${key}">${terms[key]}</output><button type="button" data-step="${key}" data-delta="1" aria-label="Increase ${label.toLowerCase()}">+</button></div>`).join('')}<fieldset><legend>Day off</legend><div class="day-chips">${DAYS.map((day, i) => `<button type="button" data-day="${i}" aria-pressed="${i === terms.dayOff}">${day.slice(0, 3)}</button>`).join('')}</div></fieldset>`,
+    `<p data-terms-summary>${h(termsLine(terms, scene.negotiation.family))}</p>${rows.map(([key, label]) => `<div class="stepper"><span>${label}</span><button type="button" data-step="${key}" data-delta="-1" aria-label="Decrease ${label.toLowerCase()}">−</button><output data-term-output="${key}">${terms[key]}</output><button type="button" data-step="${key}" data-delta="1" aria-label="Increase ${label.toLowerCase()}">+</button></div>`).join('')}<fieldset><legend>Day off</legend><div class="day-chips">${DAYS.map((day, i) => `<button type="button" data-day="${i}" aria-pressed="${i === terms.dayOff}">${day.slice(0, 3)}</button>`).join('')}</div></fieldset>`,
   );
   const commit = document.createElement('div');
   commit.className = 'lk-commit';
@@ -1871,7 +1887,7 @@ function editTerms(): void {
         ? 'Use a positive wage, finish after start (00:00–24:00), and a trial of 1–14 days.'
         : '';
     const summary = d.querySelector('[data-terms-summary]');
-    if (summary) summary.textContent = termsLine(terms);
+    if (summary) summary.textContent = termsLine(terms, scene.negotiation?.family);
     for (const [key] of rows) {
       const output = d.querySelector(`[data-term-output="${key}"]`);
       if (output) output.textContent = String(terms[key]);
@@ -1943,6 +1959,16 @@ function familySheet(id: string): void {
       )}${(state?.version ?? 0) >= 3 ? `<button type="button" data-phone-family="${h(id)}">Phone ${h(f.name)}</button>` : ''}<button type="button" data-action="choose-worker">Choose a worker from the bench</button>`,
   );
 }
+/** Before the offer: the usual terms, with the family's real ledger, open to negotiation. */
+function offerFeeWords(v: View, request: View['requests'][number] | undefined): string {
+  const version = state?.version ?? 1;
+  if (version >= 4 && request)
+    return `If you offer the usual terms, the wage is ${money(request.wage)} and so is the fee. ${feeWords({ wage: request.wage, fee: request.wage }, feeLedgerFor(v, request.family))} You can still change the wage, fee and trial when you negotiate. The family remembers the qualities you promise.`;
+  return `${placementDepositWords(
+    version,
+    v.placements.some((p) => p.family === request?.family),
+  )} The rest of the fee is paid after the trial if the worker stays. The family remembers the qualities you promise.`;
+}
 function matchSheet(kind: 'trial' | 'place'): void {
   const v = current(),
     c = candidate(v);
@@ -1950,7 +1976,7 @@ function matchSheet(kind: 'trial' | 'place'): void {
   const requests = v.requests.filter((r) => r.status === 'open');
   const d = openSheet(
     kind === 'trial' ? 'Send for a trial morning' : `Negotiate for ${c.name}`,
-    `<div class="family-chips">${requests.map((r, i) => `<button type="button" data-match-family="${h(r.family)}" aria-pressed="${i === 0}">${h(person(v, r.family))} · ${h(r.role)}</button>`).join('')}</div><p ${kind === 'place' ? 'data-fee-terms' : ''}>${kind === 'trial' ? 'The applicant will spend the next morning with the family. The family reports back later.' : `${h(placementDepositWords(state?.version ?? 1))} The rest of the fee is paid after the trial if the worker stays. The family remembers the qualities you promise.`}</p>${!requests.length ? '<p>No families have open requests. Answer a family’s call first.</p>' : ''}${kind === 'place' ? `<fieldset><legend>Which qualities will you promise?</legend><div class="vouch-controls">${QUALITIES.map((q) => `<button type="button" class="vouch" data-vouch="${q}" aria-pressed="false">${h(vouchLabel(c, q))}</button>`).join('')}</div><details class="vouch-evidence"><summary>Read the evidence</summary>${QUALITIES.map((q) => `<p><strong>${q}</strong> — ${h(evidence(c, q))}</p>`).join('')}</details></fieldset>` : ''}<p id="match-reason" data-match-reason class="reason"></p><button type="button" data-confirm-match aria-describedby="match-reason" ${!requests.length ? 'disabled' : ''}>${kind === 'trial' ? 'Send for a trial' : (state?.version ?? 0) >= 3 ? 'Propose to this family' : 'Place with this family'}</button>`,
+    `<div class="family-chips">${requests.map((r, i) => `<button type="button" data-match-family="${h(r.family)}" aria-pressed="${i === 0}">${h(person(v, r.family))} · ${h(r.role)}</button>`).join('')}</div><p ${kind === 'place' ? 'data-fee-terms' : ''}>${kind === 'trial' ? 'The applicant will spend the next morning with the family. The family reports back later.' : h(offerFeeWords(v, requests[0]))}</p>${!requests.length ? '<p>No families have open requests. Answer a family’s call first.</p>' : ''}${kind === 'place' ? `<fieldset><legend>Which qualities will you promise?</legend><div class="vouch-controls">${QUALITIES.map((q) => `<button type="button" class="vouch" data-vouch="${q}" aria-pressed="false">${h(vouchLabel(c, q))}</button>`).join('')}</div><details class="vouch-evidence"><summary>Read the evidence</summary>${QUALITIES.map((q) => `<p><strong>${q}</strong> — ${h(evidence(c, q))}</p>`).join('')}</details></fieldset>` : ''}<p id="match-reason" data-match-reason class="reason"></p><button type="button" data-confirm-match aria-describedby="match-reason" ${!requests.length ? 'disabled' : ''}>${kind === 'trial' ? 'Send for a trial' : (state?.version ?? 0) >= 3 ? 'Propose to this family' : 'Place with this family'}</button>`,
   );
   const commit = document.createElement('div');
   commit.className = 'lk-commit';
@@ -1970,11 +1996,7 @@ function matchSheet(kind: 'trial' | 'place'): void {
     const line = d.querySelector('[data-match-reason]');
     if (line) line.textContent = reason ?? '';
     const terms = d.querySelector('[data-fee-terms]');
-    if (terms)
-      terms.textContent = `${placementDepositWords(
-        state?.version ?? 1,
-        live.placements.some((p) => p.family === familyChoice),
-      )} The rest of the fee is paid after the trial if the worker stays. The family remembers the qualities you promise.`;
+    if (terms) terms.textContent = offerFeeWords(live, request);
     if (confirm) {
       confirm.disabled = !request || !!reason;
       confirm.classList.add('primary');
@@ -2020,7 +2042,14 @@ function placementSheet(id: string): void {
   if (!p) return;
   const d = openSheet(
     `${person(v, p.candidate)} at ${person(v, p.family)}`,
-    `<p>${h(placementTiming(p))}</p><p>${h(p.lastWord || 'The family has not reported back yet.')}</p>${p.terms ? `<p>${h(termsLine(p.terms))}</p>` : ''}${(state?.version ?? 0) >= 3 ? `<button type="button" data-phone-family="${h(p.family)}">Speak to someone in the house</button>` : ''}${p.arrangement ? `<p>${h(p.arrangement)}</p>` : ''}${p.pending ? `<p>${h(p.pending.dateLabel)}: ${h(p.pending.text)}</p>` : ''}<p data-check-reason class="reason"></p><button type="button" data-check="phone" data-placement-id="${h(id)}">Check in by phone<small>This takes about 15 minutes.</small></button><button type="button" data-check="visit" data-placement-id="${h(id)}">Visit the house<small>The visit takes an hour, plus the journey.</small></button><button type="button" data-check="drop-by" data-placement-id="${h(id)}">Ask the worker to drop by<small>After work</small></button><details><summary>Bring the worker back</summary><p>The worker will leave this house and return to your agency records. The family loses its worker.</p><button type="button" data-withdraw="${h(id)}">Withdraw this worker</button></details>`,
+    `<p>${h(placementTiming(p))}</p><p>${h(p.lastWord || 'The family has not reported back yet.')}</p>${p.terms ? `<p>${h(termsLine(p.terms, undefined, false))}</p>` : ''}${placementStakes(
+      v,
+      p,
+    )
+      .map((line) => `<p class="placement-stakes">${h(line)}</p>`)
+      .join(
+        '',
+      )}${(state?.version ?? 0) >= 3 ? `<button type="button" data-phone-family="${h(p.family)}">Speak to someone in the house</button>` : ''}${p.arrangement ? `<p>${h(p.arrangement)}</p>` : ''}${p.pending ? `<p>${h(p.pending.dateLabel)}: ${h(p.pending.text)}</p>` : ''}<p data-check-reason class="reason"></p><button type="button" data-check="phone" data-placement-id="${h(id)}">Check in by phone<small>This takes about 15 minutes.</small></button><button type="button" data-check="visit" data-placement-id="${h(id)}">Visit the house<small>The visit takes an hour, plus the journey.</small></button><button type="button" data-check="drop-by" data-placement-id="${h(id)}">Ask the worker to drop by<small>After work</small></button><details><summary>Bring the worker back</summary><p>The worker will leave this house and return to your agency records. The family loses its worker.</p><button type="button" data-withdraw="${h(id)}">Withdraw this worker</button></details>`,
   );
   updateInspection = () => {
     const live = current();

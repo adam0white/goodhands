@@ -1688,7 +1688,15 @@ body {
   .game.lk-stage,
   .game,
   .game.has-day-card {
-    grid-template-rows: 44px auto 150px 48px minmax(0, 1fr);
+    grid-template-rows: 44px auto 150px minmax(48px, auto) minmax(0, 1fr);
+  }
+  /* The task line carries the deadline, so it takes the full row and Skip sits below it. */
+  .caption-row {
+    flex-wrap: wrap;
+  }
+  .task,
+  .until-event {
+    flex: 1 1 100%;
   }
   .game.has-scene,
   .game.has-takeover {
@@ -1701,7 +1709,7 @@ body {
   .game.has-scene,
   .game.has-takeover,
   .game.has-day-card {
-    grid-template-rows: 56px auto minmax(0, 1fr) 48px;
+    grid-template-rows: 56px auto minmax(0, 1fr) minmax(48px, auto);
   }
   .game > .state-strip {
     grid-row: 2;

@@ -85,7 +85,7 @@ export function responses(
           ? `That fee is too much. Lower it before we agree.`
           : short
             ? 'We need at least six hours of help, until at least four. Can you arrange those hours?'
-            : `Agreed. We will pay ₺${t.wage} and keep those hours. We will decide after ${t.trialDays} working ${t.trialDays === 1 ? 'day' : 'days'}.`,
+            : `Agreed. ${t.wage > f.wage || t.fee > f.wage ? 'It is more than we planned, but we will manage. ' : ''}We will pay ₺${t.wage} and keep those hours. We will decide after ${t.trialDays} working ${t.trialDays === 1 ? 'day' : 'days'}.`,
   };
 }
 export function negotiationChoices(n: NegotiationView, c: Candidate): SceneChoice[] {

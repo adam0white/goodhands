@@ -91,7 +91,17 @@ interface Card {
   referenceDispute?: { from: string; story: string };
   wageDispute?: string;
   referenceClaims?: { id: string; label: string; reply: string; quality: Quality }[];
-  evidence: { quality: Quality; value: number; source: Note['source']; sourceId: string; at: number }[];
+  // trust is Nermin's trust in the speaker when she heard it; moved records whether her estimate changed.
+  evidence: {
+    quality: Quality;
+    value: number;
+    source: Note['source'];
+    sourceId: string;
+    at: number;
+    weight?: number;
+    trust?: number;
+    moved?: boolean;
+  }[];
   status: CandidateView['status'];
   met: boolean;
   arrived: number;
@@ -138,7 +148,12 @@ interface Sim extends State {
   routeFacts: Record<number, { prop: string; value: boolean }>;
   envelopePromise?: { candidate: string; at: number };
   envelopeDebt?: { candidate: string; scene: string; at: number };
-  fees: Record<string, { first: boolean; second: boolean; deposit?: number }>;
+  // second reserves the rest of the fee when a kept verdict is made (deduplication only); received records that the rest
+  // reached the cash box; keptReported records that a kept verdict reached Nermin, so the family owes no further fee.
+  fees: Record<
+    string,
+    { first: boolean; second: boolean; deposit?: number; received?: boolean; keptReported?: boolean }
+  >;
   offerDetails?: Record<
     string,
     { kind: 'confidence' | 'envelope' | 'poach' | 'refund'; candidate: string; family: string }
@@ -248,16 +263,21 @@ function addNote(
   if (source === 'seen') confirm(observer, `${candidate}:${q}`, value >= 0.62, s.now);
   else if (value > 0.62 || value < 0.4)
     believe(observer, `${candidate}:${q}`, value > 0.62, 0.85, sourceId, s.now);
-  s.cards[candidate]!.evidence.push({ quality: q, value, source, sourceId, at: s.now });
-  hear(
-    observer,
-    candidate,
-    cue(q),
+  const trust = trustOf(observer, sourceId);
+  const weight = source === 'seen' ? 1 : Math.max(0, trust - 0.1) * (source === 'says' ? 0.65 : 1);
+  const before = estimate(observer, candidate, cue(q), s.now);
+  hear(observer, candidate, cue(q), value, s.now, weight, sourceId);
+  const after = estimate(observer, candidate, cue(q), s.now);
+  s.cards[candidate]!.evidence.push({
+    quality: q,
     value,
-    s.now,
-    source === 'seen' ? 1 : Math.max(0, trustOf(observer, sourceId) - 0.1) * (source === 'says' ? 0.65 : 1),
+    source,
     sourceId,
-  );
+    at: s.now,
+    weight,
+    trust,
+    moved: after.value !== before.value || after.confidence !== before.confidence,
+  });
   const result = synthesize(s, candidate, q);
   const phrases: Record<Quality, string> = {
     patient: 'the worker is patient when someone needs time',
@@ -284,6 +304,61 @@ function synthesize(s: Sim, candidate: string, q: Quality): Note['read'] {
   const observer = s.people.nermin!;
   const read = estimate(observer, candidate, cue(q), s.now);
   return read.value > 0.62 ? 'yes' : read.value < 0.4 ? 'no' : 'maybe';
+}
+/** What the player can actually do now, using the same checks the call-in and check-in inputs apply. */
+function nextActionWords(s: Sim, benchWaiting: boolean): string {
+  if (benchWaiting) return 'Wait or meet someone on your bench.';
+  const kept = Object.entries(s.cards).find(
+    ([id, c]) => c.met && c.status === 'books' && c.introduced && !c.arrivalAt && !unavailable(s, id),
+  )?.[0];
+  const checkTimes = s.placements.filter(active).map((p) => p.checkInAt ?? firstWorkDay(p) * DAY + 1100);
+  const canCheck = checkTimes.some((at) => s.now >= at);
+  const actions = [
+    kept ? `call ${name(kept)} in from the numbers you kept` : '',
+    canCheck ? 'check in by phone on a placed worker' : '',
+  ].filter(Boolean);
+  const later =
+    checkTimes.length && !canCheck
+      ? ` You can first check in by phone on a placed worker at ${label(Math.min(...checkTimes))}.`
+      : '';
+  return `${actions.length ? `Wait, or ${actions.join(', or ')}.` : 'Wait.'}${later}`;
+}
+/**
+ * Reasons for each reading, from accounts Nermin received. Adds only words: whether an account spoke well or badly,
+ * whether it moved her estimate, and which speaker's account counted for more when that order is certain.
+ */
+function noteViews(card: Card): Note[] {
+  const notes = card.notes.map((n, i) => {
+    const e = card.evidence[i];
+    if (!e || e.quality !== n.quality) return n;
+    return {
+      ...n,
+      said: e.value > 0.62 ? 'well' : e.value < 0.4 ? 'badly' : 'neither',
+      ...(e.moved === undefined ? {} : { moved: e.moved }),
+    } as Note;
+  });
+  // A testimony's weight rises with trust, so one account counts for more when both its input weight and
+  // the speaker's trust are at least as high, and one of them is higher.
+  for (const q of new Set(card.notes.map((n) => n.quality))) {
+    const told = card.evidence
+      .map((e, i) => ({ e, i }))
+      .filter(({ e, i }) => e.quality === q && card.notes[i]?.quality === q && e.source !== 'seen' && e.moved)
+      .filter(({ e }) => e.weight !== undefined && e.trust !== undefined);
+    outer: for (const a of told)
+      for (const b of told)
+        if (
+          a.e.sourceId !== b.e.sourceId &&
+          a.e.weight! >= b.e.weight! &&
+          a.e.trust! >= b.e.trust! &&
+          (a.e.weight! > b.e.weight! || a.e.trust! > b.e.trust!)
+        ) {
+          const why = a.e.trust! > b.e.trust! ? 'trust' : 'own';
+          notes[a.i] = { ...notes[a.i]!, weighs: 'more', weighReason: why };
+          notes[b.i] = { ...notes[b.i]!, weighs: 'less', weighReason: why };
+          break outer;
+        }
+  }
+  return notes;
 }
 function callbackTime(s: Sim, at: number): string {
   return day(s) === Math.floor(at / DAY) ? timeLabel(at) : label(at);
@@ -515,7 +590,11 @@ function quietOffice(s: Sim) {
         : kind === 3
           ? `${household.household[0]!.name}'s relative stopped at the pharmacy to ask how your agency works. I told them the family and worker must both agree on the duties. They may come upstairs another day.`
           : worker
-            ? `${worker.name} stopped at my counter for a glass of water. We spoke about the buses from ${worker.home}. I told ${s.people[worker.id]!.life.sex === 'male' ? 'him' : 'her'} your office was upstairs if there was anything to ask.`
+            ? [
+                `${worker.name} stopped at my counter for a glass of water. We spoke about the buses from ${worker.home}. I told ${s.people[worker.id]!.life.sex === 'male' ? 'him' : 'her'} your office was upstairs if there was anything to ask.`,
+                `${worker.name} waited in the pharmacy doorway for a while. I said your office was upstairs, and the journey from ${worker.home} was not too long.`,
+                `${worker.name} asked me the way to your office. I pointed up the stairs and said you would be glad to hear from someone from ${worker.home}.`,
+              ][hash(`${worker.id}:gossip`) % 3]!
             : `${household.household[0]!.name} asked at my counter whether your office still opens on Saturday. I said you open at half past eight, as you do on weekdays.`;
     const exchange = scene(
       s,
@@ -837,7 +916,10 @@ function choiceReply(s: Sim, sc: SceneView, choice: string, cashBefore: number):
     confirm: 'Good. We will keep the arrangements you made.',
     distrust: 'You have heard my account. Ask the worker about it too.',
     support: 'Please hear both sides before deciding what to do.',
-    listen: 'Thank you. I will let you know when there is more to tell.',
+    listen:
+      sc.with === 'husnu'
+        ? 'Of course. I will tell you if anyone else asks about the office.'
+        : 'Thank you. I will let you know when there is more to tell.',
     worker: 'That is what happened as I remember it.',
     family: 'That is how we understood the agreement.',
     withdraw: 'All right. I will leave this job. Call me about the next one.',
@@ -1366,6 +1448,8 @@ function applyInput(state: State, input: Input): State {
   if (input.type === 'answer-phone') {
     const p = s.phones.shift();
     if (p) {
+      // The verdict the family actually gave, before revalidation rewrites the status of an ended placement.
+      const keptVerdict = p.scene.kind === 'verdict' && p.status === 'kept';
       revalidatePhone(s, p);
       s.scene = p.scene;
       if (p.placement && p.scene.kind !== 'confidence') {
@@ -1382,6 +1466,14 @@ function applyInput(state: State, input: Input): State {
             s.cash += placement.pendingFee;
             log(s, 'money', `${name(placement.family)} sent the rest of the fee: ₺${placement.pendingFee}.`);
             placement.pendingFee = 0;
+            // The receipt belongs to the family and survives withdrawal and replacement.
+            s.fees[placement.family] ??= { first: true, second: true };
+            s.fees[placement.family]!.received = true;
+          }
+          // Public business completion, separate from money: the family kept a worker and said so, even when no rest was due.
+          if (keptVerdict) {
+            s.fees[placement.family] ??= { first: true, second: true };
+            s.fees[placement.family]!.keptReported = true;
           }
           if (['returned', 'dismissed', 'quit'].includes(placement.reportedStatus)) reopen(s, placement);
         }
@@ -1791,7 +1883,7 @@ export function view(state: State): View {
             family: r.family,
             words: `${c.name} needs ₺${c.wage}. This family offers ₺${r.wage}. Choose another family or worker.`,
           })),
-        notes: card.notes,
+        notes: noteViews(card),
         referees: c.referees.map((id) => {
           const r = REFEREES.find((r) => r.id === id)!;
           return {
@@ -1855,12 +1947,12 @@ export function view(state: State): View {
               }
             : r
               ? {
-                  text: `${cap(name(r.family))}: The family needs a ${r.role} by ${r.byLabel}. ${bench.length ? 'Candidates are waiting on your bench.' : 'You have contact details for the people you have met.'}`,
+                  text: `${cap(name(r.family))}: The family needs a ${r.role} by ${r.byLabel}. ${bench.length ? 'Candidates are waiting on your bench.' : nextActionWords(s, false)}`,
                   target: { kind: 'family', id: r.family },
                 }
               : {
                   text: nextEvent(s)
-                    ? `Next: ${nextEvent(s)!.label}${/[.!?]$/.test(nextEvent(s)!.label) ? '' : '.'} Wait or meet someone on your bench.`
+                    ? `Next: ${nextEvent(s)!.label}${/[.!?]$/.test(nextEvent(s)!.label) ? '' : '.'} ${nextActionWords(s, bench.length > 0)}`
                     : 'Meet someone on your bench, or read the notes you kept.',
                 };
   const snapshot: View = structuredClone({
@@ -1876,7 +1968,14 @@ export function view(state: State): View {
     slowed: !!(s.scene || phone || urgent || departing || s.dayCard),
     open: day(s) % 7 !== 6 && t >= 510 && t < 1140,
     cash: s.cash,
-    rent: { due: s.rentDue, amount: 5000, label: label(s.rentDue), short: s.cash < 5000 },
+    rent: {
+      due: s.rentDue,
+      amount: 5000,
+      label: label(s.rentDue),
+      short: s.cash < 5000,
+      // Friday rents from the next one until the month ends, from the real calendar.
+      remaining: s.rentDue < END ? Math.floor((END - 1 - s.rentDue) / (7 * DAY)) + 1 : 0,
+    },
     task,
     phoneRinging: phone ? { who: phone.who, since: phone.since } : null,
     scene:
@@ -1894,7 +1993,7 @@ export function view(state: State): View {
         moments: _moments,
         reported: _reported,
         confidenceGiven: _confidenceGiven,
-        wage: _wage,
+        wage,
         reportedStatus,
         pendingFee: _pendingFee,
         disagreement: _disagreement,
@@ -1904,7 +2003,33 @@ export function view(state: State): View {
         arrangementKept: _arrangementKept,
         warning: _warning,
         ...p
-      }) => ({ ...p, status: reportedStatus }),
+      }) => {
+        // The fee ledger, shown as public amounts only. It never feeds back into the economy.
+        const fee = s.fees[p.family];
+        const deposit = fee?.deposit ?? 0;
+        // settled means the rest of the fee reached the cash box. It is a recorded receipt, never inferred from
+        // fee.second (a reservation) or from a placement's status, so a private verdict does not change it.
+        const settled = fee?.received === true;
+        // complete: a kept verdict reached Nermin, so no new fee arises, whether or not money moved.
+        const complete = !settled && fee?.keptReported === true;
+        // awaited: an ended placement whose trial verdict call has not been answered yet. Both outcomes stay possible
+        // to Nermin; this flag follows the waiting call, not the verdict inside it.
+        const awaited =
+          reportedStatus === 'withdrawn' &&
+          s.phones.some((ph) => ph.placement === p.id && ph.scene.kind === 'verdict');
+        const rest = settled || complete ? 0 : p.terms ? Math.max(0, p.terms.fee - deposit) : (wage * 3) / 4;
+        return {
+          ...p,
+          status: reportedStatus,
+          feeOutlook: {
+            depositPaid: deposit,
+            restIfKept: rest,
+            settled,
+            ...(complete ? { complete } : {}),
+            ...(awaited ? { awaited } : {}),
+          },
+        };
+      },
     ),
     log: s.log.map((line, index) => {
       // The queue records its named caller immediately before the office account.

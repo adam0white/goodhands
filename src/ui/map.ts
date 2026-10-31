@@ -122,7 +122,7 @@ export function drawCity(canvas: HTMLCanvasElement, view: View, selectedId?: str
     ['Bornova', 254, 42],
     ['Alsancak', 170, 108],
     ['Göztepe', 36, 186],
-    ['Buca', 259, 218],
+    ['Buca', 232, 218],
   ];
   for (const [name, x, y] of districts) ctx.fillText(name, x, y);
   // Small unlabelled street strokes stay subordinate to people and houses.
