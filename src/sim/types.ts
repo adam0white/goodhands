@@ -64,6 +64,11 @@ export interface Note {
   at: Minute;
   claim?: string; // The source’s own words, quoted and attributed.
   crossedOut?: boolean; // contradicted by later, stronger evidence
+  // View only, never stored: what the account said, whether it moved Nermin's estimate, and its order by weight.
+  said?: 'well' | 'badly' | 'neither';
+  moved?: boolean;
+  weighs?: 'more' | 'less';
+  weighReason?: 'trust' | 'own';
 }
 
 export type HouseholdTopic = 'progress' | 'complaint' | 'smooth' | 'worker';
@@ -145,6 +150,18 @@ export interface PlacementView {
   arrangement?: string;
   pending?: { text: string; at: Minute; dateLabel: string };
   vouched: Quality[];
+  /**
+   * The family's fee ledger as public amounts: the deposit paid, the rest if the worker is kept, and whether the rest
+   * reached the cash box (settled). complete: a kept verdict reached Nermin, so no new fee is due though no rest may
+   * have been paid. awaited: this ended placement's trial verdict call is still waiting to be answered.
+   */
+  feeOutlook?: {
+    depositPaid: number;
+    restIfKept: number;
+    settled: boolean;
+    complete?: boolean;
+    awaited?: boolean;
+  };
 }
 
 export interface SceneChoice {
@@ -246,7 +263,7 @@ export interface View {
   slowed: boolean; // true when the clock is held slow because something waits
   open: boolean; // office hours
   cash: number;
-  rent: { due: Minute; amount: number; label: string; short: boolean };
+  rent: { due: Minute; amount: number; label: string; short: boolean; remaining?: number };
   /** The one thing that needs a response now, with what to tap (DL-3, DL-5). */
   task: {
     text: string;

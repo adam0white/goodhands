@@ -26,31 +26,57 @@ interface ReferenceAccount {
 
 // Each speaker owns these events. A bias affects the claim, never which quality
 // an event is evidence about. {worker} is grammatical and works for every sex.
+// Each event has two wordings with the same meaning and the same outcome. A former
+// employer uses one of them, so two employers do not repeat each other word for word.
+// Neither wording adds a fact, and neither depends on how the worker really behaves.
+export const REFERENCE_WORDINGS: Record<
+  'patient' | 'honest' | 'reliable' | 'leaving',
+  [good: string, bad: string][]
+> = {
+  patient: [
+    [
+      '{worker} listened when the instructions were repeated.',
+      '{worker} argued when the instructions were repeated.',
+    ],
+    [
+      'When the instructions were repeated, {worker} listened.',
+      'When the instructions were repeated, {worker} argued.',
+    ],
+  ],
+  honest: [
+    ['{worker} returned the change with the receipts.', '{worker} could not explain the missing change.'],
+    [
+      '{worker} handed back the change and the receipts together.',
+      '{worker} was unable to account for the missing change.',
+    ],
+  ],
+  reliable: [
+    ['{worker} arrived at the agreed time.', '{worker} did not arrive at the agreed time and did not call.'],
+    ['{worker} came at the time we agreed.', '{worker} did not come at the time we agreed and did not call.'],
+  ],
+  leaving: [
+    [
+      '{worker} passed on the work as agreed before leaving.',
+      '{worker} left without passing on the work as agreed.',
+    ],
+    [
+      '{worker} handed over the work as agreed before leaving.',
+      '{worker} left without handing over the work as agreed.',
+    ],
+  ],
+};
+const variantOf = (key: string) => [...key].reduce((n, ch) => (n * 31 + ch.charCodeAt(0)) % 2, 0);
+const wordingFor = (candidateId: string, topic: keyof typeof REFERENCE_WORDINGS) =>
+  REFERENCE_WORDINGS[topic][variantOf(candidateId)]!;
 const accounts: Record<string, ReferenceAccount> = Object.fromEntries(
   CANDIDATES.map((c) => [
     c.id,
     {
       opening: `I can tell you about ${c.name}’s past job as a ${c.roles[0]}. I can only tell you about that job.`,
-      patient: story(
-        'patient',
-        '{worker} listened when the instructions were repeated.',
-        '{worker} argued when the instructions were repeated.',
-      ),
-      honest: story(
-        'honest',
-        '{worker} returned the change with the receipts.',
-        '{worker} could not explain the missing change.',
-      ),
-      reliable: story(
-        'reliable',
-        '{worker} arrived at the agreed time.',
-        '{worker} did not arrive at the agreed time and did not call.',
-      ),
-      leaving: story(
-        'reliable',
-        '{worker} passed on the work as agreed before leaving.',
-        '{worker} left without passing on the work as agreed.',
-      ),
+      patient: story('patient', ...wordingFor(c.id, 'patient')),
+      honest: story('honest', ...wordingFor(c.id, 'honest')),
+      reliable: story('reliable', ...wordingFor(c.id, 'reliable')),
+      leaving: story('reliable', ...wordingFor(c.id, 'leaving')),
     },
   ]),
 );
@@ -125,29 +151,45 @@ interface WorkerReferenceAccount {
 
 // These are the worker's account of the same event, not findings of fact.
 // They depend on what the referee said, never on the worker's hidden traits.
+export const DISPUTE_REPLIES: WorkerReferenceAccount[] = [
+  {
+    opening: 'That reference is about a job that has ended. We may remember it differently.',
+    patient: [
+      'I listened to the repeated instructions.',
+      'I argued about the instructions. I should have checked what was needed.',
+    ],
+    honest: [
+      'I kept the change and receipts together.',
+      'We need to compare the receipts before deciding what happened.',
+    ],
+    reliable: ['I arrived at the agreed time.', 'I did not arrive at the agreed time. I should have called.'],
+    leaving: [
+      'I passed on the work as agreed before leaving.',
+      'We had not agreed how I would pass on the work before I left.',
+    ],
+  },
+  {
+    opening: 'That job has ended, and we may remember it differently.',
+    patient: [
+      'When the instructions were repeated, I listened.',
+      'I argued when the instructions were repeated. I should have checked what was needed.',
+    ],
+    honest: [
+      'I kept the receipts with the change.',
+      'Before deciding what happened, we need to compare the receipts.',
+    ],
+    reliable: [
+      'I was there at the agreed time.',
+      'I was not there at the agreed time. I should have called.',
+    ],
+    leaving: [
+      'Before leaving, I passed on the work as agreed.',
+      'Before I left, we had not agreed how I would pass on the work.',
+    ],
+  },
+];
 const workerReferenceAccounts: Record<string, WorkerReferenceAccount> = Object.fromEntries(
-  CANDIDATES.map((c) => [
-    c.id,
-    {
-      opening: 'That reference is about a job that has ended. We may remember it differently.',
-      patient: [
-        'I listened to the repeated instructions.',
-        'I argued about the instructions. I should have checked what was needed.',
-      ],
-      honest: [
-        'I kept the change and receipts together.',
-        'We need to compare the receipts before deciding what happened.',
-      ],
-      reliable: [
-        'I arrived at the agreed time.',
-        'I did not arrive at the agreed time. I should have called.',
-      ],
-      leaving: [
-        'I passed on the work as agreed before leaving.',
-        'We had not agreed how I would pass on the work before I left.',
-      ],
-    },
-  ]),
+  CANDIDATES.map((c) => [c.id, DISPUTE_REPLIES[variantOf(`${c.id}:reply`)]!]),
 );
 
 export function referenceFollowUp(

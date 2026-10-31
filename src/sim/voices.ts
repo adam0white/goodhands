@@ -390,7 +390,10 @@ export function answerFromReadings(
 ): { text: string; quality: Quality; claim: number; notice: string } {
   const q = QUALITIES.find((item) => `q-${item}` === questionId) ?? 'reliable';
   const band = bandOf(presentation);
-  const index = ((Math.trunc(variant) % 6) + 6) % 6;
+  // Each person starts from their own place in the six versions, so two people at the same
+  // grade do not repeat each other word for word. The grade and the evidence are unchanged.
+  const offset = [...person.id].reduce((sum, ch) => (sum * 31 + ch.charCodeAt(0)) % 6, 0);
+  const index = (((Math.trunc(variant) + offset) % 6) + 6) % 6;
   const report = condition.selfReport;
   // HF selfReport covers condition, not character. Character claims are host-authored
   // from HF traits/skills via quality(), with concealment and modesty applied here.

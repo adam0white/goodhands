@@ -30,7 +30,7 @@ const STORY: Record<
       'Nermin closes the file with the client’s details still covered. She has not corrected the old account today.',
   },
   hulya: {
-    invite: 'Ask what else would help her take the baking job',
+    invite: 'Ask what would help her take on the baking and meal-preparation work',
     disclosure:
       'Hülya asks for a sunny ledge. “I kept seeds from the plants on the hotel windowsills. My adult stepdaughter says I can take my garden with me. I have never managed to grow tomatoes with that same taste again.”',
     choice: 'Keep a sunny office ledge free for her seedlings, with her agreement',
