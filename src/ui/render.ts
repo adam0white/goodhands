@@ -245,11 +245,19 @@ export function readingBasis(notes: Note[]): string {
   const more = notes.find((n) => n.weighs === 'more');
   const less = notes.find((n) => n.weighs === 'less');
   const latest = notes.at(-1)!.read;
-  const outcome = {
-    yes: 'Together they are clear enough for her to believe it.',
-    no: 'Together they are clear enough for her to doubt it.',
-    maybe: 'Together they are not clear enough, so she stays unsure.',
-  }[latest];
+  const outcome = (
+    notes.length === 1
+      ? {
+          yes: 'This is enough for her to believe it.',
+          no: 'This is enough for her to doubt it.',
+          maybe: 'This is not clear enough, so she stays unsure.',
+        }
+      : {
+          yes: 'Together they are clear enough for her to believe it.',
+          no: 'Together they are clear enough for her to doubt it.',
+          maybe: 'Together they are not clear enough, so she stays unsure.',
+        }
+  )[latest];
   return [
     `Nermin received ${parts.join(' and ')}.`,
     unmoved.length
@@ -260,10 +268,10 @@ export function readingBasis(notes: Note[]): string {
       : '',
     more && less
       ? more.weighReason === 'trust'
-        ? `${who(more)}’s account counts for more than ${who(less)}’s, because she trusts ${who(more)}’s word more.`
+        ? `${who(more)}’s account counts for more than ${who(less)}’s, because she trusted ${who(more)}’s word more when she heard it.`
         : `${who(less)}’s own answer counts for less than ${who(more)}’s report, because people’s own word about themselves counts for less.`
       : by('heard').length && by('says').length
-        ? 'A report counts for less when she trusts the speaker less. A person’s own answer counts for less than the same words from someone she trusts as much.'
+        ? 'A report counts for less when she trusted the speaker less when she heard it. A person’s own answer counts for less than the same words from someone she trusted as much.'
         : '',
     !by('seen').length && !by('heard').length
       ? `Only ${names(by('says'))} says so. Nobody else has confirmed it.`
