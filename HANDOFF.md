@@ -1,3 +1,9 @@
+# Retest 2 integration — 2026-10-31 (documentation only)
+
+What remains for the game: the dated Deferred asks in docs/design.md stay open. This record finishes the player loop when integrated, under the owner's two-iteration rule. It preserves five complete conditional returns, fifteen ranked asks and the dated unranked leads. No third panel is planned. Technical delivery checks and Adam's acceptance are separate from that rule. Source review and CI receipts for this two-file record are kept by the director. The tested runtime d9dd8e0/HF4.8.1 is unchanged, and this documentation edit needs no new deployment. Canonical import into the HF repo waits for a combined batch.
+
+How to read older text: the candidate sections below record their state when written. The director verified the tested release against reviewed source a547f7d868cd1bf76588242dcccd0c3d60780fdb and signed, tree-equal merge d9dd8e0f27f8efee2abeda2fc32e9b8bdd7c0884, exact source CI41189447799 and main CI41190968951, normal deployment and twelve served asset hashes. Those delivery receipts are in ~/code/.lab-scratch/playtest/light-1030/goodhands-retest2-root-delivery-verification.json. Earlier uncommitted and undelivered wording remains historical. The source and delivery checks do not establish broader browser, font, native, cross-origin or player acceptance.
+
 # Retest 1 candidate — 2026-10-31 (uncommitted, unreviewed)
 
 What remains: same-session identity review, exact-SHA independent review, signing and commit, exact new source CI and main CI, normal deployment, a live check, and a browser and phone-size check of the kept-numbers strip and the Pace line. A local pass is not CI. Nothing here is delivered, and no ask is marked fixed. A candidate is not player or owner acceptance.
