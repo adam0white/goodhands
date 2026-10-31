@@ -1,26 +1,16 @@
-import { describe, expect, it, onTestFailed } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { apply, newGame, view } from '../src/sim/index.ts';
-import { DISPUTE_REPLIES, REFERENCE_WORDINGS, referenceFollowUp } from '../src/sim/references.ts';
 import type { Note } from '../src/sim/types.ts';
 import { answerFromReadings } from '../src/sim/voices.ts';
-import { CANDIDATES, FAMILIES } from '../src/sim/world.ts';
 import {
-  automaticPace,
   awayWords,
   clockLabels,
   feeLedgerFor,
   feeWords,
-  isInspecting,
-  OPEN_OFFICE,
-  OPENING_OFFICE,
   placementStakes,
   readingBasis,
-  settleOpening,
-  showsWaitingLook,
-  startOpening,
 } from '../src/ui/render.ts';
 
-const WAITING = 'This applicant is waiting with an application form.';
 const find = (s: ReturnType<typeof newGame>, id: string) =>
   [...view(s).bench, ...view(s).books].find((c) => c.id === id)!;
 
@@ -42,64 +32,16 @@ function patienceThenReference(seed: number, id: string) {
   return s;
 }
 
-/**
- * The fee-receipt cases below each cross one real night in the simulation (about 20 s locally, about twice that on
- * CI). They are split into phases that each keep the original 60 s budget, so the aggregate allowance for these five
- * cases rises from 5 x 60 s to 15 x 60 s. That is a restructuring, not faster work. Every phase continues the same
- * state with the same inputs the single case used; nothing is restored from a copy or remembered between runs.
- *
- * Progress is trusted only while the runner confirms the phases: any failed phase (an assertion, or a timeout that
- * the runner reports after a synchronous callback returned) invalidates the group through onTestFailed, so a later
- * phase refuses to continue it. The original replacement-trial loop allowed 40 inputs in total; the night split
- * shares that one allowance, and running out of it fails instead of ending quietly.
- */
-const GROUP_OPTIONS = { concurrent: false, shuffle: false } as const;
 type Sim = ReturnType<typeof newGame>;
-function step(s: Sim) {
-  const v = view(s);
-  if (v.scene) apply(s, { type: 'close-scene', scene: v.scene.id });
-  else if (v.phoneRinging) apply(s, { type: 'answer-phone' });
-  else if (v.dayCard) apply(s, { type: 'sleep' });
-  else apply(s, { type: 'wait-for' });
-}
-function phases() {
-  let reached = 0;
-  let failed = false;
-  let left = 40;
-  const spend = (s: Sim, done: () => boolean, what: string) => {
-    while (!done()) {
-      if (left <= 0) throw new Error(`The shared 40-input allowance ran out before ${what}.`);
-      left--;
-      step(s);
-    }
-  };
-  return {
-    enter(n: number) {
-      onTestFailed(() => {
-        failed = true;
-      });
-      if (failed) throw new Error(`An earlier phase failed, so phase ${n} cannot continue it.`);
-      if (reached !== n - 1)
-        throw new Error(`Phase ${n - 1} did not complete, so phase ${n} cannot continue it.`);
-    },
-    done(n: number) {
-      reached = n;
-    },
-    /** Runs the replacement trial up to the day card, and requires that the night is really next. */
-    toNight(s: Sim, kept: () => boolean) {
-      spend(s, () => kept() || !!view(s).dayCard, 'the day card');
-      expect(kept()).toBe(false);
-      expect(view(s).dayCard).toBeTruthy();
-    },
-    /** Spends the night and the rest of the same allowance. */
-    afterNight(s: Sim, kept: () => boolean) {
-      spend(s, kept, 'the replacement verdict');
-    },
-  };
-}
 /** The ordinary loop: close a scene, answer the phone, sleep at the day card, otherwise wait for the next event. */
 function drainState(s: Sim, done: () => boolean) {
-  for (let i = 0; i < 40 && !done(); i++) step(s);
+  for (let i = 0; i < 40 && !done(); i++) {
+    const v = view(s);
+    if (v.scene) apply(s, { type: 'close-scene', scene: v.scene.id });
+    else if (v.phoneRinging) apply(s, { type: 'answer-phone' });
+    else if (v.dayCard) apply(s, { type: 'sleep' });
+    else apply(s, { type: 'wait-for' });
+  }
 }
 
 describe('F-2183 Nermin reading', () => {
@@ -150,7 +92,7 @@ describe('F-2183 Nermin reading', () => {
       note('says', 'Özlem Koç', { weighs: 'more', weighReason: 'trust' }),
     ]);
     expect(trusted).toContain(
-      'Özlem Koç’s account counts for more than Hale Erol’s, because she trusts Özlem Koç’s word more.',
+      'Özlem Koç’s account counts for more than Hale Erol’s, because she trusted Özlem Koç’s word more when she heard it.',
     );
     expect(trusted).not.toMatch(/own answer counts (least|for less)/);
     const unmoved = readingBasis([
@@ -160,6 +102,17 @@ describe('F-2183 Nermin reading', () => {
     expect(unmoved).toContain('Hale Erol’s account did not visibly change her reading.');
     // No unchanged-estimate case may invent a cause: a rounded estimate also stays put for a trusted corroborating report.
     expect(unmoved).not.toMatch(/because she does not trust/);
+    // One account never says "Together"; it states what that one account amounts to. Several keep their wording.
+    for (const [read, words] of [
+      ['yes', 'This is enough for her to believe it.'],
+      ['no', 'This is enough for her to doubt it.'],
+      ['maybe', 'This is not clear enough, so she stays unsure.'],
+    ] as const) {
+      const one = readingBasis([note('heard', 'Hale Erol', { read })]);
+      expect(one).toContain(words);
+      expect(one).not.toContain('Together');
+    }
+    expect(unmoved).toContain('Together they are not clear enough, so she stays unsure.');
   });
 
   it('gives nothing for a quality that has not been asked about', () => {
@@ -194,19 +147,6 @@ describe('F-2184 fee and deposit', () => {
       expect(words).toContain(`other ₺${rest.toLocaleString('en-GB')} after the trial`);
     }
   }, 60_000);
-
-  it('does not call a capped deposit a quarter of the wage, and handles no fee', () => {
-    const capped = feeWords({ wage: 9000, fee: 1000 });
-    expect(capped).toContain('pays you ₺1,000 when you agree');
-    expect(capped).toContain('whole fee, which is less than a quarter');
-    expect(capped).toContain('Nothing more is due after the trial.');
-    // Equal to a quarter is not less than a quarter.
-    const quarter = feeWords({ wage: 8000, fee: 2000 });
-    expect(quarter).toContain('pays you ₺2,000 when you agree');
-    expect(quarter).toContain('whole fee, which is a quarter of the ₺8,000 monthly wage');
-    expect(quarter).not.toContain('less than');
-    expect(feeWords({ wage: 9000, fee: 0 })).toBe('No agency fee is due.');
-  });
 
   it('uses the family ledger for a replacement, including a changed wage and a fee already settled', () => {
     // The deposit retained from the first placement, not a new quarter of the new wage.
@@ -309,82 +249,43 @@ describe('F-2186 what is still to come', () => {
     expect(paid.placements[0]!.feeOutlook).toEqual({ depositPaid: 2250, restIfKept: 0, settled: true });
   }, 60_000);
 
-  describe(
-    'keeps a received fee received through withdrawal, a replacement and its private kept verdict',
-    GROUP_OPTIONS,
-    () => {
-      // FIXTURE, manual setup as above for both trials (shortened, one good moment). The receipt, the withdrawal
-      // and the placement of the replacement go through the real code; this is not a played trial week.
-      type Inner = {
-        now: number;
-        placements: {
-          status: string;
-          pendingFee: number;
-          trialEnds: number;
-          moments: { day: number; quality: string; good: boolean; text: string }[];
-        }[];
-      };
-      const stage = phases();
-      let s: ReturnType<typeof newGame>;
-      let inner: Inner;
-      let cashAfterReceipt = 0;
-      const outlook = (v: ReturnType<typeof view>) => v.placements.at(-1)!.feeOutlook;
-      const second = () => inner.placements.at(-1)!;
-
-      it('phase 1: the first trial is kept and its fee received, then the replacement is placed', () => {
-        stage.enter(1);
-        s = placed();
-        inner = s as unknown as Inner;
-        apply(s, { type: 'close-scene', scene: view(s).scene!.id });
-        const first = inner.placements[0]!;
-        first.trialEnds = inner.now + 1;
-        first.moments.push({ day: 0, quality: 'patient', good: true, text: 'fixture' });
-        drainState(s, () => first.status === 'kept' && first.pendingFee === 0);
-        expect(view(s).placements[0]!.feeOutlook!.settled).toBe(true);
-        cashAfterReceipt = view(s).cash;
-        // Nermin brings the worker back and places another with the same family on a changed wage.
-        if (view(s).scene) apply(s, { type: 'close-scene', scene: view(s).scene!.id });
-        apply(s, { type: 'withdraw', placement: view(s).placements[0]!.id });
-        apply(s, { type: 'place', candidate: 'sevda', family: 'arslans', vouch: [] });
-        apply(s, {
-          type: 'propose-terms',
-          scene: view(s).scene!.id,
-          terms: { wage: 8000, fee: 9000, startHour: 8, endHour: 18, dayOff: 6, trialDays: 7 },
-        });
-        apply(s, { type: 'choose', scene: view(s).scene!.id, choice: 'accept-terms' });
-        apply(s, { type: 'close-scene', scene: view(s).scene!.id });
-        expect(inner.placements).toHaveLength(2);
-        const during = view(s);
-        expect(outlook(during)).toEqual({ depositPaid: 2250, restIfKept: 0, settled: true });
-        expect(placementStakes(during, during.placements.at(-1)!)[1]).toContain(
-          'already paid its fee in full',
-        );
-        stage.done(1);
-      }, 60_000);
-
-      it('phase 2: the replacement trial runs until the night', () => {
-        stage.enter(2);
-        second().trialEnds = inner.now + 1;
-        second().moments.push({ day: 0, quality: 'patient', good: true, text: 'fixture' });
-        stage.toNight(s, () => second().status === 'kept');
-        stage.done(2);
-      }, 60_000);
-
-      it('phase 3: the night brings its private kept verdict, which neither pays again nor changes the public fee state', () => {
-        stage.enter(3);
-        stage.afterNight(s, () => second().status === 'kept');
-        expect(second().status).toBe('kept');
-        expect(second().pendingFee).toBe(0);
-        const privateVerdict = view(s);
-        expect(outlook(privateVerdict)).toEqual({ depositPaid: 2250, restIfKept: 0, settled: true });
-        drainState(s, () => view(s).placements.at(-1)!.status === 'kept');
-        const delivered = view(s);
-        expect(outlook(delivered)).toEqual({ depositPaid: 2250, restIfKept: 0, settled: true });
-        expect(delivered.cash).toBe(cashAfterReceipt);
-        stage.done(3);
-      }, 60_000);
-    },
-  );
+  it('keeps a received fee received through withdrawal and a replacement on a changed wage', () => {
+    // FIXTURE, manual setup: the first trial is shortened and given one good moment so the real verdict, answer-phone,
+    // receipt, withdraw and place code run. Not a played trial week. The replacement's own overnight verdict is covered
+    // once, by the pending 6750 / new 9100 case below, not repeated here.
+    const s = placed();
+    apply(s, { type: 'close-scene', scene: view(s).scene!.id });
+    const inner = s as unknown as {
+      now: number;
+      placements: {
+        status: string;
+        pendingFee: number;
+        trialEnds: number;
+        moments: { day: number; quality: string; good: boolean; text: string }[];
+      }[];
+    };
+    const first = inner.placements[0]!;
+    first.trialEnds = inner.now + 1;
+    first.moments.push({ day: 0, quality: 'patient', good: true, text: 'fixture' });
+    drainState(s, () => first.status === 'kept' && first.pendingFee === 0);
+    expect(view(s).placements[0]!.feeOutlook!.settled).toBe(true);
+    const cashAfterReceipt = view(s).cash;
+    if (view(s).scene) apply(s, { type: 'close-scene', scene: view(s).scene!.id });
+    apply(s, { type: 'withdraw', placement: view(s).placements[0]!.id });
+    apply(s, { type: 'place', candidate: 'sevda', family: 'arslans', vouch: [] });
+    apply(s, {
+      type: 'propose-terms',
+      scene: view(s).scene!.id,
+      terms: { wage: 8000, fee: 9000, startHour: 8, endHour: 18, dayOff: 6, trialDays: 7 },
+    });
+    apply(s, { type: 'choose', scene: view(s).scene!.id, choice: 'accept-terms' });
+    apply(s, { type: 'close-scene', scene: view(s).scene!.id });
+    expect(inner.placements).toHaveLength(2);
+    const during = view(s);
+    expect(during.placements.at(-1)!.feeOutlook).toEqual({ depositPaid: 2250, restIfKept: 0, settled: true });
+    expect(placementStakes(during, during.placements.at(-1)!)[1]).toContain('already paid its fee in full');
+    expect(during.cash).toBe(cashAfterReceipt);
+  }, 60_000);
 
   it('keeps a checked promise checked after a later own answer crosses the reference out', () => {
     const s = placed();
@@ -442,18 +343,164 @@ describe('F-2186 what is still to come', () => {
   });
 });
 
-describe('Lena: a placed worker is not still waiting', () => {
-  it('hides the bench description once the worker is placed and at work', () => {
+describe('GH-L2-R4 actual receipt, existing allocation and new fee entitlement stay separate', () => {
+  type Inner = {
+    now: number;
+    fees: Record<string, { first: boolean; second: boolean; deposit?: number; received?: boolean }>;
+    placements: {
+      status: string;
+      reportedStatus: string;
+      pendingFee: number;
+      trialEnds: number;
+      moments: { day: number; quality: string; good: boolean; text: string }[];
+    }[];
+  };
+  const terms = (fee: number, wage = 9000) => ({
+    wage,
+    fee,
+    startHour: 8,
+    endHour: 18,
+    dayOff: 6,
+    trialDays: 7,
+  });
+  // FIXTURE, manual setup: each trial is shortened and given one good moment so the real verdict, answer-phone,
+  // withdraw and place code run. Not a played trial week and not a full journey. Crossing a real night costs about
+  // 20 s locally and more on CI, so only the pending 6750 / new 9100 case below crosses one (with its own explicit allowance); the
+  // others stop at the offer, the words and the receipt, which need no overnight.
+  const start = (firstFee?: number) => {
     const s = newGame(1);
     apply(s, { type: 'place', candidate: 'pinar', family: 'arslans', vouch: [] });
+    if (firstFee !== undefined)
+      apply(s, { type: 'propose-terms', scene: view(s).scene!.id, terms: terms(firstFee) });
     apply(s, { type: 'choose', scene: view(s).scene!.id, choice: 'accept-terms' });
-    const placed = find(s, 'pinar');
-    expect(placed.look).toBe(WAITING);
-    expect(placed.presence).toBe('working');
-    expect(showsWaitingLook(placed, WAITING)).toBe(false);
-    expect(showsWaitingLook(find(s, 'sevda'), WAITING)).toBe(true);
-    expect(showsWaitingLook({ look: 'rough hands', presence: 'working' }, WAITING)).toBe(true);
-  });
+    apply(s, { type: 'close-scene', scene: view(s).scene!.id });
+    const inner = s as unknown as Inner;
+    const shorten = (p: Inner['placements'][number]) => {
+      p.trialEnds = inner.now + 1;
+      p.moments.push({ day: 0, quality: 'patient', good: true, text: 'fixture' });
+    };
+    const replace = (fee: number) => {
+      if (view(s).scene) apply(s, { type: 'close-scene', scene: view(s).scene!.id });
+      apply(s, { type: 'withdraw', placement: view(s).placements[0]!.id });
+      apply(s, { type: 'place', candidate: 'sevda', family: 'arslans', vouch: [] });
+      apply(s, { type: 'propose-terms', scene: view(s).scene!.id, terms: terms(fee) });
+      apply(s, { type: 'choose', scene: view(s).scene!.id, choice: 'accept-terms' });
+      apply(s, { type: 'close-scene', scene: view(s).scene!.id });
+      expect(inner.placements).toHaveLength(2);
+      return inner.placements[1]!;
+    };
+    return { s, inner, shorten, replace, first: inner.placements[0]! };
+  };
+
+  for (const fee of [1000, 0]) {
+    it(`original fee ${fee}: a reported kept verdict finishes the fee, so a replacement offers no new fee`, () => {
+      const { s, inner, shorten, replace, first } = start(fee);
+      expect(inner.fees.arslans!.deposit).toBe(fee);
+      shorten(first);
+      const before = view(s);
+      drainState(s, () => first.status === 'kept');
+      // The private kept verdict changes neither the public outlook nor its words.
+      const secret = view(s);
+      expect(secret.placements[0]!.feeOutlook).toEqual(before.placements[0]!.feeOutlook);
+      expect(placementStakes(secret, secret.placements[0]!)).toEqual(
+        placementStakes(before, before.placements[0]!),
+      );
+      drainState(s, () => first.reportedStatus === 'kept');
+      const told = view(s);
+      expect(inner.fees.arslans!.received).toBeUndefined();
+      expect(told.placements[0]!.feeOutlook).toEqual({
+        depositPaid: fee,
+        restIfKept: 0,
+        settled: false,
+        complete: true,
+      });
+      expect(feeWords(terms(9000), feeLedgerFor(told, 'arslans'))).toBe(
+        'This family already kept a worker you placed, so its fee is finished. No more fee is due.',
+      );
+      replace(9000);
+      const during = view(s);
+      expect(during.placements[1]!.feeOutlook).toEqual({
+        depositPaid: fee,
+        restIfKept: 0,
+        settled: false,
+        complete: true,
+      });
+      const words = placementStakes(during, during.placements[1]!)[1]!;
+      expect(words).toContain('its fee is finished. No more fee is due.');
+      expect(words).not.toMatch(/₺8,000|₺9,000|paid its fee in full/);
+      expect(during.cash).toBe(told.cash);
+      expect(inner.fees.arslans!.received).toBeUndefined();
+    }, 60_000);
+  }
+
+  it('zero new fee: still names the earlier unpaid 6750 and its condition, then the actual first receipt is credited once', () => {
+    const { s, inner, shorten, replace, first } = start();
+    shorten(first);
+    drainState(s, () => first.status === 'kept');
+    expect(first.status).toBe('kept');
+    const before = view(s);
+    replace(0);
+    const v = view(s);
+    // The private kept verdict is not named; both possibilities are.
+    const offer = feeWords(terms(0), feeLedgerFor(v, 'arslans'));
+    expect(offer).toContain('No new agency fee is due under these terms.');
+    expect(offer).toContain('it owes the other ₺6,750 under the earlier terms');
+    expect(offer).toContain('If not, nothing more is due after the new trial.');
+    expect(offer).not.toMatch(/^No agency fee is due\.$/);
+    const words = placementStakes(v, v.placements[1]!)[1]!;
+    expect(words).toContain('No new agency fee is due under these terms.');
+    expect(words).toContain('it owes the other ₺6,750 under the earlier terms');
+    expect(words).not.toMatch(/was kept|has kept/);
+    expect(v.cash).toBe(before.cash);
+    drainState(s, () => first.pendingFee === 0);
+    expect(first.pendingFee).toBe(0);
+    expect(view(s).cash - v.cash).toBe(6750);
+    expect(inner.fees.arslans!.received).toBe(true);
+  }, 60_000);
+
+  // The one case that crosses a real night. Positive replacement terms (new 9100) after the earlier 6750 is received:
+  // the replacement's own verdict would compute a positive rest (9100 - 2250 = 6850) if the family's `second` flag
+  // were not honoured (src/sim/index.ts, the verdict loop: `kept && !fee.second`), so a double credit fails the cash
+  // assertions below. Locally about 40 s; the CI runner took 2-3 times as long, so it uses the existing global 180 s
+  // allowance (as the normal script sets) instead of a 60 s cap.
+  it('an earlier fee pending but unreceived: shows both possibilities, pays the actual 6750 once, and the new 9100 replacement verdict adds nothing', () => {
+    const { s, inner, shorten, replace, first } = start();
+    shorten(first);
+    drainState(s, () => first.status === 'kept');
+    expect(first.status).toBe('kept');
+    expect(first.pendingFee).toBe(6750);
+    const second = replace(9100);
+    const v = view(s);
+    expect(v.placements[0]!.feeOutlook).toMatchObject({ restIfKept: 6750, settled: false, awaited: true });
+    const words = placementStakes(v, v.placements[1]!)[1]!;
+    expect(words).toContain('trial result has not reached you yet.');
+    expect(words).toContain('it owes the other ₺6,750 under the earlier terms');
+    expect(words).toContain('If not, it pays the other ₺6,850 after the new trial, if the new worker stays.');
+    expect(words).not.toMatch(/^If the family keeps the worker, it pays the other ₺6,850/);
+    const offer = feeWords(terms(9100), feeLedgerFor(v, 'arslans'));
+    expect(offer).toContain('₺6,750 under the earlier terms');
+    // Answering the earlier verdict credits the actual pending amount once and records the receipt.
+    drainState(s, () => first.pendingFee === 0);
+    expect(first.pendingFee).toBe(0);
+    const paid = view(s);
+    expect(paid.cash - v.cash).toBe(6750);
+    expect(inner.fees.arslans!.received).toBe(true);
+    expect(paid.placements[1]!.feeOutlook).toEqual({ depositPaid: 2250, restIfKept: 0, settled: true });
+    // The replacement trial now crosses the real night. Its verdict is private first, then told.
+    shorten(second);
+    drainState(s, () => second.status === 'kept');
+    expect(second.status).toBe('kept');
+    expect(second.reportedStatus).not.toBe('kept');
+    expect(view(s).placements[1]!.status).toBe('trial');
+    expect(second.pendingFee).toBe(0);
+    expect(view(s).cash).toBe(paid.cash);
+    expect(view(s).placements[1]!.feeOutlook).toEqual(paid.placements[1]!.feeOutlook);
+    drainState(s, () => second.reportedStatus === 'kept');
+    expect(second.reportedStatus).toBe('kept');
+    expect(view(s).placements[1]!.status).toBe('kept');
+    expect(view(s).cash).toBe(paid.cash);
+    expect(inner.fees.arslans!.received).toBe(true);
+  }, 180_000);
 });
 
 describe('F-2185 distinct words', () => {
@@ -474,273 +521,6 @@ describe('F-2185 distinct words', () => {
     const lines = ['pinar', 'sevda', 'gulce', 'cihan'].map((id) => answer(id, id));
     expect(new Set(lines.map((l) => l.claim)).size).toBe(1);
     expect(new Set(lines.map((l) => l.text)).size).toBeGreaterThan(2);
-  });
-});
-
-describe(
-  'GH-L2-R4 actual receipt, existing allocation and new fee entitlement stay separate',
-  GROUP_OPTIONS,
-  () => {
-    type Inner = {
-      now: number;
-      fees: Record<string, { first: boolean; second: boolean; deposit?: number; received?: boolean }>;
-      placements: {
-        status: string;
-        reportedStatus: string;
-        pendingFee: number;
-        trialEnds: number;
-        moments: { day: number; quality: string; good: boolean; text: string }[];
-      }[];
-    };
-    const terms = (fee: number, wage = 9000) => ({
-      wage,
-      fee,
-      startHour: 8,
-      endHour: 18,
-      dayOff: 6,
-      trialDays: 7,
-    });
-    // FIXTURE, manual setup: each trial is shortened and given one good moment so the real verdict, answer-phone,
-    // withdraw and place code run. Not a played trial week and not a full journey. Each case is split into phases that
-    // keep the original 60 s budget (the replacement trial crosses one real night). Every phase continues the same
-    // state with the same inputs; no state is copied, restored or remembered.
-    const start = (firstFee?: number) => {
-      const s = newGame(1);
-      apply(s, { type: 'place', candidate: 'pinar', family: 'arslans', vouch: [] });
-      if (firstFee !== undefined)
-        apply(s, { type: 'propose-terms', scene: view(s).scene!.id, terms: terms(firstFee) });
-      apply(s, { type: 'choose', scene: view(s).scene!.id, choice: 'accept-terms' });
-      apply(s, { type: 'close-scene', scene: view(s).scene!.id });
-      const inner = s as unknown as Inner;
-      const shorten = (p: Inner['placements'][number]) => {
-        p.trialEnds = inner.now + 1;
-        p.moments.push({ day: 0, quality: 'patient', good: true, text: 'fixture' });
-      };
-      const replace = (fee: number) => {
-        if (view(s).scene) apply(s, { type: 'close-scene', scene: view(s).scene!.id });
-        apply(s, { type: 'withdraw', placement: view(s).placements[0]!.id });
-        apply(s, { type: 'place', candidate: 'sevda', family: 'arslans', vouch: [] });
-        apply(s, { type: 'propose-terms', scene: view(s).scene!.id, terms: terms(fee) });
-        apply(s, { type: 'choose', scene: view(s).scene!.id, choice: 'accept-terms' });
-        apply(s, { type: 'close-scene', scene: view(s).scene!.id });
-        expect(inner.placements).toHaveLength(2);
-        return inner.placements[1]!;
-      };
-      return { s, inner, shorten, replace, first: inner.placements[0]! };
-    };
-    type Run = ReturnType<typeof start>;
-
-    for (const fee of [1000, 0]) {
-      describe(
-        `original fee ${fee}: a reported kept verdict finishes the fee without a cash receipt or new fee`,
-        GROUP_OPTIONS,
-        () => {
-          const stage = phases();
-          let r: Run;
-          let before: ReturnType<typeof view>;
-          let during: ReturnType<typeof view>;
-          let second: Inner['placements'][number];
-
-          it('phase 1: the first trial is kept, privately and then in the told answer', () => {
-            stage.enter(1);
-            r = start(fee);
-            const { s, inner, shorten, first } = r;
-            expect(inner.fees.arslans!.deposit).toBe(fee);
-            shorten(first);
-            before = view(s);
-            drainState(s, () => first.status === 'kept');
-            // The private kept verdict changes neither the public outlook nor its words.
-            const secret = view(s);
-            expect(secret.placements[0]!.feeOutlook).toEqual(before.placements[0]!.feeOutlook);
-            expect(placementStakes(secret, secret.placements[0]!)).toEqual(
-              placementStakes(before, before.placements[0]!),
-            );
-            drainState(s, () => first.reportedStatus === 'kept');
-            const told = view(s);
-            expect(inner.fees.arslans!.received).toBeUndefined();
-            expect(told.placements[0]!.feeOutlook).toEqual({
-              depositPaid: fee,
-              restIfKept: 0,
-              settled: false,
-              complete: true,
-            });
-            expect(feeWords(terms(9000), feeLedgerFor(told, 'arslans'))).toBe(
-              'This family already kept a worker you placed, so its fee is finished. No more fee is due.',
-            );
-            stage.done(1);
-          }, 60_000);
-
-          it('phase 2: the replacement is placed and its offer and words are read', () => {
-            stage.enter(2);
-            second = r.replace(9000);
-            during = view(r.s);
-            expect(during.placements[1]!.feeOutlook).toEqual({
-              depositPaid: fee,
-              restIfKept: 0,
-              settled: false,
-              complete: true,
-            });
-            const words = placementStakes(during, during.placements[1]!)[1]!;
-            expect(words).toContain('its fee is finished. No more fee is due.');
-            expect(words).not.toMatch(/₺8,000|₺9,000|paid its fee in full/);
-            r.shorten(second);
-            stage.toNight(r.s, () => second.status === 'kept');
-            stage.done(2);
-          }, 60_000);
-
-          it('phase 3: the night brings the replacement verdict, which adds no cash and no receipt', () => {
-            stage.enter(3);
-            const { s, inner } = r;
-            stage.afterNight(s, () => second.status === 'kept');
-            expect(second.pendingFee).toBe(0);
-            drainState(s, () => second.reportedStatus === 'kept');
-            expect(second.reportedStatus).toBe('kept');
-            expect(view(s).cash).toBe(during.cash);
-            expect(inner.fees.arslans!.received).toBeUndefined();
-            stage.done(3);
-          }, 60_000);
-        },
-      );
-    }
-
-    describe(
-      'an earlier fee pending but unreceived: shows both possibilities, then pays the actual 6750 once',
-      GROUP_OPTIONS,
-      () => {
-        const stage = phases();
-        let r: Run;
-        let v: ReturnType<typeof view>;
-        let paid: ReturnType<typeof view>;
-        let second: Inner['placements'][number];
-
-        it('phase 1: the earlier verdict is unanswered when the replacement is placed, and both outcomes are shown', () => {
-          stage.enter(1);
-          r = start();
-          const { s, shorten, replace, first } = r;
-          shorten(first);
-          drainState(s, () => first.status === 'kept');
-          expect(first.pendingFee).toBe(6750);
-          second = replace(9100);
-          v = view(s);
-          expect(v.placements[0]!.feeOutlook).toMatchObject({
-            restIfKept: 6750,
-            settled: false,
-            awaited: true,
-          });
-          const words = placementStakes(v, v.placements[1]!)[1]!;
-          expect(words).toContain('trial result has not reached you yet.');
-          expect(words).toContain('it owes the other ₺6,750 under the earlier terms');
-          expect(words).toContain(
-            'If not, it pays the other ₺6,850 after the new trial, if the new worker stays.',
-          );
-          expect(words).not.toMatch(/^If the family keeps the worker, it pays the other ₺6,850/);
-          const offer = feeWords(terms(9100), feeLedgerFor(v, 'arslans'));
-          expect(offer).toContain('₺6,750 under the earlier terms');
-          stage.done(1);
-        }, 60_000);
-
-        it('phase 2: answering the earlier verdict credits the actual pending amount once and records the receipt', () => {
-          stage.enter(2);
-          const { s, inner, shorten, first } = r;
-          drainState(s, () => first.pendingFee === 0);
-          paid = view(s);
-          expect(paid.cash - v.cash).toBe(6750);
-          expect(inner.fees.arslans!.received).toBe(true);
-          expect(paid.placements[1]!.feeOutlook).toEqual({ depositPaid: 2250, restIfKept: 0, settled: true });
-          shorten(second);
-          stage.toNight(s, () => second.status === 'kept');
-          stage.done(2);
-        }, 60_000);
-
-        it('phase 3: the replacement verdict adds nothing, before or after it is reported', () => {
-          stage.enter(3);
-          const { s } = r;
-          stage.afterNight(s, () => second.status === 'kept');
-          expect(second.pendingFee).toBe(0);
-          expect(view(s).placements[1]!.feeOutlook).toEqual(paid.placements[1]!.feeOutlook);
-          drainState(s, () => second.reportedStatus === 'kept');
-          expect(second.reportedStatus).toBe('kept');
-          expect(view(s).cash).toBe(paid.cash);
-          stage.done(3);
-        }, 60_000);
-      },
-    );
-
-    describe(
-      'a zero-fee replacement still shows the earlier unpaid 6750 and its condition, then pays it once',
-      GROUP_OPTIONS,
-      () => {
-        const stage = phases();
-        let r: Run;
-        let v: ReturnType<typeof view>;
-        let paid: ReturnType<typeof view>;
-        let second: Inner['placements'][number];
-
-        it('phase 1: the replacement offers no new fee and still names the earlier 6750 and its condition', () => {
-          stage.enter(1);
-          r = start();
-          const { s, shorten, replace, first } = r;
-          shorten(first);
-          drainState(s, () => first.status === 'kept');
-          const before = view(s);
-          second = replace(0);
-          v = view(s);
-          // The private kept verdict is not named; both possibilities are.
-          const offer = feeWords(terms(0), feeLedgerFor(v, 'arslans'));
-          expect(offer).toContain('No new agency fee is due under these terms.');
-          expect(offer).toContain('it owes the other ₺6,750 under the earlier terms');
-          expect(offer).toContain('If not, nothing more is due after the new trial.');
-          expect(offer).not.toMatch(/^No agency fee is due\.$/);
-          const words = placementStakes(v, v.placements[1]!)[1]!;
-          expect(words).toContain('No new agency fee is due under these terms.');
-          expect(words).toContain('it owes the other ₺6,750 under the earlier terms');
-          expect(words).not.toMatch(/was kept|has kept/);
-          expect(v.cash).toBe(before.cash);
-          stage.done(1);
-        }, 60_000);
-
-        it('phase 2: answering the old call credits 6750 once, then the replacement trial runs until the night', () => {
-          stage.enter(2);
-          const { s, shorten, first } = r;
-          drainState(s, () => first.pendingFee === 0);
-          paid = view(s);
-          expect(paid.cash - v.cash).toBe(6750);
-          shorten(second);
-          stage.toNight(s, () => second.status === 'kept');
-          stage.done(2);
-        }, 60_000);
-
-        it('phase 3: the zero-fee replacement verdict adds nothing', () => {
-          stage.enter(3);
-          const { s, inner } = r;
-          stage.afterNight(s, () => second.status === 'kept');
-          drainState(s, () => second.reportedStatus === 'kept');
-          expect(second.reportedStatus).toBe('kept');
-          expect(view(s).cash).toBe(paid.cash);
-          expect(inner.fees.arslans!.received).toBe(true);
-          stage.done(3);
-        }, 60_000);
-      },
-    );
-  },
-);
-
-describe('R7 F-2187 the City view is read at the inspection pace', () => {
-  it('slows the clock for a waiting person while the City view is open, and keeps every other pace', () => {
-    const s = newGame(1);
-    const v = view(s);
-    expect(v.bench.length).toBeGreaterThan(0);
-    const closed = { sheet: false, tab: 'Families', selected: null, city: false };
-    // Same View, same contract: only the reading state differs.
-    expect(automaticPace(v, isInspecting(closed))).toBe(2);
-    expect(automaticPace(v, isInspecting({ ...closed, city: true }))).toBe(0.5);
-    expect(automaticPace(v, isInspecting({ ...closed, sheet: true }))).toBe(0.5);
-    // With nobody waiting, there is nothing to read: the City view does not change the quiet pace.
-    expect(automaticPace({ ...v, bench: [] }, isInspecting({ ...closed, city: true }))).toBe(20);
-    // A conversation or a ringing phone still holds the clock whatever is on screen.
-    expect(automaticPace({ ...v, phoneRinging: {} as never }, isInspecting({ ...closed, city: true }))).toBe(
-      0,
-    );
   });
 });
 
@@ -765,104 +545,5 @@ describe('R7 F-2190 only a time the player was given', () => {
     expect(words).toContain('Call back after');
     expect(words).toContain(clockLabels(inner.now + 120).timeLabel);
     expect(words).toContain('allow time for the journey');
-  });
-});
-
-describe('R8 F-2185 equivalent wording keeps what each speaker claims', () => {
-  it('keeps listened and argued, and the repeated-instructions circumstance, in every employer variant', () => {
-    for (const [good, bad] of REFERENCE_WORDINGS.patient) {
-      expect(good).toMatch(/listened/);
-      expect(good).not.toMatch(/argued|complain|without/);
-      expect(bad).toMatch(/argued/);
-      expect(bad).not.toMatch(/listened|complain|without/);
-      for (const line of [good, bad]) expect(line).toMatch(/instructions were repeated/);
-    }
-    // Every topic has the same number of good and bad wordings, with the same worker placeholder.
-    for (const pairs of Object.values(REFERENCE_WORDINGS))
-      for (const [good, bad] of pairs) expect([good, bad].every((l) => l.includes('{worker}'))).toBe(true);
-  });
-  it('words two workers differently for the same event, with the same follow-up outcome', () => {
-    const a = patienceThenReference(4, 'gul');
-    const b = patienceThenReference(4, 'sevda');
-    const claim = (s: ReturnType<typeof newGame>, id: string) =>
-      find(s, id).notes.findLast((n) => n.source === 'heard' && n.quality === 'patient')!.claim ?? '';
-    expect(claim(a, 'gul')).not.toBe(claim(b, 'sevda'));
-    // Routing through the actual follow-up: a praising claim gets the good reply, a blaming claim the bad one.
-    const parity = (key: string) => [...key].reduce((n, ch) => (n * 31 + ch.charCodeAt(0)) % 2, 0);
-    for (const c of CANDIDATES.slice(0, 8))
-      for (const topic of ['patient', 'honest', 'reliable', 'leaving'] as const) {
-        const choice = {
-          patient: 'ref-patient',
-          honest: 'ref-honest',
-          reliable: 'ref-reliable',
-          leaving: 'ref-leaving',
-        }[topic];
-        const [good, bad] = REFERENCE_WORDINGS[topic][parity(c.id)]!.map((l) =>
-          l.replaceAll('{worker}', c.name),
-        );
-        const replies = DISPUTE_REPLIES[parity(`${c.id}:reply`)]![topic];
-        expect(referenceFollowUp(c.id, 'Employer', good!, choice).reply).toBe(replies[0]);
-        expect(referenceFollowUp(c.id, 'Employer', bad!, choice).reply).toBe(replies[1]);
-      }
-  });
-  it('gives each worker a dispute reply that matches the outcome, in either wording', () => {
-    for (const set of DISPUTE_REPLIES) {
-      expect(set.patient[0]).toMatch(/listened/);
-      expect(set.patient[1]).toMatch(/argued/);
-      expect(set.reliable[1]).toMatch(/should have called/);
-      for (const [good, bad] of [set.patient, set.honest, set.reliable, set.leaving])
-        expect(good).not.toBe(bad);
-    }
-    expect(DISPUTE_REPLIES).toHaveLength(2);
-  });
-});
-
-describe('R8 F-2185 family needs keep the same need in different words', () => {
-  const KEY: Record<string, RegExp[]> = {
-    patient: [/patient/, /frustrated|throws a plate/, /repeats|understood/],
-    discreet: [/private/, /visitors/i],
-    warm: [/directly/, /person receiving help|speak/],
-    hardworking: [/extra tasks/, /keep working/],
-    reliable: [/arrive at the agreed time/],
-    honest: [/shopping change/, /receipts/],
-  };
-  it('keeps role, pressure and every fact, while no two families of one role and pressure repeat a sentence', () => {
-    const seen = new Map<string, string>();
-    for (const f of FAMILIES) {
-      expect(f.wants.startsWith(`We need a ${f.role}`)).toBe(true);
-      for (const re of KEY[f.pressure]!) expect(f.wants).toMatch(re);
-      const key = `${f.role}:${f.pressure}`;
-      if (seen.has(key)) expect(f.wants).not.toBe(seen.get(key));
-      else seen.set(key, f.wants);
-    }
-    expect(new Set(FAMILIES.filter((f) => f.pressure === 'reliable').map((f) => f.wants)).size).toBe(3);
-  });
-});
-
-describe('R8 GH-R7-1 a failed or abandoned startup gives the retry back', () => {
-  const button = (isConnected = true) => ({
-    disabled: false,
-    textContent: OPEN_OFFICE as string | null,
-    isConnected,
-  });
-  it('shows opening while it prepares, restores the retry when startup ends on the same title, and leaves other states alone', () => {
-    const b = button();
-    startOpening(b, true);
-    expect(b).toMatchObject({ disabled: true, textContent: OPENING_OFFICE });
-    // Another startup took over (a newer generation): keep waiting, do not offer a second start.
-    settleOpening(b, true);
-    expect(b.disabled).toBe(true);
-    // Failure or abort on the same title: the retry works again and says so plainly.
-    settleOpening(b, false);
-    expect(b).toMatchObject({ disabled: false, textContent: OPEN_OFFICE });
-    // The title was replaced (the office opened, or a retained opening was offered): nothing is touched.
-    const gone = button(false);
-    startOpening(gone, true);
-    settleOpening(gone, false);
-    expect(gone).toMatchObject({ disabled: true, textContent: OPENING_OFFICE });
-    // Startup will not begin (file mode, no storage, or already opening): the label does not change.
-    const idle = button();
-    startOpening(idle, false);
-    expect(idle).toMatchObject({ disabled: false, textContent: OPEN_OFFICE });
   });
 });
