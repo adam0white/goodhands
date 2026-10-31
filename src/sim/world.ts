@@ -491,8 +491,7 @@ export const FAMILIES: Family[] = [
     pressureWords: 'A frustrated household member repeats the instructions.',
     role: 'nanny',
     wage: 9000,
-    wants:
-      'We need a nanny for the agreed hours. One of us gets frustrated and repeats instructions, so the worker must be patient.',
+    wants: 'For the morning routine, we need a nanny who will give Elif time to choose her clothes.',
     arrives: 510,
     deadline: 1920,
     x: 0.22,
@@ -549,8 +548,7 @@ export const FAMILIES: Family[] = [
     pressureWords: 'A visitor asks about private household business.',
     role: 'driver',
     wage: 8500,
-    wants:
-      'We need a driver for the agreed hours. Visitors sometimes ask about our private affairs. The worker must keep those matters private.',
+    wants: 'We need a driver who will keep the addresses on our journey list private.',
     arrives: 840,
     deadline: 4800,
     x: 0.49,
@@ -578,8 +576,7 @@ export const FAMILIES: Family[] = [
     pressureWords: 'The person receiving help wants to be addressed directly.',
     role: 'carer',
     wage: 9500,
-    wants:
-      'We need a carer for the agreed hours. The person receiving help wants the worker to speak directly to that person.',
+    wants: 'We need a carer who will ask Nihal which activity she would like to do.',
     arrives: 6360,
     deadline: 10560,
     x: 0.29,
@@ -607,8 +604,7 @@ export const FAMILIES: Family[] = [
     pressureWords: 'The household asks for extra tasks.',
     role: 'nanny',
     wage: 10000,
-    wants:
-      'We need a nanny for the agreed hours. We sometimes ask for extra tasks, so we need someone who can keep working.',
+    wants: 'During the agreed childcare hours, we need a nanny to help clear away Defne’s craft materials.',
     arrives: 7800,
     deadline: 12000,
     x: 0.28,
@@ -636,7 +632,7 @@ export const FAMILIES: Family[] = [
     pressureWords: 'The household needs the worker to arrive at the agreed time.',
     role: 'driver',
     wage: 9000,
-    wants: 'We need a driver for the agreed hours. We need the worker to arrive at the agreed time.',
+    wants: 'We need a driver ready at the agreed time for Sema’s morning appointment.',
     arrives: 10620,
     deadline: 13320,
     x: 0.67,
@@ -664,8 +660,7 @@ export const FAMILIES: Family[] = [
     pressureWords: 'The worker must check the shopping change against the receipts.',
     role: 'cook',
     wage: 9500,
-    wants:
-      'We need a cook for the agreed hours. We need the worker to check the shopping change against the receipts.',
+    wants: 'We need a cook who will show us the receipts and return the shopping change.',
     arrives: 12180,
     deadline: 14940,
     x: 0.85,
@@ -693,8 +688,7 @@ export const FAMILIES: Family[] = [
     pressureWords: 'A frustrated household member repeats the instructions.',
     role: 'carer',
     wage: 9000,
-    wants:
-      'We need a carer for the agreed hours. One of us gets frustrated and repeats instructions. The worker must be patient.',
+    wants: 'We need a carer who will help Leman work through a shopping list, one item at a time.',
     arrives: 13560,
     deadline: 16320,
     x: 0.24,
@@ -722,8 +716,7 @@ export const FAMILIES: Family[] = [
     pressureWords: 'The person receiving help wants to be addressed directly.',
     role: 'nanny',
     wage: 9000,
-    wants:
-      'We need a nanny for the agreed hours. The person receiving help wants to be spoken to directly by the worker.',
+    wants: 'We need a nanny who will ask İdil which picture book she would like.',
     arrives: 15060,
     deadline: 17760,
     x: 0.54,
@@ -751,8 +744,7 @@ export const FAMILIES: Family[] = [
     pressureWords: 'The household asks for extra tasks.',
     role: 'housekeeper',
     wage: 8500,
-    wants:
-      'We need a housekeeper for the agreed hours. We sometimes ask for extra tasks, so the worker must be able to keep working.',
+    wants: 'We need a housekeeper to put away the washing during the agreed hours.',
     arrives: 16440,
     deadline: 20700,
     x: 0.73,
@@ -780,7 +772,8 @@ export const FAMILIES: Family[] = [
     pressureWords: 'The household needs the worker to arrive at the agreed time.',
     role: 'driver',
     wage: 9500,
-    wants: 'We need a driver for the agreed hours. The worker must arrive at the agreed time.',
+    wants:
+      'We need a driver who will confirm our collection time before setting out for Sibel’s afternoon journey.',
     arrives: 20700,
     deadline: 23460,
     x: 0.18,
@@ -809,7 +802,7 @@ export const FAMILIES: Family[] = [
     role: 'housekeeper',
     wage: 8500,
     wants:
-      'We need a housekeeper for the agreed hours. The worker must check the shopping change against the receipts.',
+      'We need a housekeeper who will tell us if a cleaning item is broken, rather than put it back as though nothing happened.',
     arrives: 22200,
     deadline: 25020,
     x: 0.8,
@@ -837,8 +830,7 @@ export const FAMILIES: Family[] = [
     pressureWords: 'A frustrated household member repeats the instructions.',
     role: 'nanny',
     wage: 10500,
-    wants:
-      'We need a nanny for the agreed hours. The worker must be patient, because one of us gets frustrated and repeats instructions.',
+    wants: 'We need a nanny who will give Eylül time to put away her toys herself.',
     arrives: 23640,
     deadline: 26400,
     x: 0.35,
@@ -866,8 +858,7 @@ export const FAMILIES: Family[] = [
     pressureWords: 'A visitor asks about private household business.',
     role: 'cook',
     wage: 10000,
-    wants:
-      'We need a cook for the agreed hours. The worker must keep our private affairs private when visitors ask about them.',
+    wants: 'We need a cook who will keep conversations heard at our kitchen table private.',
     arrives: 26580,
     deadline: 30780,
     x: 0.46,
@@ -895,8 +886,7 @@ export const FAMILIES: Family[] = [
     pressureWords: 'The person receiving help wants to be addressed directly.',
     role: 'carer',
     wage: 9500,
-    wants:
-      'We need a carer for the agreed hours. The worker must speak directly to the person receiving help, who wants that.',
+    wants: 'We need a carer who will ask Şükran where she would like to sit.',
     arrives: 30840,
     deadline: 33600,
     x: 0.64,
@@ -924,7 +914,8 @@ export const FAMILIES: Family[] = [
     pressureWords: 'The household needs the worker to arrive at the agreed time.',
     role: 'driver',
     wage: 10000,
-    wants: 'We need a driver for the agreed hours, and the worker must arrive at the agreed time.',
+    wants:
+      'During the agreed hours, we need a driver who will wait at the agreed pickup point for Filiz’s journey home.',
     arrives: 33720,
     deadline: 36480,
     x: 0.3,
