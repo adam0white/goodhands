@@ -1,3 +1,9 @@
+# Original household requests — source candidate 2026-10-31
+
+GH-ON-1 correction extends the candidate to the automated public-request policy parser and a focused control. The same independent reviewer must follow up; future exact-source Opus review remains. No simulation rule or household text changed by this correction.
+
+What remains: independent Code review with a game-design lens, future exact-source Opus review, root integration, normal exact-commit CI and delivery checks, and Adam’s separate play acceptance. This uncommitted candidate changes fifteen prospective family requests; Kaya is unchanged. It adds no household task or numerical rule. The dated Deferred asks below stay open, including Kaya identity/timing and Hülya taste. No third panel. Tests and limits are recorded in `~/code/.lab-scratch/games-deferred/restart-goodhands-original-needs-candidate.md`; a headless control is not browser, native, shelf or player proof. Nothing is claimed delivered or fixed.
+
 # Retest 2 integration — 2026-10-31 (documentation only)
 
 What remains for the game: the dated Deferred asks in docs/design.md stay open. This record finishes the player loop when integrated, under the owner's two-iteration rule. It preserves five complete conditional returns, fifteen ranked asks and the dated unranked leads. No third panel is planned. Technical delivery checks and Adam's acceptance are separate from that rule. Source review and CI receipts for this two-file record are kept by the director. The tested runtime d9dd8e0/HF4.8.1 is unchanged, and this documentation edit needs no new deployment. Canonical import into the HF repo waits for a combined batch.

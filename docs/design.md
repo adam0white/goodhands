@@ -209,6 +209,12 @@ New months use simulation 3. Simulations 1 and 2 retain their shipped rules and 
 
 **Phone stage (DL-15, DL-22, DL-24).** Lab kit 0.2.0 supplies the viewport stage. The state strip shows the day, clock and speed, cash and rent, and who is waiting. The office remains above a single sheet; desktop docks the sheet beside it. Secondary questions and long notes have labelled disclosures. Inspection and conversation keep time moving slowly; the game menu and notebook send dialog may stop it.
 
+## Original household requests: source candidate (2026-10-31)
+
+GH-ON-1 correction extends this candidate to the automated public-request policy parser and a focused control. It uses public wording, not hidden actor data. The same independent reviewer must follow up; future exact-source Opus review remains.
+
+Uncommitted and unreviewed: fifteen families state distinct prospective requests in current source; Kaya's request and plate account stay unchanged. These are household intentions, not completed tasks or restored histories. Existing quality checks, actor identities, timings, consent and numerical rules are unchanged. No new task simulation is claimed. Headless evidence and its limits are in `~/code/.lab-scratch/games-deferred/restart-goodhands-original-needs-candidate.md`. Independent Code review and future exact-source Opus review remain, followed by the normal delivery and separate Adam acceptance gates. Existing dated asks and source words below remain open. No third panel.
+
 ## Deferred
 
 - **Retest 2 (LIGHT round goodhands-retest2, 2026-10-31): player-loop closure record, returns F-2611–F-2615 and asks F-2616–F-2630.** The round ran on the live build d9dd8e0f27f8efee2abeda2fc32e9b8bdd7c0884 (HF4.8.1, app 0.1.0, clean release) with the same four standing testers plus one new cold tester. This is the second fix-and-retest iteration overall; retest 1 was the first, so under the owner's two-iteration rule the player loop is FINISHED when this dated record is integrated. The fifteen asks below stay OPEN with their dates; closing the loop does not fix or accept anything.

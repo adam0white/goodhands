@@ -15,13 +15,14 @@ import * as historical from '../src/sim/v6/index.ts';
 export type Policy = 'careful' | 'reckless' | 'cunning';
 export const MONTH_END = 27 * 1440 + 1140;
 
-function pressure(request: RequestView): Quality {
+export function pressure(request: RequestView): Quality {
   const words = request.wants.toLowerCase();
-  if (/private|conversation|herself|business|discreet/.test(words)) return 'discreet';
+  if (/private|conversation|business|discreet|keep[^.!?]*to herself/.test(words)) return 'discreet';
   if (/trust|money|straight/.test(words)) return 'honest';
   if (/six|timetable|write|door|early|school.*gate/.test(words)) return 'reliable';
   if (/busy|clean|laundry|washing|eight for lunch/.test(words)) return 'hardworking';
-  if (/talk|person|know people/.test(words)) return 'warm';
+  if (/talk|person|know people|ask\b[^.!?]*\b(?:which|where)\b[^.!?]*\bwould like\b/.test(words))
+    return 'warm';
   return request.role === 'driver'
     ? 'reliable'
     : request.role === 'cook' || request.role === 'housekeeper'
